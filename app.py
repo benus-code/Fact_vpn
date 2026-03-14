@@ -62,31 +62,38 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated
 
-# ─── WireGuard helpers ────────────────────────────────────────────────────────
-def wg_disable_peer(public_key):
-    """Retire un peer de l'interface WireGuard (coupe l'accès)."""
+# ─── iptables helpers ─────────────────────────────────────────────────────────
+def iptables_block_peer(ip_vpn):
+    """Bloque le trafic d'un peer par son IP VPN (iptables DROP).
+    La config WireGuard reste intacte : le peer peut être réactivé sans reconfiguration."""
+    ip = ip_vpn.split("/")[0]
     try:
         subprocess.run(
-            ["docker", "exec", CONTAINER, "wg", "set", WG_INTERFACE,
-             "peer", public_key, "remove"],
+            ["docker", "exec", CONTAINER, "iptables", "-I", "FORWARD", "-s", ip, "-j", "DROP"],
+            check=True, capture_output=True
+        )
+        subprocess.run(
+            ["docker", "exec", CONTAINER, "iptables", "-I", "FORWARD", "-d", ip, "-j", "DROP"],
             check=True, capture_output=True
         )
         return True
     except subprocess.CalledProcessError as e:
-        app.logger.error(f"wg_disable_peer failed: {e.stderr}")
+        app.logger.error(f"iptables_block_peer failed: {e.stderr}")
         return False
 
-def wg_enable_peer(public_key, ip_vpn, preshared_key=None):
-    """Réactive un peer (après paiement validé)."""
-    ip_cidr = ip_vpn if "/" in ip_vpn else ip_vpn + "/32"
-    cmd = ["docker", "exec", CONTAINER, "wg", "set", WG_INTERFACE,
-           "peer", public_key, "allowed-ips", ip_cidr]
-    try:
-        subprocess.run(cmd, check=True, capture_output=True)
-        return True
-    except subprocess.CalledProcessError as e:
-        app.logger.error(f"wg_enable_peer failed: {e.stderr}")
-        return False
+def iptables_unblock_peer(ip_vpn):
+    """Réactive un peer en supprimant les règles DROP (ignoré si déjà absent)."""
+    ip = ip_vpn.split("/")[0]
+    ok = True
+    for direction in ["-s", "-d"]:
+        try:
+            subprocess.run(
+                ["docker", "exec", CONTAINER, "iptables", "-D", "FORWARD", direction, ip, "-j", "DROP"],
+                check=True, capture_output=True
+            )
+        except subprocess.CalledProcessError:
+            pass  # règle absente = peer déjà débloqué, pas d'erreur
+    return ok
 
 # ─── Routes publiques ─────────────────────────────────────────────────────────
 @app.route("/")
@@ -255,7 +262,7 @@ def admin_ajouter_paiement():
     peers = db.execute("SELECT * FROM peers WHERE user_id = ?", (uid,)).fetchall()
     for peer in peers:
         if not peer["actif"]:
-            wg_enable_peer(peer["public_key"], peer["ip_vpn"])
+            iptables_unblock_peer(peer["ip_vpn"])
             db.execute("UPDATE peers SET actif = 1 WHERE id = ?", (peer["id"],))
 
     db.commit()
@@ -270,10 +277,10 @@ def admin_suspendre_peer(peer_id):
     db   = get_db()
     peer = db.execute("SELECT * FROM peers WHERE id = ?", (peer_id,)).fetchone()
     if peer:
-        ok = wg_disable_peer(peer["public_key"])
+        ok = iptables_block_peer(peer["ip_vpn"])
         db.execute("UPDATE peers SET actif = 0 WHERE id = ?", (peer_id,))
         db.commit()
-        flash(f"Peer {peer['label']} ({peer['ip_vpn']}) suspendu {'✅' if ok else '⚠ (erreur WG)'}.", "warning")
+        flash(f"Peer {peer['label']} ({peer['ip_vpn']}) suspendu {'✅' if ok else '⚠ (erreur iptables)'}.", "warning")
     return redirect(request.referrer or url_for("admin_panel"))
 
 @app.route("/admin/peer/reactiver/<int:peer_id>", methods=["POST"])
@@ -283,10 +290,10 @@ def admin_reactiver_peer(peer_id):
     db   = get_db()
     peer = db.execute("SELECT * FROM peers WHERE id = ?", (peer_id,)).fetchone()
     if peer:
-        ok = wg_enable_peer(peer["public_key"], peer["ip_vpn"])
+        ok = iptables_unblock_peer(peer["ip_vpn"])
         db.execute("UPDATE peers SET actif = 1 WHERE id = ?", (peer_id,))
         db.commit()
-        flash(f"Peer {peer['label']} ({peer['ip_vpn']}) réactivé {'✅' if ok else '⚠ (erreur WG)'}.", "success")
+        flash(f"Peer {peer['label']} ({peer['ip_vpn']}) réactivé {'✅' if ok else '⚠ (erreur iptables)'}.", "success")
     return redirect(request.referrer or url_for("admin_panel"))
 
 @app.route("/admin/user/suspendre_tout/<int:uid>", methods=["POST"])
@@ -296,7 +303,7 @@ def admin_suspendre_tout(uid):
     db    = get_db()
     peers = db.execute("SELECT * FROM peers WHERE user_id = ? AND actif = 1", (uid,)).fetchall()
     for peer in peers:
-        wg_disable_peer(peer["public_key"])
+        iptables_block_peer(peer["ip_vpn"])
         db.execute("UPDATE peers SET actif = 0 WHERE id = ?", (peer["id"],))
     db.execute("UPDATE abonnements SET statut = 'suspendu' WHERE user_id = ?", (uid,))
     db.commit()
