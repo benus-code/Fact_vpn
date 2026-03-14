@@ -15,16 +15,16 @@ from flask import (Flask, render_template, request, redirect,
 app = Flask(__name__)
 app.secret_key = "CHANGE_CE_SECRET_EN_PROD_SVP"
 
-DB_PATH       = "/opt/vpn-billing/vpn_billing.db"
-CONTAINER     = "amnezia-awg"
-WG_INTERFACE  = "wg0"
+DB_PATH      = "/opt/vpn-billing/vpn_billing.db"
+CONTAINER    = "amnezia-awg"
+WG_INTERFACE = "wg0"
 
-# ─── Coordonnées de paiement affichées aux users ─────────────────────────────
-BANK_INFO = {
+# Valeurs par défaut des paramètres de paiement (insérées si absentes de la BDD)
+SETTINGS_DEFAULTS = {
     "beneficiaire": "Чеганг Анжес Уилфрид",
     "telephone":    "+7 996 637-23-58",
     "banque":       "Тбанк",
-    "montant":      "100 ₽",
+    "montant":      "100",
     "reference":    "VPN + твоё имя",
 }
 
@@ -43,6 +43,37 @@ def close_db(e=None):
 
 def hash_password(p):
     return hashlib.sha256(p.encode()).hexdigest()
+
+def get_settings():
+    """Retourne un dict des paramètres de paiement depuis la BDD."""
+    db = get_db()
+    rows = db.execute("SELECT key, value FROM settings").fetchall()
+    return {row["key"]: row["value"] for row in rows}
+
+# ─── Migration douce au démarrage ────────────────────────────────────────────
+def init_app_db():
+    """Crée les tables/colonnes manquantes sans toucher aux données existantes."""
+    conn = sqlite3.connect(DB_PATH)
+    # Table settings (paramètres de paiement modifiables depuis l'admin)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS settings (
+            key   TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        )
+    """)
+    for key, value in SETTINGS_DEFAULTS.items():
+        conn.execute(
+            "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
+            (key, value)
+        )
+    # Colonnes de contact optionnelles sur users
+    for col in ["whatsapp", "telegram"]:
+        try:
+            conn.execute(f"ALTER TABLE users ADD COLUMN {col} TEXT")
+        except sqlite3.OperationalError:
+            pass  # colonne déjà présente
+    conn.commit()
+    conn.close()
 
 # ─── Auth helpers ─────────────────────────────────────────────────────────────
 def login_required(f):
@@ -101,10 +132,12 @@ def inscription():
     if "user_id" in session:
         return redirect(url_for("dashboard"))
     if request.method == "POST":
-        nom   = request.form["nom"].strip()
-        email = request.form["email"].strip().lower()
-        mdp   = request.form["password"]
-        confirm = request.form["confirm"]
+        nom      = request.form["nom"].strip()
+        email    = request.form["email"].strip().lower()
+        mdp      = request.form["password"]
+        confirm  = request.form["confirm"]
+        whatsapp = request.form.get("whatsapp", "").strip()
+        telegram = request.form.get("telegram", "").strip()
         if mdp != confirm:
             flash("Les mots de passe ne correspondent pas.", "danger")
             return render_template("inscription.html")
@@ -116,8 +149,8 @@ def inscription():
             flash("Cet email est déjà utilisé.", "danger")
             return render_template("inscription.html")
         db.execute(
-            "INSERT INTO users (nom, email, password_hash, is_admin) VALUES (?, ?, ?, 0)",
-            (nom, email, hash_password(mdp))
+            "INSERT INTO users (nom, email, password_hash, is_admin, whatsapp, telegram) VALUES (?, ?, ?, 0, ?, ?)",
+            (nom, email, hash_password(mdp), whatsapp or None, telegram or None)
         )
         db.commit()
         new_user = db.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
@@ -187,7 +220,7 @@ def dashboard():
 
     return render_template("dashboard.html",
         user=user, abo=abo, peers=peers,
-        paiements=paiements, bank=BANK_INFO,
+        paiements=paiements, bank=get_settings(),
         statut_color=statut_color, jours_restants=jours_restants,
         today=date.today()
     )
@@ -242,7 +275,7 @@ def admin_panel():
     """).fetchall()
 
     demandes = db.execute("""
-        SELECT u.id, u.nom, u.email, u.created_at
+        SELECT u.id, u.nom, u.email, u.whatsapp, u.telegram, u.created_at
         FROM users u
         JOIN abonnements a ON a.user_id = u.id
         WHERE u.is_admin = 0 AND a.statut = 'en_attente'
@@ -253,8 +286,24 @@ def admin_panel():
         users=users,
         paiements_en_attente=paiements_en_attente,
         demandes=demandes,
+        settings=get_settings(),
         today=date.today()
     )
+
+@app.route("/admin/settings/update", methods=["POST"])
+@login_required
+@admin_required
+def admin_update_settings():
+    db = get_db()
+    for key in ["beneficiaire", "telephone", "banque", "montant", "reference"]:
+        value = request.form.get(key, "").strip()
+        db.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+            (key, value)
+        )
+    db.commit()
+    flash("✅ Informations de paiement mises à jour.", "success")
+    return redirect(url_for("admin_panel"))
 
 @app.route("/admin/user/<int:uid>")
 @login_required
@@ -359,16 +408,18 @@ def admin_suspendre_tout(uid):
 @login_required
 @admin_required
 def admin_creer_user():
-    nom    = request.form["nom"].strip()
-    email  = request.form["email"].strip().lower()
-    mdp    = request.form["password"]
+    nom      = request.form["nom"].strip()
+    email    = request.form["email"].strip().lower()
+    mdp      = request.form["password"]
+    whatsapp = request.form.get("whatsapp", "").strip()
+    telegram = request.form.get("telegram", "").strip()
     db = get_db()
     if db.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone():
         flash(f"L'email {email} est déjà utilisé.", "danger")
         return redirect(url_for("admin_panel"))
     db.execute(
-        "INSERT INTO users (nom, email, password_hash, is_admin) VALUES (?, ?, ?, 0)",
-        (nom, email, hash_password(mdp))
+        "INSERT INTO users (nom, email, password_hash, is_admin, whatsapp, telegram) VALUES (?, ?, ?, 0, ?, ?)",
+        (nom, email, hash_password(mdp), whatsapp or None, telegram or None)
     )
     db.commit()
     new_user = db.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
@@ -379,7 +430,6 @@ def admin_creer_user():
     db.commit()
     flash(f"✅ Utilisateur {nom} créé avec succès.", "success")
     return redirect(url_for("admin_user_detail", uid=new_user["id"]))
-
 
 @app.route("/admin/abonnement/modifier", methods=["POST"])
 @login_required
@@ -400,4 +450,5 @@ def admin_modifier_abo():
 
 # ─── Run ──────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
+    init_app_db()
     app.run(host="127.0.0.1", port=5000, debug=False)

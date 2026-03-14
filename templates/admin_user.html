@@ -2,10 +2,22 @@
 {% block title %}{{ user.nom }} — Admin{% endblock %}
 {% block content %}
 
-<div class="d-flex align-items-center gap-3 mb-4">
+<div class="d-flex align-items-center gap-3 mb-4 flex-wrap">
   <a href="{{ url_for('admin_panel') }}" class="btn btn-outline-secondary btn-sm">← Retour</a>
   <h4 class="fw-bold mb-0">{{ user.nom }}</h4>
   <span class="text-muted small">{{ user.email }}</span>
+  {% if user.whatsapp %}
+    <a href="https://wa.me/{{ user.whatsapp | replace('+','') | replace(' ','') | replace('-','') }}"
+       target="_blank" class="badge bg-success text-decoration-none">
+      📱 WhatsApp {{ user.whatsapp }}
+    </a>
+  {% endif %}
+  {% if user.telegram %}
+    <a href="https://t.me/{{ user.telegram | replace('@','') }}"
+       target="_blank" class="badge bg-primary text-decoration-none">
+      ✈️ Telegram {{ user.telegram }}
+    </a>
+  {% endif %}
 </div>
 
 <div class="row g-4">

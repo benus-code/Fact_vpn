@@ -9,20 +9,32 @@
 
       <form method="POST">
         <div class="mb-3">
-          <label class="form-label">Nom complet</label>
+          <label class="form-label">Nom complet <span class="text-danger">*</span></label>
           <input type="text" name="nom" class="form-control" placeholder="ex: Ivan Petrov" required autofocus>
         </div>
         <div class="mb-3">
-          <label class="form-label">Email</label>
+          <label class="form-label">Email <span class="text-danger">*</span></label>
           <input type="email" name="email" class="form-control" placeholder="ex: ivan@mail.ru" required>
         </div>
         <div class="mb-3">
-          <label class="form-label">Mot de passe</label>
+          <label class="form-label">Mot de passe <span class="text-danger">*</span></label>
           <input type="password" name="password" class="form-control" minlength="6" required>
         </div>
-        <div class="mb-4">
-          <label class="form-label">Confirmer le mot de passe</label>
+        <div class="mb-3">
+          <label class="form-label">Confirmer le mot de passe <span class="text-danger">*</span></label>
           <input type="password" name="confirm" class="form-control" required>
+        </div>
+
+        <hr class="my-3">
+        <p class="text-muted small mb-2">Contact optionnel (pour que l'admin vous contacte facilement) :</p>
+
+        <div class="mb-3">
+          <label class="form-label">WhatsApp</label>
+          <input type="text" name="whatsapp" class="form-control" placeholder="ex: +7 996 123-45-67">
+        </div>
+        <div class="mb-4">
+          <label class="form-label">Telegram</label>
+          <input type="text" name="telegram" class="form-control" placeholder="ex: @monpseudo">
         </div>
 
         <div class="alert alert-info small mb-3">

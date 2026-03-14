@@ -9,12 +9,14 @@
 <div class="card p-4 mb-4 border-info">
   <h5 class="fw-bold text-info mb-3">🆕 Nouvelles demandes d'inscription ({{ demandes|length }})</h5>
   <table class="table table-sm">
-    <thead><tr><th>Nom</th><th>Email</th><th>Date</th><th>Action</th></tr></thead>
+    <thead><tr><th>Nom</th><th>Email</th><th>WhatsApp</th><th>Telegram</th><th>Date</th><th>Action</th></tr></thead>
     <tbody>
       {% for d in demandes %}
       <tr>
         <td><strong>{{ d.nom }}</strong></td>
         <td>{{ d.email }}</td>
+        <td>{{ d.whatsapp or '—' }}</td>
+        <td>{{ d.telegram or '—' }}</td>
         <td>{{ d.created_at[:10] if d.created_at else '—' }}</td>
         <td><a href="{{ url_for('admin_user_detail', uid=d.id) }}" class="btn btn-sm btn-outline-info">Gérer</a></td>
       </tr>
@@ -28,20 +30,63 @@
 <div class="card p-4 mb-4">
   <h5 class="fw-bold mb-3">➕ Créer un utilisateur</h5>
   <form method="POST" action="{{ url_for('admin_creer_user') }}" class="row g-2 align-items-end">
-    <div class="col-md-3">
+    <div class="col-md-2">
       <label class="form-label small">Nom complet</label>
       <input type="text" name="nom" class="form-control form-control-sm" placeholder="ex: Ivan Petrov" required>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-2">
       <label class="form-label small">Email</label>
       <input type="email" name="email" class="form-control form-control-sm" placeholder="ex: ivan@mail.ru" required>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-2">
       <label class="form-label small">Mot de passe</label>
       <input type="text" name="password" class="form-control form-control-sm" placeholder="mot de passe initial" required>
     </div>
     <div class="col-md-2">
+      <label class="form-label small">WhatsApp</label>
+      <input type="text" name="whatsapp" class="form-control form-control-sm" placeholder="+7 9XX XXX-XX-XX">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small">Telegram</label>
+      <input type="text" name="telegram" class="form-control form-control-sm" placeholder="@username">
+    </div>
+    <div class="col-md-2">
       <button class="btn btn-sm btn-primary w-100">Créer</button>
+    </div>
+  </form>
+</div>
+
+{# ── Paramètres de paiement ── #}
+<div class="card p-4 mb-4">
+  <h5 class="fw-bold mb-3">⚙️ Informations de paiement <small class="text-muted fw-normal fs-6">(affichées aux abonnés)</small></h5>
+  <form method="POST" action="{{ url_for('admin_update_settings') }}" class="row g-2 align-items-end">
+    <div class="col-md-3">
+      <label class="form-label small">Bénéficiaire</label>
+      <input type="text" name="beneficiaire" class="form-control form-control-sm"
+             value="{{ settings.beneficiaire }}" required>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small">Téléphone</label>
+      <input type="text" name="telephone" class="form-control form-control-sm"
+             value="{{ settings.telephone }}" required>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small">Banque</label>
+      <input type="text" name="banque" class="form-control form-control-sm"
+             value="{{ settings.banque }}" required>
+    </div>
+    <div class="col-md-1">
+      <label class="form-label small">Montant (₽)</label>
+      <input type="number" step="1" name="montant" class="form-control form-control-sm"
+             value="{{ settings.montant }}" required>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small">Commentaire demandé</label>
+      <input type="text" name="reference" class="form-control form-control-sm"
+             value="{{ settings.reference }}" required>
+    </div>
+    <div class="col-md-2">
+      <button class="btn btn-sm btn-success w-100">💾 Enregistrer</button>
     </div>
   </form>
 </div>
