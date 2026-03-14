@@ -17,7 +17,7 @@
       {% if abo %}
         <p class="mb-1">Début : {{ abo.date_debut or '—' }}</p>
         <p class="mb-1">Fin : <strong>{{ abo.date_fin or '—' }}</strong></p>
-        <p class="mb-3">Tarif : {{ abo.montant }} € / mois &nbsp;|&nbsp; Statut :
+        <p class="mb-3">Tarif : {{ abo.montant }} ₽ / mois &nbsp;|&nbsp; Statut :
           <span class="badge {% if abo.statut == 'actif' %}bg-success{% elif abo.statut == 'suspendu' %}bg-warning text-dark{% else %}bg-danger{% endif %}">
             {{ abo.statut }}
           </span>
@@ -33,9 +33,9 @@
                  value="{{ abo.date_fin or '' }}" required>
         </div>
         <div class="col-4">
-          <label class="form-label small">Tarif (€)</label>
-          <input type="number" step="0.5" name="montant" class="form-control form-control-sm"
-                 value="{{ abo.montant or 5.0 }}" required>
+          <label class="form-label small">Tarif (₽)</label>
+          <input type="number" step="1" name="montant" class="form-control form-control-sm"
+                 value="{{ abo.montant or 100 }}" required>
         </div>
         <div class="col-12">
           <button class="btn btn-sm btn-primary">Enregistrer</button>
@@ -51,9 +51,9 @@
       <form method="POST" action="{{ url_for('admin_ajouter_paiement') }}" class="row g-2">
         <input type="hidden" name="user_id" value="{{ user.id }}">
         <div class="col-5">
-          <label class="form-label small">Montant (€)</label>
-          <input type="number" step="0.5" name="montant" class="form-control form-control-sm"
-                 value="{{ abo.montant or 5.0 }}" required>
+          <label class="form-label small">Montant (₽)</label>
+          <input type="number" step="1" name="montant" class="form-control form-control-sm"
+                 value="{{ abo.montant or 100 }}" required>
         </div>
         <div class="col-3">
           <label class="form-label small">Mois</label>
@@ -121,7 +121,7 @@
           {% for p in histo %}
           <tr>
             <td>{{ p.date_paiement[:10] }}</td>
-            <td>{{ p.montant }} €</td>
+            <td>{{ p.montant }} ₽</td>
             <td>{{ p.mois_prolonges }}</td>
             <td class="text-muted small">{{ p.note or '' }}</td>
           </tr>

@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}S'inscrire — VPN{% endblock %}
+{% block content %}
+<div class="row justify-content-center mt-5">
+  <div class="col-md-5">
+    <div class="card p-4">
+      <h4 class="mb-1 text-center fw-bold">🔐 Accès VPN</h4>
+      <p class="text-center text-muted small mb-4">Créez votre compte pour demander un accès</p>
+
+      <form method="POST">
+        <div class="mb-3">
+          <label class="form-label">Nom complet</label>
+          <input type="text" name="nom" class="form-control" placeholder="ex: Ivan Petrov" required autofocus>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Email</label>
+          <input type="email" name="email" class="form-control" placeholder="ex: ivan@mail.ru" required>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Mot de passe</label>
+          <input type="password" name="password" class="form-control" minlength="6" required>
+        </div>
+        <div class="mb-4">
+          <label class="form-label">Confirmer le mot de passe</label>
+          <input type="password" name="confirm" class="form-control" required>
+        </div>
+
+        <div class="alert alert-info small mb-3">
+          <strong>Tarif :</strong> 100 ₽ / mois<br>
+          Votre accès sera activé dans les 24h après réception du paiement.
+        </div>
+
+        <button class="btn btn-primary w-100">Envoyer la demande</button>
+      </form>
+
+      <hr>
+      <p class="text-center small text-muted mb-0">
+        Déjà un compte ? <a href="{{ url_for('login') }}">Se connecter</a>
+      </p>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -24,7 +24,7 @@
         {% if abo.date_fin %}
           <div class="text-muted small">Expire le : <strong>{{ abo.date_fin }}</strong></div>
         {% endif %}
-        <div class="text-muted small mt-1">Tarif : <strong>{{ abo.montant }} € / mois</strong></div>
+        <div class="text-muted small mt-1">Tarif : <strong>{{ abo.montant }} ₽ / mois</strong></div>
       {% else %}
         <p class="text-muted">Aucun abonnement enregistré.</p>
       {% endif %}
@@ -54,21 +54,21 @@
   <div class="col-12">
     <div class="card p-4">
       <h5 class="fw-bold mb-3">💳 Comment renouveler mon abonnement</h5>
-      <p class="mb-3">Effectuez un virement bancaire avec les informations ci-dessous, puis contactez l'admin pour confirmer.</p>
+      <p class="mb-3">Envoyez le paiement par virement Тбанк avec les coordonnées ci-dessous, puis contactez l'admin pour confirmer.</p>
       <div class="row g-3">
         <div class="col-md-6">
           <table class="table table-bordered table-sm mb-0">
             <tr><th>Bénéficiaire</th><td><strong>{{ bank.beneficiaire }}</strong></td></tr>
-            <tr><th>IBAN</th><td><code>{{ bank.iban }}</code></td></tr>
-            <tr><th>BIC</th><td><code>{{ bank.bic }}</code></td></tr>
+            <tr><th>Téléphone</th><td><code>{{ bank.telephone }}</code></td></tr>
+            <tr><th>Banque</th><td><strong>{{ bank.banque }}</strong></td></tr>
             <tr><th>Montant</th><td><strong>{{ bank.montant }}</strong> / mois</td></tr>
-            <tr><th>Référence</th><td><strong>{{ bank.reference }}</strong></td></tr>
+            <tr><th>Commentaire</th><td><strong>{{ bank.reference }}</strong></td></tr>
           </table>
         </div>
         <div class="col-md-6 d-flex align-items-center">
           <div class="alert alert-info mb-0 w-100">
-            <strong>⚠ Important :</strong> Indiquez bien votre prénom en référence du virement.
-            Une fois le paiement effectué, votre accès sera renouvelé dans les 24h.
+            <strong>⚠ Important :</strong> Indiquez votre prénom en commentaire du virement.
+            Une fois le paiement reçu, votre accès sera renouvelé dans les 24h.
           </div>
         </div>
       </div>
@@ -86,7 +86,7 @@
           {% for p in paiements %}
           <tr>
             <td>{{ p.date_paiement[:10] }}</td>
-            <td>{{ p.montant }} €</td>
+            <td>{{ p.montant }} ₽</td>
             <td>{{ p.mois_prolonges }}</td>
             <td class="text-muted small">{{ p.note or '' }}</td>
           </tr>

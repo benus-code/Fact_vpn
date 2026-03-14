@@ -19,13 +19,13 @@ DB_PATH       = "/opt/vpn-billing/vpn_billing.db"
 CONTAINER     = "amnezia-awg"
 WG_INTERFACE  = "wg0"
 
-# ─── Coordonnées bancaires affichées aux users ───────────────────────────────
+# ─── Coordonnées de paiement affichées aux users ─────────────────────────────
 BANK_INFO = {
-    "beneficiaire": "TON NOM ICI",
-    "iban":         "FR76 XXXX XXXX XXXX XXXX XXXX XXX",
-    "bic":          "XXXXXXXX",
-    "montant":      "5 €",
-    "reference":    "VPN + ton prénom",
+    "beneficiaire": "Чеганг Анжес Уилфрид",
+    "telephone":    "+7 996 637-23-58",
+    "banque":       "Тбанк",
+    "montant":      "100 ₽",
+    "reference":    "VPN + твоё имя",
 }
 
 # ─── DB helpers ──────────────────────────────────────────────────────────────
@@ -96,6 +96,41 @@ def iptables_unblock_peer(ip_vpn):
     return ok
 
 # ─── Routes publiques ─────────────────────────────────────────────────────────
+@app.route("/inscription", methods=["GET", "POST"])
+def inscription():
+    if "user_id" in session:
+        return redirect(url_for("dashboard"))
+    if request.method == "POST":
+        nom   = request.form["nom"].strip()
+        email = request.form["email"].strip().lower()
+        mdp   = request.form["password"]
+        confirm = request.form["confirm"]
+        if mdp != confirm:
+            flash("Les mots de passe ne correspondent pas.", "danger")
+            return render_template("inscription.html")
+        if len(mdp) < 6:
+            flash("Le mot de passe doit faire au moins 6 caractères.", "danger")
+            return render_template("inscription.html")
+        db = get_db()
+        if db.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone():
+            flash("Cet email est déjà utilisé.", "danger")
+            return render_template("inscription.html")
+        db.execute(
+            "INSERT INTO users (nom, email, password_hash, is_admin) VALUES (?, ?, ?, 0)",
+            (nom, email, hash_password(mdp))
+        )
+        db.commit()
+        new_user = db.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
+        db.execute(
+            "INSERT INTO abonnements (user_id, montant, statut) VALUES (?, 100, 'en_attente')",
+            (new_user["id"],)
+        )
+        db.commit()
+        flash("✅ Demande envoyée ! L'administrateur activera votre accès après réception du paiement.", "success")
+        return redirect(url_for("login"))
+    return render_template("inscription.html")
+
+
 @app.route("/")
 def index():
     if "user_id" in session:
@@ -206,9 +241,18 @@ def admin_panel():
         ORDER BY p.date_paiement DESC
     """).fetchall()
 
+    demandes = db.execute("""
+        SELECT u.id, u.nom, u.email, u.created_at
+        FROM users u
+        JOIN abonnements a ON a.user_id = u.id
+        WHERE u.is_admin = 0 AND a.statut = 'en_attente'
+        ORDER BY u.created_at DESC
+    """).fetchall()
+
     return render_template("admin.html",
         users=users,
         paiements_en_attente=paiements_en_attente,
+        demandes=demandes,
         today=date.today()
     )
 
@@ -310,6 +354,32 @@ def admin_suspendre_tout(uid):
     user = db.execute("SELECT nom FROM users WHERE id = ?", (uid,)).fetchone()
     flash(f"Tous les accès de {user['nom']} ont été suspendus.", "warning")
     return redirect(url_for("admin_user_detail", uid=uid))
+
+@app.route("/admin/user/creer", methods=["POST"])
+@login_required
+@admin_required
+def admin_creer_user():
+    nom    = request.form["nom"].strip()
+    email  = request.form["email"].strip().lower()
+    mdp    = request.form["password"]
+    db = get_db()
+    if db.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone():
+        flash(f"L'email {email} est déjà utilisé.", "danger")
+        return redirect(url_for("admin_panel"))
+    db.execute(
+        "INSERT INTO users (nom, email, password_hash, is_admin) VALUES (?, ?, ?, 0)",
+        (nom, email, hash_password(mdp))
+    )
+    db.commit()
+    new_user = db.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
+    db.execute(
+        "INSERT INTO abonnements (user_id, montant, statut) VALUES (?, 100, 'expire')",
+        (new_user["id"],)
+    )
+    db.commit()
+    flash(f"✅ Utilisateur {nom} créé avec succès.", "success")
+    return redirect(url_for("admin_user_detail", uid=new_user["id"]))
+
 
 @app.route("/admin/abonnement/modifier", methods=["POST"])
 @login_required
