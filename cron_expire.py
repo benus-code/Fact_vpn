@@ -8,9 +8,8 @@ import sqlite3
 import subprocess
 from datetime import date
 
-DB_PATH      = "/opt/vpn-billing/vpn_billing.db"
-CONTAINER    = "amnezia-awg"
-WG_INTERFACE = "wg0"
+DB_PATH   = "/opt/vpn-billing/vpn_billing.db"
+CONTAINER = "amnezia-awg"
 
 def main():
     now = date.today().isoformat()
@@ -36,16 +35,21 @@ def main():
 
     for peer in expired:
         try:
-            result = subprocess.run(
-                ["docker", "exec", CONTAINER, "wg", "set", WG_INTERFACE,
-                 "peer", peer["public_key"], "remove"],
+            ip = peer["ip_vpn"].split("/")[0]
+            r1 = subprocess.run(
+                ["docker", "exec", CONTAINER, "iptables", "-I", "FORWARD", "-s", ip, "-j", "DROP"],
                 capture_output=True, text=True
             )
-            if result.returncode == 0:
+            r2 = subprocess.run(
+                ["docker", "exec", CONTAINER, "iptables", "-I", "FORWARD", "-d", ip, "-j", "DROP"],
+                capture_output=True, text=True
+            )
+            if r1.returncode == 0 and r2.returncode == 0:
                 c.execute("UPDATE peers SET actif = 0 WHERE id = ?", (peer["id"],))
                 print(f"[{now}] ✅ Désactivé : {peer['nom']} / {peer['label']} ({peer['ip_vpn']}) — expiré le {peer['date_fin']}")
             else:
-                print(f"[{now}] ⚠  Erreur WG pour {peer['nom']} / {peer['label']} : {result.stderr.strip()}")
+                err = r1.stderr.strip() or r2.stderr.strip()
+                print(f"[{now}] ⚠  Erreur iptables pour {peer['nom']} / {peer['label']} : {err}")
         except Exception as e:
             print(f"[{now}] ❌ Exception pour {peer['nom']} : {e}")
 
