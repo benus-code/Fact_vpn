@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}Mon espace — VPN Billing{% endblock %}
+{% block content %}
+
+<div class="row g-4">
+
+  {# ── Statut abonnement ── #}
+  <div class="col-md-6">
+    <div class="card p-4 h-100">
+      <h5 class="fw-bold mb-3">📅 Mon abonnement</h5>
+      {% if abo %}
+        <div class="mb-2">
+          Statut :
+          {% if abo.statut == 'actif' and abo.date_fin %}
+            <span class="badge bg-{{ statut_color }}">
+              {% if jours_restants >= 0 %}Actif — {{ jours_restants }} jour(s) restant(s){% else %}Expiré{% endif %}
+            </span>
+          {% elif abo.statut == 'actif' and not abo.date_fin %}
+            <span class="badge bg-secondary">Actif (date non définie)</span>
+          {% else %}
+            <span class="badge bg-danger">{{ abo.statut | capitalize }}</span>
+          {% endif %}
+        </div>
+        {% if abo.date_fin %}
+          <div class="text-muted small">Expire le : <strong>{{ abo.date_fin }}</strong></div>
+        {% endif %}
+        <div class="text-muted small mt-1">Tarif : <strong>{{ abo.montant }} € / mois</strong></div>
+      {% else %}
+        <p class="text-muted">Aucun abonnement enregistré.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── Mes appareils ── #}
+  <div class="col-md-6">
+    <div class="card p-4 h-100">
+      <h5 class="fw-bold mb-3">📱 Mes appareils VPN</h5>
+      {% if peers %}
+        {% for p in peers %}
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <span>{{ p.label }}</span>
+            <span class="peer-badge {% if p.actif %}peer-on{% else %}peer-off{% endif %}">
+              {{ p.ip_vpn }} — {% if p.actif %}Actif{% else %}Suspendu{% endif %}
+            </span>
+          </div>
+        {% endfor %}
+      {% else %}
+        <p class="text-muted">Aucun appareil.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── Comment payer ── #}
+  <div class="col-12">
+    <div class="card p-4">
+      <h5 class="fw-bold mb-3">💳 Comment renouveler mon abonnement</h5>
+      <p class="mb-3">Effectuez un virement bancaire avec les informations ci-dessous, puis contactez l'admin pour confirmer.</p>
+      <div class="row g-3">
+        <div class="col-md-6">
+          <table class="table table-bordered table-sm mb-0">
+            <tr><th>Bénéficiaire</th><td><strong>{{ bank.beneficiaire }}</strong></td></tr>
+            <tr><th>IBAN</th><td><code>{{ bank.iban }}</code></td></tr>
+            <tr><th>BIC</th><td><code>{{ bank.bic }}</code></td></tr>
+            <tr><th>Montant</th><td><strong>{{ bank.montant }}</strong> / mois</td></tr>
+            <tr><th>Référence</th><td><strong>{{ bank.reference }}</strong></td></tr>
+          </table>
+        </div>
+        <div class="col-md-6 d-flex align-items-center">
+          <div class="alert alert-info mb-0 w-100">
+            <strong>⚠ Important :</strong> Indiquez bien votre prénom en référence du virement.
+            Une fois le paiement effectué, votre accès sera renouvelé dans les 24h.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ── Historique paiements ── #}
+  {% if paiements %}
+  <div class="col-12">
+    <div class="card p-4">
+      <h5 class="fw-bold mb-3">📋 Mes derniers paiements</h5>
+      <table class="table table-sm">
+        <thead><tr><th>Date</th><th>Montant</th><th>Mois</th><th>Note</th></tr></thead>
+        <tbody>
+          {% for p in paiements %}
+          <tr>
+            <td>{{ p.date_paiement[:10] }}</td>
+            <td>{{ p.montant }} €</td>
+            <td>{{ p.mois_prolonges }}</td>
+            <td class="text-muted small">{{ p.note or '' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ── Changer mot de passe ── #}
+  <div class="col-md-5">
+    <div class="card p-4">
+      <h5 class="fw-bold mb-3">🔑 Changer mon mot de passe</h5>
+      <form method="POST" action="{{ url_for('changer_mdp') }}">
+        <div class="mb-2">
+          <input type="password" name="ancien" class="form-control form-control-sm" placeholder="Ancien mot de passe" required>
+        </div>
+        <div class="mb-2">
+          <input type="password" name="nouveau" class="form-control form-control-sm" placeholder="Nouveau mot de passe" required>
+        </div>
+        <div class="mb-3">
+          <input type="password" name="confirm" class="form-control form-control-sm" placeholder="Confirmer le nouveau" required>
+        </div>
+        <button class="btn btn-sm btn-outline-primary">Mettre à jour</button>
+      </form>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

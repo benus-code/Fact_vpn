@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Admin — VPN Billing{% endblock %}
+{% block content %}
+
+<h4 class="fw-bold mb-4">⚙️ Panel Administrateur</h4>
+
+{# ── Paiements en attente ── #}
+{% if paiements_en_attente %}
+<div class="card p-4 mb-4 border-warning">
+  <h5 class="fw-bold text-warning mb-3">⏳ Paiements en attente de validation ({{ paiements_en_attente|length }})</h5>
+  <table class="table table-sm">
+    <thead><tr><th>User</th><th>Montant</th><th>Mois</th><th>Date</th><th>Note</th></tr></thead>
+    <tbody>
+      {% for p in paiements_en_attente %}
+      <tr>
+        <td><a href="{{ url_for('admin_user_detail', uid=p.user_id) }}">{{ p.nom }}</a></td>
+        <td>{{ p.montant }} €</td>
+        <td>{{ p.mois_prolonges }}</td>
+        <td>{{ p.date_paiement[:10] }}</td>
+        <td class="text-muted small">{{ p.note or '' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{# ── Liste des users ── #}
+<div class="card p-4">
+  <h5 class="fw-bold mb-3">👥 Abonnés ({{ users|length }})</h5>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Nom</th>
+          <th>Expire le</th>
+          <th>Statut</th>
+          <th>Appareils</th>
+          <th>Tarif</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        {% set jours = ((u.date_fin | string) | length > 0) and ((u.date_fin | string) != 'None') %}
+        <tr>
+          <td><strong>{{ u.nom }}</strong><br><small class="text-muted">{{ u.email }}</small></td>
+          <td>
+            {% if u.date_fin %}
+              {{ u.date_fin }}
+              {% set df = u.date_fin %}
+            {% else %}
+              <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if u.statut == 'actif' %}
+              <span class="badge bg-success">Actif</span>
+            {% elif u.statut == 'suspendu' %}
+              <span class="badge bg-warning text-dark">Suspendu</span>
+            {% elif u.statut == 'expire' %}
+              <span class="badge bg-danger">Expiré</span>
+            {% else %}
+              <span class="badge bg-secondary">{{ u.statut or '—' }}</span>
+            {% endif %}
+          </td>
+          <td>
+            <span class="text-success fw-bold">{{ u.peers_actifs }}</span> / {{ u.nb_peers }}
+          </td>
+          <td>{{ u.montant or '5.0' }} €</td>
+          <td>
+            <a href="{{ url_for('admin_user_detail', uid=u.id) }}" class="btn btn-sm btn-outline-primary">Gérer</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
