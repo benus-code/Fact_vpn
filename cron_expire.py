@@ -1,15 +1,57 @@
 #!/usr/bin/env python3
 """
 cron_expire.py — Désactive automatiquement les peers dont l'abonnement a expiré.
-Ajouter dans crontab :  0 * * * * python3 /opt/vpn-billing/cron_expire.py >> /var/log/vpn_expire.log 2>&1
+                 Envoie aussi un rappel par email J-3 avant expiration.
+Ajouter dans crontab :  0 8 * * * python3 /opt/vpn-billing/cron_expire.py >> /var/log/vpn_expire.log 2>&1
 """
 
 import sqlite3
 import subprocess
-from datetime import date
+import smtplib
+import ssl
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from datetime import date, timedelta
 
 DB_PATH   = "/opt/vpn-billing/vpn_billing.db"
 CONTAINER = "amnezia-awg"
+
+def send_reminder_email(conn, to_email, nom, date_fin_str):
+    """Envoie un email de rappel J-3. Lit les settings SMTP depuis la DB."""
+    if not to_email or '@' not in to_email or to_email.endswith('@vpn.local'):
+        return False
+    row = conn.execute(
+        "SELECT value FROM settings WHERE key = 'smtp_email'"
+    ).fetchone()
+    addr = row[0].strip() if row else ""
+    row2 = conn.execute(
+        "SELECT value FROM settings WHERE key = 'smtp_password'"
+    ).fetchone()
+    pwd = row2[0].strip() if row2 else ""
+    if not addr or not pwd:
+        return False
+    try:
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = "⏰ Votre abonnement VPN expire dans 3 jours"
+        msg['From']    = f"VPN Privé <{addr}>"
+        msg['To']      = to_email
+        html = (
+            f"<div style='font-family:sans-serif;max-width:520px;margin:0 auto'>"
+            f"<h2 style='color:#e94560'>⏰ Rappel d'expiration</h2>"
+            f"<p>Bonjour <strong>{nom}</strong>,</p>"
+            f"<p>Votre abonnement VPN expire le <strong>{date_fin_str}</strong>.</p>"
+            f"<p>Effectuez votre renouvellement avant cette date pour ne pas perdre votre accès.</p>"
+            f"<hr><small style='color:#888'>VPN Privé — Service personnel</small></div>"
+        )
+        msg.attach(MIMEText(html, 'html', 'utf-8'))
+        ctx = ssl.create_default_context()
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=ctx) as srv:
+            srv.login(addr, pwd)
+            srv.sendmail(addr, to_email, msg.as_string())
+        return True
+    except Exception as e:
+        print(f"[rappel email] Erreur → {to_email}: {e}")
+        return False
 
 def main():
     now = date.today().isoformat()
@@ -60,8 +102,23 @@ def main():
     """, (now,))
 
     conn.commit()
+
+    # ── Rappels J-3 ──────────────────────────────────────────────────────────
+    j3 = (date.today() + timedelta(days=3)).isoformat()
+    reminders = c.execute("""
+        SELECT u.nom, u.email, a.date_fin
+        FROM abonnements a
+        JOIN users u ON u.id = a.user_id
+        WHERE a.statut = 'actif'
+          AND a.date_fin = ?
+    """, (j3,)).fetchall()
+
+    for r in reminders:
+        sent = send_reminder_email(conn, r["email"], r["nom"], r["date_fin"])
+        print(f"[{now}] Rappel J-3 → {r['nom']} ({r['email']}) : {'✅' if sent else '⏭ skipped'}")
+
     conn.close()
-    print(f"[{now}] Terminé — {len(expired)} peer(s) traité(s).")
+    print(f"[{now}] Terminé — {len(expired)} peer(s) traité(s), {len(reminders)} rappel(s) J-3.")
 
 if __name__ == "__main__":
     main()

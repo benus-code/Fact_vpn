@@ -10,6 +10,10 @@ import hashlib
 import subprocess
 import urllib.request
 import json
+import smtplib
+import ssl
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from datetime import date, datetime, timedelta
 from functools import wraps
 from flask import (Flask, render_template, request, redirect,
@@ -34,6 +38,8 @@ SETTINGS_DEFAULTS = {
     "telegram_chat_id":   "",
     "support_telegram":   "",   # ex: https://t.me/tonpseudo
     "support_whatsapp":   "",   # ex: +7 996 637-23-58
+    "smtp_email":         "benuslavision@gmail.com",
+    "smtp_password":      "",   # Mot de passe d'application Gmail
 }
 
 # ─── DB helpers ───────────────────────────────────────────────────────────────
@@ -140,6 +146,30 @@ def notify_telegram(message):
         urllib.request.urlopen(req, timeout=5)
     except Exception as e:
         app.logger.warning(f"Telegram notify failed: {e}")
+
+def send_email(to_email, subject, body_html):
+    """Envoie via Gmail SMTP. Ignore les adresses @vpn.local et les configs vides."""
+    if not to_email or '@' not in to_email or to_email.endswith('@vpn.local'):
+        return False
+    s = get_settings()
+    addr = s.get('smtp_email', '').strip()
+    pwd  = s.get('smtp_password', '').strip()
+    if not addr or not pwd:
+        return False
+    try:
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = subject
+        msg['From']    = f"VPN Privé <{addr}>"
+        msg['To']      = to_email
+        msg.attach(MIMEText(body_html, 'html', 'utf-8'))
+        ctx = ssl.create_default_context()
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=ctx) as srv:
+            srv.login(addr, pwd)
+            srv.sendmail(addr, to_email, msg.as_string())
+        return True
+    except Exception as e:
+        app.logger.error(f"send_email → {to_email}: {e}")
+        return False
 
 # ─── iptables helpers ─────────────────────────────────────────────────────────
 def iptables_block_peer(ip_vpn):
@@ -286,6 +316,35 @@ def dashboard():
         today=date.today()
     )
 
+@app.route("/profil", methods=["GET", "POST"])
+@login_required
+def profil():
+    if session.get("is_admin"):
+        return redirect(url_for("admin_panel"))
+    uid = session["user_id"]
+    db  = get_db()
+    user = db.execute("SELECT * FROM users WHERE id = ?", (uid,)).fetchone()
+    if request.method == "POST":
+        nom      = request.form.get("nom", "").strip()
+        email    = request.form.get("email", "").strip().lower()
+        whatsapp = request.form.get("whatsapp", "").strip()
+        telegram = request.form.get("telegram", "").strip()
+        if not nom or not email:
+            flash("Nom et email sont requis.", "danger")
+            return render_template("profil.html", user=user)
+        if db.execute("SELECT id FROM users WHERE email = ? AND id != ?", (email, uid)).fetchone():
+            flash("Cet email est déjà utilisé.", "danger")
+            return render_template("profil.html", user=user)
+        db.execute(
+            "UPDATE users SET nom=?, email=?, whatsapp=?, telegram=? WHERE id=?",
+            (nom, email, whatsapp or None, telegram or None, uid)
+        )
+        db.commit()
+        session["user_nom"] = nom
+        flash("✅ Informations mises à jour.", "success")
+        return redirect(url_for("profil"))
+    return render_template("profil.html", user=user)
+
 @app.route("/changer_mdp", methods=["POST"])
 @login_required
 def changer_mdp():
@@ -358,7 +417,8 @@ def admin_update_settings():
     db = get_db()
     for key in ["beneficiaire", "telephone", "banque", "montant", "reference",
                 "telegram_bot_token", "telegram_chat_id",
-                "support_telegram", "support_whatsapp"]:
+                "support_telegram", "support_whatsapp",
+                "smtp_email", "smtp_password"]:
         value = request.form.get(key, "").strip()
         db.execute(
             "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
@@ -529,8 +589,23 @@ def admin_ajouter_paiement():
             db.execute("UPDATE peers SET actif = 1 WHERE id = ?", (peer["id"],))
 
     db.commit()
-    user = db.execute("SELECT nom FROM users WHERE id = ?", (uid,)).fetchone()
-    flash(f"✅ Paiement enregistré pour {user['nom']} — abonnement jusqu'au {nouvelle_fin.strftime('%d/%m/%Y')}.", "success")
+    user_data = db.execute("SELECT * FROM users WHERE id = ?", (uid,)).fetchone()
+    flash(f"✅ Paiement enregistré pour {user_data['nom']} — abonnement jusqu'au {nouvelle_fin.strftime('%d/%m/%Y')}.", "success")
+    # Email de bienvenue / renouvellement
+    html_welcome = (
+        f"<div style='font-family:sans-serif;max-width:520px;margin:0 auto'>"
+        f"<h2 style='color:#e94560'>✅ Votre accès VPN est actif !</h2>"
+        f"<p>Bonjour <strong>{user_data['nom']}</strong>,</p>"
+        f"<p>Votre abonnement est actif jusqu'au <strong>{nouvelle_fin.strftime('%d/%m/%Y')}</strong>.</p>"
+        f"<p>Connectez-vous à votre espace pour consulter vos appareils et coordonnées de paiement.</p>"
+        f"<p>Besoin d'aide pour l'installation ? Consultez notre guide en vous connectant.</p>"
+        f"<hr><small style='color:#888'>VPN Privé — Service personnel</small></div>"
+    )
+    send_email(user_data['email'], "✅ Votre accès VPN est actif !", html_welcome)
+    notify_telegram(
+        f"💳 <b>Paiement activé</b>\nUser : {user_data['nom']}\n"
+        f"Fin : {nouvelle_fin.strftime('%d/%m/%Y')}"
+    )
     return redirect(url_for("admin_user_detail", uid=uid))
 
 @app.route("/admin/abonnement/modifier", methods=["POST"])
@@ -549,6 +624,34 @@ def admin_modifier_abo():
     db.commit()
     flash("Abonnement mis à jour.", "success")
     return redirect(url_for("admin_user_detail", uid=uid))
+
+@app.route("/admin/broadcast", methods=["POST"])
+@login_required
+@admin_required
+def admin_broadcast():
+    subject = request.form.get("subject", "").strip() or "Information VPN"
+    message = request.form.get("message", "").strip()
+    channel = request.form.get("channel", "email")
+    if not message:
+        flash("Message vide.", "danger")
+        return redirect(url_for("admin_panel"))
+    db = get_db()
+    users = db.execute("SELECT * FROM users WHERE is_admin = 0").fetchall()
+    sent_email = 0
+    for u in users:
+        if channel in ("email", "both"):
+            html = (
+                f"<div style='font-family:sans-serif;max-width:520px;margin:0 auto'>"
+                f"<p>Bonjour <strong>{u['nom']}</strong>,</p>"
+                f"<p>{message.replace(chr(10), '<br>')}</p>"
+                f"<hr><small style='color:#888'>VPN Privé — Service personnel</small></div>"
+            )
+            if send_email(u["email"], subject, html):
+                sent_email += 1
+    if channel in ("telegram", "both"):
+        notify_telegram(f"📢 <b>Broadcast</b>\n{message}")
+    flash(f"✅ Envoyé à {sent_email} abonné(s) par email.", "success")
+    return redirect(url_for("admin_panel"))
 
 # ─── Run ──────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":

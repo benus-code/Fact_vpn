@@ -147,6 +147,34 @@
   </div>
   {% endif %}
 
+  {# ── Mes coordonnées ── #}
+  <div class="col-md-5">
+    <div class="card p-4">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h5 class="fw-bold mb-0">📋 Mes coordonnées</h5>
+        <a href="{{ url_for('profil') }}" class="btn btn-sm btn-outline-primary">Modifier</a>
+      </div>
+      <div class="small text-muted">
+        <div class="mb-1"><strong>Email :</strong>
+          {% if user.email and user.email.endswith('@vpn.local') %}
+            <span class="text-warning">{{ user.email }} ⚠ email temporaire</span>
+          {% else %}
+            {{ user.email }}
+          {% endif %}
+        </div>
+        {% if user.whatsapp %}
+        <div class="mb-1"><strong>WhatsApp :</strong> {{ user.whatsapp }}</div>
+        {% endif %}
+        {% if user.telegram %}
+        <div><strong>Telegram :</strong> {{ user.telegram }}</div>
+        {% endif %}
+        {% if not user.whatsapp and not user.telegram %}
+        <div class="text-muted fst-italic">Aucun contact secondaire renseigné.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
   {# ── Changer mot de passe ── #}
   <div class="col-md-5">
     <div class="card p-4">

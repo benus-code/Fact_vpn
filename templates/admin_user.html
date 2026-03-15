@@ -13,15 +13,42 @@
   <h4 class="fw-bold mb-0">{{ user.nom }}</h4>
   <span class="text-muted small">{{ user.email }}</span>
   {% if user.whatsapp %}
-    <a href="https://wa.me/{{ user.whatsapp | replace('+','') | replace(' ','') | replace('-','') }}"
+  {% set wa_num = user.whatsapp | replace('+','') | replace(' ','') | replace('-','') %}
+    <a href="https://wa.me/{{ wa_num }}"
        target="_blank" class="badge bg-success text-decoration-none">
-      📱 WhatsApp {{ user.whatsapp }}
+      📱 {{ user.whatsapp }}
     </a>
+    {# Raccourcis messages WA pré-remplis #}
+    <div class="dropdown d-inline">
+      <button class="btn btn-sm btn-outline-success dropdown-toggle" type="button" data-bs-toggle="dropdown">
+        💬 WA rapide
+      </button>
+      <ul class="dropdown-menu" style="min-width:220px;">
+        <li>
+          <a class="dropdown-item small" target="_blank"
+             href="https://wa.me/{{ wa_num }}?text=Bonjour%20{{ user.nom | urlencode }}%2C%20votre%20acc%C3%A8s%20VPN%20est%20maintenant%20actif%20!%20Consultez%20votre%20espace%20pour%20les%20d%C3%A9tails.">
+            ✅ Accès activé
+          </a>
+        </li>
+        <li>
+          <a class="dropdown-item small" target="_blank"
+             href="https://wa.me/{{ wa_num }}?text=Bonjour%20{{ user.nom | urlencode }}%2C%20votre%20abonnement%20VPN%20expire%20dans%203%20jours.%20Pensez%20%C3%A0%20renouveler%20!">
+            ⏰ Rappel expiration J-3
+          </a>
+        </li>
+        <li>
+          <a class="dropdown-item small" target="_blank"
+             href="https://wa.me/{{ wa_num }}?text=Bonjour%20{{ user.nom | urlencode }}%2C%20votre%20abonnement%20VPN%20a%20expir%C3%A9.%20Contactez-nous%20pour%20renouveler.">
+            ❌ Abonnement expiré
+          </a>
+        </li>
+      </ul>
+    </div>
   {% endif %}
   {% if user.telegram %}
     <a href="https://t.me/{{ user.telegram | replace('@','') }}"
        target="_blank" class="badge bg-primary text-decoration-none">
-      ✈️ Telegram {{ user.telegram }}
+      ✈️ {{ user.telegram }}
     </a>
   {% endif %}
 </div>
