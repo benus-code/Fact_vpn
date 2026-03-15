@@ -148,8 +148,11 @@ def notify_telegram(message):
         app.logger.warning(f"Telegram notify failed: {e}")
 
 def send_email(to_email, subject, body_html):
-    """Envoie via Gmail SMTP. Ignore les adresses @vpn.local et les configs vides."""
-    if not to_email or '@' not in to_email or to_email.endswith('@vpn.local'):
+    """Envoie via Gmail SMTP. Ignore tout domaine .local* et les configs vides."""
+    if not to_email or '@' not in to_email:
+        return False
+    domain = to_email.split('@', 1)[1].lower()
+    if '.local' in domain or '.' not in domain:
         return False
     s = get_settings()
     addr = s.get('smtp_email', '').strip()

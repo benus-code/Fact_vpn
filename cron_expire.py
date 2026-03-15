@@ -18,7 +18,10 @@ CONTAINER = "amnezia-awg"
 
 def send_reminder_email(conn, to_email, nom, date_fin_str):
     """Envoie un email de rappel J-3. Lit les settings SMTP depuis la DB."""
-    if not to_email or '@' not in to_email or to_email.endswith('@vpn.local'):
+    if not to_email or '@' not in to_email:
+        return False
+    domain = to_email.split('@', 1)[1].lower()
+    if '.local' in domain or '.' not in domain:
         return False
     row = conn.execute(
         "SELECT value FROM settings WHERE key = 'smtp_email'"
