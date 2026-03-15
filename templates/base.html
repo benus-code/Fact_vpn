@@ -6,42 +6,184 @@
 <title>{% block title %}VPN Billing{% endblock %}</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
 <style>
-  body { background: #f4f6f9; font-family: system-ui, sans-serif; }
-  .navbar { background: #1a1a2e !important; }
-  .navbar-brand { color: #e94560 !important; font-weight: 700; letter-spacing: 1px; }
-  .nav-link { color: #ccc !important; }
-  .nav-link:hover { color: #fff !important; }
-  .card { border: none; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,.07); transition: box-shadow 0.2s ease; }
-  .card:hover { box-shadow: 0 4px 20px rgba(0,0,0,.1); }
-  .badge-active   { background: #28a745; }
-  .badge-expire   { background: #dc3545; }
-  .badge-warning  { background: #fd7e14; }
-  .peer-badge { font-size: .75rem; padding: 3px 8px; border-radius: 20px; }
-  .peer-on  { background:#d4edda; color:#155724; }
-  .peer-off { background:#f8d7da; color:#721c24; }
-  a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
-    outline: 2px solid #e94560; outline-offset: 2px;
+  /* ── Palette ─────────────────────────────────────────────── */
+  :root {
+    --navy:   #1a1a2e;
+    --red:    #e94560;
+    --red-dk: #c73652;
+    --bg:     #eef1f7;
+    --card:   #ffffff;
+    --text:   #1e2535;
+    --muted:  #7a8499;
+    --border: #e4e8f0;
   }
-  .btn:disabled { cursor: not-allowed; opacity: 0.8; }
+
+  /* ── Base ────────────────────────────────────────────────── */
+  body {
+    background: var(--bg);
+    font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+    color: var(--text);
+    font-size: .97rem;
+  }
+
+  /* ── Navbar ──────────────────────────────────────────────── */
+  .navbar {
+    background: var(--navy) !important;
+    border-bottom: 3px solid var(--red);
+    padding: 10px 0;
+  }
+  .navbar-brand {
+    color: #fff !important;
+    font-weight: 800;
+    font-size: 1.1rem;
+    letter-spacing: .5px;
+  }
+  .navbar-brand span { color: var(--red); }
+  .nav-user-chip {
+    background: rgba(233,69,96,.18);
+    color: #f8c0cb;
+    border-radius: 20px;
+    padding: 3px 14px;
+    font-size: .82rem;
+    font-weight: 600;
+  }
+  .btn-nav-admin {
+    background: rgba(255,200,0,.12);
+    color: #ffd54f;
+    border: 1px solid rgba(255,200,0,.3);
+    font-size: .82rem;
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .btn-nav-admin:hover { background: rgba(255,200,0,.22); color: #ffe082; }
+  .btn-nav-logout {
+    background: rgba(255,255,255,.08);
+    color: #ccc;
+    border: 1px solid rgba(255,255,255,.15);
+    font-size: .82rem;
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-weight: 500;
+    text-decoration: none;
+  }
+  .btn-nav-logout:hover { background: rgba(255,255,255,.15); color: #fff; }
+
+  /* ── Cards ───────────────────────────────────────────────── */
+  .card {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 4px 16px rgba(0,0,0,.06);
+    background: var(--card);
+    transition: box-shadow .2s ease;
+  }
+  .card:hover { box-shadow: 0 4px 20px rgba(0,0,0,.1); }
+  .card-accent { border-left: 4px solid var(--red); }
+
+  /* ── Buttons ─────────────────────────────────────────────── */
+  .btn-primary {
+    background: var(--red);
+    border-color: var(--red);
+    font-weight: 600;
+    border-radius: 8px;
+  }
+  .btn-primary:hover, .btn-primary:focus {
+    background: var(--red-dk);
+    border-color: var(--red-dk);
+  }
+  .btn-outline-primary {
+    color: var(--red);
+    border-color: var(--red);
+    font-weight: 600;
+    border-radius: 8px;
+  }
+  .btn-outline-primary:hover { background: var(--red); border-color: var(--red); }
+  .btn:disabled { cursor: not-allowed; opacity: .8; }
+
+  /* ── Form controls ───────────────────────────────────────── */
+  .form-control, .form-select {
+    border-color: var(--border);
+    border-radius: 8px;
+    color: var(--text);
+  }
+  .form-control:focus, .form-select:focus {
+    border-color: var(--red);
+    box-shadow: 0 0 0 3px rgba(233,69,96,.12);
+  }
+  .form-label {
+    font-weight: 600;
+    font-size: .88rem;
+    color: var(--text);
+    margin-bottom: .35rem;
+  }
+  a:focus-visible, button:focus-visible, input:focus-visible,
+  select:focus-visible, textarea:focus-visible {
+    outline: 2px solid var(--red);
+    outline-offset: 2px;
+  }
+
+  /* Password toggle ──────────────────────────────────────── */
   .password-toggle-wrap { position: relative; }
   .password-toggle-wrap .form-control { padding-right: 2.75rem; }
-  .btn-password-toggle { position: absolute; right: 0.25rem; top: 50%; transform: translateY(-50%); padding: 0.25rem 0.5rem; font-size: 0.875rem; border: none; background: transparent; color: #6c757d; cursor: pointer; border-radius: 4px; }
-  .btn-password-toggle:hover { color: #1a1a2e; }
-  .copy-btn { font-size: 0.8rem; padding: 0.2rem 0.5rem; }
-  .breadcrumb { font-size: 0.9rem; }
+  .btn-password-toggle {
+    position: absolute; right: .25rem; top: 50%; transform: translateY(-50%);
+    padding: .25rem .5rem; font-size: .875rem;
+    border: none; background: transparent; color: #6c757d;
+    cursor: pointer; border-radius: 4px;
+  }
+  .btn-password-toggle:hover { color: var(--navy); }
+
+  /* ── Tables ──────────────────────────────────────────────── */
+  .table th {
+    font-size: .76rem;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    color: var(--muted);
+    font-weight: 700;
+    border-color: var(--border);
+  }
+  .table td { border-color: var(--border); vertical-align: middle; }
+  .table-hover tbody tr:hover { background: #f7f9fc; }
+
+  /* ── Badges ──────────────────────────────────────────────── */
+  .badge { font-weight: 600; letter-spacing: .2px; border-radius: 20px; padding: 4px 10px; }
+  .peer-badge { font-size: .78rem; padding: 3px 10px; border-radius: 20px; font-weight: 600; }
+  .peer-on  { background: #e8f5e9; color: #2e7d32; }
+  .peer-off { background: #fde8ec; color: #c62828; }
+
+  /* ── Alerts ──────────────────────────────────────────────── */
+  .alert { border-radius: 10px; border: none; font-size: .92rem; }
+  .alert-success { background: #e8f5e9; color: #2e7d32; }
+  .alert-danger  { background: #fde8ec; color: #c62828; }
+  .alert-warning { background: #fff8e1; color: #e65100; }
+  .alert-info    { background: #e3f2fd; color: #1565c0; }
+
+  /* ── Misc ────────────────────────────────────────────────── */
+  code {
+    background: #f0f2f7;
+    color: var(--red);
+    padding: 2px 6px;
+    border-radius: 5px;
+    font-size: .88em;
+  }
+  hr { border-color: var(--border); }
+  .breadcrumb { font-size: .9rem; }
+  .copy-btn { font-size: .8rem; padding: .2rem .5rem; }
+  .page-title { font-weight: 800; color: var(--navy); font-size: 1.4rem; }
 </style>
 </head>
 <body>
 <nav class="navbar navbar-expand-lg navbar-dark">
   <div class="container">
-    <a class="navbar-brand" href="/">🔐 VPN Billing</a>
+    <a class="navbar-brand" href="/">🔐 VPN <span>Privé</span></a>
     {% if session.user_id %}
-    <div class="ms-auto d-flex align-items-center gap-3">
-      <span class="text-light">{{ session.user_nom }}</span>
+    <div class="ms-auto d-flex align-items-center gap-2">
+      <span class="nav-user-chip">{{ session.user_nom }}</span>
       {% if session.is_admin %}
-        <a href="{{ url_for('admin_panel') }}" class="btn btn-sm btn-outline-warning">Admin</a>
+        <a href="{{ url_for('admin_panel') }}" class="btn-nav-admin">⚙ Admin</a>
       {% endif %}
-      <a href="{{ url_for('logout') }}" class="btn btn-sm btn-outline-light">Déconnexion</a>
+      <a href="{{ url_for('logout') }}" class="btn-nav-logout">Déconnexion</a>
     </div>
     {% endif %}
   </div>

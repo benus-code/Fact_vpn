@@ -1,64 +1,140 @@
 {% extends "base.html" %}
-{% block title %}S'inscrire — VPN{% endblock %}
+{% block title %}S'inscrire — VPN Privé{% endblock %}
 {% block content %}
-<div class="row justify-content-center mt-5">
-  <div class="col-md-5">
-    <div class="card p-4">
-      <h4 class="mb-1 text-center fw-bold">🔐 Accès VPN</h4>
-      <p class="text-center text-muted small mb-4">Créez votre compte pour demander un accès</p>
 
-      <form method="POST" data-prevent-double-submit id="form-inscription">
-        <div class="mb-3">
-          <label class="form-label" for="ins-nom">Nom complet <span class="text-danger">*</span></label>
-          <input id="ins-nom" type="text" name="nom" class="form-control" placeholder="ex: Ivan Petrov" required autofocus>
-        </div>
-        <div class="mb-3">
-          <label class="form-label" for="ins-email">Email <span class="text-danger">*</span></label>
-          <input id="ins-email" type="email" name="email" class="form-control" placeholder="ex: ivan@mail.ru" required>
-        </div>
-        <div class="mb-3">
-          <label class="form-label" for="ins-password">Mot de passe <span class="text-danger">*</span> <span class="text-muted small">(min. 6 caractères)</span></label>
-          <div class="password-toggle-wrap">
-            <input id="ins-password" type="password" name="password" class="form-control" minlength="6" required placeholder="Min. 6 caractères">
-            <button type="button" class="btn-password-toggle" data-password-toggle="#ins-password" aria-pressed="false">Afficher</button>
+<div class="row justify-content-center" style="margin-top: 2rem; margin-bottom: 2rem;">
+  <div class="col-lg-10 col-xl-9">
+    <div class="card overflow-hidden p-0">
+      <div class="row g-0">
+
+        {# ── Panneau tarif (gauche) ── #}
+        <div class="col-md-4 d-none d-md-flex flex-column justify-content-between"
+             style="background: #1a1a2e; padding: 40px 28px;">
+          <div>
+            <div style="font-size:2rem; line-height:1;">🔐</div>
+            <h2 style="color:#fff; font-weight:800; margin:16px 0 6px; font-size:1.4rem;">Accès VPN</h2>
+            <p style="color:#8892b0; font-size:.85rem; line-height:1.6; margin-bottom:28px;">
+              Service personnel, sécurisé, activé sous 24h.
+            </p>
+            <div style="background:rgba(233,69,96,.12); border:1px solid rgba(233,69,96,.3);
+                        border-radius:12px; padding:20px 18px; text-align:center; margin-bottom:24px;">
+              <div style="font-size:2.8rem; font-weight:800; color:#e94560; line-height:1;">
+                {{ bank.montant if bank else '100' }}<span style="font-size:1.2rem;">₽</span>
+              </div>
+              <div style="color:#8892b0; font-size:.82rem; margin-top:4px;">par mois</div>
+            </div>
+            <ul style="list-style:none; padding:0;">
+              <li style="color:#a8b2d8; padding:6px 0; font-size:.85rem; border-bottom:1px solid rgba(255,255,255,.06);">
+                <span style="color:#e94560; margin-right:8px;">✓</span> Plusieurs appareils
+              </li>
+              <li style="color:#a8b2d8; padding:6px 0; font-size:.85rem; border-bottom:1px solid rgba(255,255,255,.06);">
+                <span style="color:#e94560; margin-right:8px;">✓</span> Chiffrement WireGuard
+              </li>
+              <li style="color:#a8b2d8; padding:6px 0; font-size:.85rem; border-bottom:1px solid rgba(255,255,255,.06);">
+                <span style="color:#e94560; margin-right:8px;">✓</span> Activation sous 24h
+              </li>
+              <li style="color:#a8b2d8; padding:6px 0; font-size:.85rem;">
+                <span style="color:#e94560; margin-right:8px;">✓</span> Support personnel
+              </li>
+            </ul>
           </div>
-        </div>
-        <div class="mb-3">
-          <label class="form-label" for="ins-confirm">Confirmer le mot de passe <span class="text-danger">*</span></label>
-          <div class="password-toggle-wrap">
-            <input id="ins-confirm" type="password" name="confirm" class="form-control" required placeholder="Retapez le mot de passe">
-            <button type="button" class="btn-password-toggle" data-password-toggle="#ins-confirm" aria-pressed="false">Afficher</button>
+          {% if bank %}
+          <div style="background:rgba(255,255,255,.05); border-radius:10px; padding:14px; margin-top:24px;">
+            <p style="color:#8892b0; font-size:.78rem; margin:0; line-height:1.6;">
+              <strong style="color:#a8b2d8;">Comment payer ?</strong><br>
+              Virement {{ bank.banque }}<br>
+              <span style="color:#e94560;">{{ bank.telephone }}</span><br>
+              Commentaire : <em>{{ bank.reference }}</em>
+            </p>
           </div>
-          <p id="ins-confirm-msg" class="small mt-1 mb-0" role="status" aria-live="polite"></p>
+          {% endif %}
         </div>
 
-        <hr class="my-3">
-        <p class="text-muted small mb-2">Contact optionnel (pour que l'admin vous contacte facilement) :</p>
+        {# ── Formulaire (droite) ── #}
+        <div class="col-md-8" style="padding: 36px 40px;">
+          <h4 class="fw-bold mb-1" style="color:#1e2535;">Créer votre compte</h4>
+          <p class="text-muted mb-4" style="font-size:.9rem;">
+            Remplissez le formulaire — votre accès sera activé après réception du paiement.
+          </p>
 
-        <div class="mb-3">
-          <label class="form-label">WhatsApp</label>
-          <input type="text" name="whatsapp" class="form-control" placeholder="ex: +7 996 123-45-67">
+          <form method="POST" data-prevent-double-submit id="form-inscription">
+            <div class="row g-3">
+              <div class="col-sm-6">
+                <label class="form-label" for="ins-nom">Nom complet <span class="text-danger">*</span></label>
+                <input id="ins-nom" type="text" name="nom" class="form-control"
+                       placeholder="ex: Ivan Petrov" required autofocus>
+              </div>
+              <div class="col-sm-6">
+                <label class="form-label" for="ins-email">Email <span class="text-danger">*</span></label>
+                <input id="ins-email" type="email" name="email" class="form-control"
+                       placeholder="votre@email.com" required>
+              </div>
+              <div class="col-sm-6">
+                <label class="form-label" for="ins-password">
+                  Mot de passe <span class="text-danger">*</span>
+                  <span class="text-muted" style="font-weight:400;">(min. 6 car.)</span>
+                </label>
+                <div class="password-toggle-wrap">
+                  <input id="ins-password" type="password" name="password" class="form-control"
+                         minlength="6" required placeholder="Min. 6 caractères">
+                  <button type="button" class="btn-password-toggle"
+                          data-password-toggle="#ins-password" aria-pressed="false">Afficher</button>
+                </div>
+              </div>
+              <div class="col-sm-6">
+                <label class="form-label" for="ins-confirm">Confirmer <span class="text-danger">*</span></label>
+                <div class="password-toggle-wrap">
+                  <input id="ins-confirm" type="password" name="confirm" class="form-control"
+                         required placeholder="Retapez le mot de passe">
+                  <button type="button" class="btn-password-toggle"
+                          data-password-toggle="#ins-confirm" aria-pressed="false">Afficher</button>
+                </div>
+                <p id="ins-confirm-msg" class="small mt-1 mb-0" role="status" aria-live="polite"></p>
+              </div>
+            </div>
+
+            <hr style="margin: 20px 0 16px;">
+            <p class="mb-2" style="font-size:.83rem; color:#7a8499; font-weight:700; letter-spacing:.4px;">
+              CONTACT OPTIONNEL <span style="font-weight:400;">(pour que l'admin vous contacte facilement)</span>
+            </p>
+            <div class="row g-3">
+              <div class="col-sm-6">
+                <label class="form-label">WhatsApp</label>
+                <input type="text" name="whatsapp" class="form-control" placeholder="ex: +7 996 123-45-67">
+              </div>
+              <div class="col-sm-6">
+                <label class="form-label">Telegram</label>
+                <input type="text" name="telegram" class="form-control" placeholder="ex: @monpseudo">
+              </div>
+            </div>
+
+            {# Tarif visible sur mobile uniquement #}
+            <div class="d-md-none mt-3">
+              <div class="alert alert-info mb-0">
+                <strong>Tarif : {{ bank.montant if bank else '100' }} ₽ / mois</strong><br>
+                <small>Virement {{ bank.banque if bank else '' }} — activation sous 24h</small>
+              </div>
+            </div>
+
+            <div class="mt-4">
+              <button type="submit" class="btn btn-primary w-100" style="padding: 11px;">
+                Envoyer ma demande d'accès
+              </button>
+            </div>
+          </form>
+
+          <hr style="margin: 20px 0;">
+          <p class="text-center mb-0" style="font-size:.88rem; color:#7a8499;">
+            Déjà abonné ?
+            <a href="{{ url_for('login') }}" style="color:#e94560; font-weight:600;">Se connecter</a>
+          </p>
         </div>
-        <div class="mb-4">
-          <label class="form-label">Telegram</label>
-          <input type="text" name="telegram" class="form-control" placeholder="ex: @monpseudo">
-        </div>
 
-        <div class="alert alert-info small mb-3">
-          <strong>Tarif :</strong> {{ bank.montant if bank else '100' }} ₽ / mois<br>
-          Votre accès sera activé dans les 24h après réception du paiement.
-        </div>
-
-        <button type="submit" class="btn btn-primary w-100">Envoyer la demande</button>
-      </form>
-
-      <hr>
-      <p class="text-center small text-muted mb-0">
-        Déjà un compte ? <a href="{{ url_for('login') }}">Se connecter</a>
-      </p>
+      </div>
     </div>
   </div>
 </div>
+
 {% endblock %}
 {% block scripts %}
 <script>

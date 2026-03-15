@@ -1,29 +1,71 @@
 {% extends "base.html" %}
-{% block title %}Connexion — VPN Billing{% endblock %}
+{% block title %}Connexion — VPN Privé{% endblock %}
 {% block content %}
-<div class="row justify-content-center mt-5">
-  <div class="col-md-4">
-    <div class="card p-4">
-      <h4 class="mb-4 text-center fw-bold">🔐 Connexion</h4>
-      <form method="POST" data-prevent-double-submit>
-        <div class="mb-3">
-          <label class="form-label" for="login-email">Email</label>
-          <input id="login-email" type="email" name="email" class="form-control" required autofocus>
-        </div>
-        <div class="mb-4">
-          <label class="form-label" for="login-password">Mot de passe</label>
-          <div class="password-toggle-wrap">
-            <input id="login-password" type="password" name="password" class="form-control" required>
-            <button type="button" class="btn-password-toggle" data-password-toggle="#login-password" aria-pressed="false">Afficher</button>
+
+<div class="row justify-content-center" style="margin-top: 3rem;">
+  <div class="col-lg-8 col-xl-7">
+    <div class="card overflow-hidden p-0">
+      <div class="row g-0">
+
+        {# ── Panneau marque (gauche) ── #}
+        <div class="col-md-5 d-none d-md-flex flex-column justify-content-between"
+             style="background: #1a1a2e; padding: 40px 32px;">
+          <div>
+            <div style="font-size:2.2rem; line-height:1;">🔐</div>
+            <h2 style="color:#fff; font-weight:800; margin:16px 0 10px; font-size:1.6rem;">VPN Privé</h2>
+            <p style="color:#8892b0; font-size:.9rem; line-height:1.7;">
+              Votre connexion personnelle, chiffrée et sans logs.
+            </p>
+            <ul style="list-style:none; padding:0; margin-top:28px;">
+              <li style="color:#a8b2d8; padding:7px 0; font-size:.88rem; border-bottom:1px solid rgba(255,255,255,.06);">
+                <span style="color:#e94560; margin-right:8px;">✓</span> Chiffrement WireGuard
+              </li>
+              <li style="color:#a8b2d8; padding:7px 0; font-size:.88rem; border-bottom:1px solid rgba(255,255,255,.06);">
+                <span style="color:#e94560; margin-right:8px;">✓</span> Multi-appareils
+              </li>
+              <li style="color:#a8b2d8; padding:7px 0; font-size:.88rem;">
+                <span style="color:#e94560; margin-right:8px;">✓</span> Support personnel
+              </li>
+            </ul>
           </div>
+          <p style="color:#4a5568; font-size:.78rem; margin:0;">© 2026 VPN Privé</p>
         </div>
-        <button type="submit" class="btn btn-primary w-100">Se connecter</button>
-      </form>
-      <hr>
-      <p class="text-center small text-muted mb-0">
-        Pas encore de compte ? <a href="{{ url_for('inscription') }}">Demander un accès VPN</a>
-      </p>
+
+        {# ── Formulaire (droite) ── #}
+        <div class="col-md-7 d-flex flex-column justify-content-center" style="padding: 40px 36px;">
+          <h4 class="fw-bold mb-1" style="color:#1e2535;">Bon retour 👋</h4>
+          <p class="text-muted mb-4" style="font-size:.9rem;">Connectez-vous à votre espace VPN</p>
+
+          <form method="POST" data-prevent-double-submit>
+            <div class="mb-3">
+              <label class="form-label" for="login-email">Email</label>
+              <input id="login-email" type="email" name="email" class="form-control"
+                     placeholder="votre@email.com" required autofocus>
+            </div>
+            <div class="mb-4">
+              <label class="form-label" for="login-password">Mot de passe</label>
+              <div class="password-toggle-wrap">
+                <input id="login-password" type="password" name="password"
+                       class="form-control" placeholder="••••••••" required>
+                <button type="button" class="btn-password-toggle"
+                        data-password-toggle="#login-password" aria-pressed="false">Afficher</button>
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary w-100" style="padding: 10px;">
+              Se connecter
+            </button>
+          </form>
+
+          <hr style="margin: 24px 0;">
+          <p class="text-center mb-0" style="font-size:.88rem; color:#7a8499;">
+            Pas encore abonné ?
+            <a href="{{ url_for('inscription') }}" style="color:#e94560; font-weight:600;">Demander un accès</a>
+          </p>
+        </div>
+
+      </div>
     </div>
   </div>
 </div>
+
 {% endblock %}
