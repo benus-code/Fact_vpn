@@ -123,39 +123,61 @@
 
   /* ── Pricing section ──────────────────────────── */
   #tarifs { background: var(--bg); }
+  .price-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 36px 28px;
+    text-align: center;
+    height: 100%;
+    position: relative;
+  }
   .price-card-new {
     background: var(--card);
     border: 2px solid var(--red);
     border-radius: 20px;
-    padding: 44px 40px;
-    max-width: 400px;
-    margin: 0 auto;
+    padding: 36px 28px;
     text-align: center;
+    height: 100%;
     position: relative;
   }
+  .price-card .badge-pop,
   .price-card-new .badge-pop {
     position: absolute; top: -14px; left: 50%; transform: translateX(-50%);
     background: var(--red); color: #fff; border-radius: 20px;
     padding: 4px 20px; font-size: .78rem; font-weight: 700; white-space: nowrap;
   }
-  .price-amount { font-size: 4rem; font-weight: 800; color: var(--red); line-height: 1; }
-  .price-amount sup { font-size: 1.6rem; vertical-align: top; margin-top: 10px; }
-  .price-period { color: var(--muted); font-size: .95rem; margin-top: 6px; margin-bottom: 28px; }
-  .price-features { list-style: none; padding: 0; margin: 0 0 32px; text-align: left; }
-  .price-features li {
+  .price-card .plan-name,
+  .price-card-new .plan-name {
+    font-size: .8rem; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--muted); font-weight: 700; margin-bottom: 16px;
+  }
+  .price-amount { font-size: 3.6rem; font-weight: 800; color: var(--red); line-height: 1; }
+  .price-amount sup { font-size: 1.4rem; vertical-align: top; margin-top: 8px; }
+  .price-period { color: var(--muted); font-size: .9rem; margin-top: 6px; margin-bottom: 24px; }
+  .price-features, .feature-list { list-style: none; padding: 0; margin: 0 0 28px; text-align: left; }
+  .price-features li, .feature-list li {
     display: flex; align-items: center; gap: 10px;
     padding: 9px 0; border-bottom: 1px solid var(--border);
-    color: #c8cfe0; font-size: .95rem;
+    color: #c8cfe0; font-size: .9rem;
   }
-  .price-features li:last-child { border-bottom: none; }
-  .price-features .check { color: var(--red); font-weight: 700; font-size: 1rem; flex-shrink: 0; }
-  .btn-price {
+  .price-features li:last-child, .feature-list li:last-child { border-bottom: none; }
+  .price-features .check, .feature-list .check { color: var(--red); font-weight: 700; font-size: 1rem; flex-shrink: 0; }
+  .btn-price, .btn-primary-custom {
     display: block; background: var(--red); color: #fff;
-    padding: 14px; border-radius: 10px; font-size: 1.05rem; font-weight: 700;
+    padding: 13px; border-radius: 10px; font-size: 1rem; font-weight: 700;
     text-decoration: none; transition: background .2s, transform .1s;
     width: 100%;
   }
-  .btn-price:hover { background: var(--red-dk); color: #fff; transform: translateY(-1px); }
+  .btn-price:hover, .btn-primary-custom:hover { background: var(--red-dk); color: #fff; transform: translateY(-1px); }
+  .btn-price-outline {
+    display: block; background: transparent; color: #ccc;
+    border: 1px solid rgba(255,255,255,.2);
+    padding: 13px; border-radius: 10px; font-size: 1rem; font-weight: 600;
+    text-decoration: none; transition: all .2s;
+    width: 100%;
+  }
+  .btn-price-outline:hover { border-color: #fff; color: #fff; }
   .payment-info {
     background: var(--surface); border: 1px solid var(--border);
     border-radius: 14px; padding: 28px;
@@ -247,8 +269,9 @@
     <span class="tag">✦ VPN Personnel &amp; Privé</span>
     <h1>Naviguez librement,<br><span class="accent">sans aucune limite</span></h1>
     <p class="sub">
-      Chiffrement WireGuard de bout en bout. Zéro logs.
-      Instagram, ChatGPT, YouTube — tout accessible instantanément.
+      Accédez à tous les services bloqués — Instagram, YouTube sans pub, ChatGPT.
+      Vos apps russes continuent de fonctionner normalement.
+      Configuration assistée incluse.
     </p>
     <div class="hero-cta">
       <a href="{{ url_for('inscription') }}" class="btn-hero-primary">Demander l'accès →</a>
@@ -319,30 +342,70 @@
   <div class="container">
     <div class="section-header">
       <span class="section-chip">Tarifs</span>
-      <h2>Un abonnement,<br>tout est inclus</h2>
+      <h2>Choisissez votre forfait</h2>
       <p>Pas de frais cachés. Pas d'engagement. Activé sous 24h.</p>
     </div>
-    <div class="row g-4 align-items-start">
-      <div class="col-lg-5">
-        <div class="price-card-new">
-          <span class="badge-pop">✦ Offre unique</span>
-          <div class="price-amount"><sup>₽</sup>{{ bank.montant }}</div>
-          <div class="price-period">par mois · sans engagement</div>
+
+    <!-- 3 plans -->
+    <div class="row g-4 align-items-stretch mb-5">
+
+      <!-- Mobile -->
+      <div class="col-md-4">
+        <div class="price-card h-100">
+          <p class="plan-name">📱 Forfait Mobile</p>
+          <div class="price-amount"><sup>₽</sup>149</div>
+          <div class="price-period">par mois · Android &amp; iPhone</div>
           <ul class="price-features">
-            <li><span class="check">✓</span> Plusieurs appareils supportés</li>
-            <li><span class="check">✓</span> Chiffrement WireGuard 100%</li>
-            <li><span class="check">✓</span> Activation immédiate</li>
-            <li><span class="check">✓</span> Support client 24/7</li>
-            <li><span class="check">✓</span> Smart routing inclus</li>
-            <li><span class="check">✓</span> Zéro logs conservés</li>
+            <li><span class="check">✓</span> Accès aux services bloqués</li>
+            <li><span class="check">✓</span> YouTube sans publicités</li>
+            <li><span class="check">✓</span> Streaming optimisé</li>
+            <li><span class="check">✓</span> Aide à la configuration</li>
           </ul>
-          <a href="{{ url_for('inscription') }}" class="btn-price">Demander l'accès maintenant</a>
+          <a href="{{ url_for('inscription') }}" class="btn-price-outline">Choisir ce forfait</a>
+        </div>
+      </div>
+
+      <!-- Computer -->
+      <div class="col-md-4">
+        <div class="price-card h-100">
+          <p class="plan-name">💻 Forfait Ordinateur</p>
+          <div class="price-amount"><sup>₽</sup>249</div>
+          <div class="price-period">par mois · Windows &amp; Mac</div>
+          <ul class="price-features">
+            <li><span class="check">✓</span> Accès aux services bloqués</li>
+            <li><span class="check">✓</span> Streaming optimisé</li>
+            <li><span class="check">✓</span> Connexion chiffrée sécurisée</li>
+            <li><span class="check">✓</span> Configuration manuelle assistée</li>
+          </ul>
+          <a href="{{ url_for('inscription') }}" class="btn-price-outline">Choisir ce forfait</a>
+        </div>
+      </div>
+
+      <!-- Full — featured -->
+      <div class="col-md-4">
+        <div class="price-card-new h-100">
+          <span class="badge-pop">✦ Le plus populaire</span>
+          <p class="plan-name" style="margin-top:8px;">📱💻 Forfait Complet</p>
+          <div class="price-amount"><sup>₽</sup>349</div>
+          <div class="price-period">par mois · Téléphone + Ordinateur</div>
+          <ul class="price-features">
+            <li><span class="check">✓</span> Accès aux services bloqués</li>
+            <li><span class="check">✓</span> YouTube sans publicités</li>
+            <li><span class="check">✓</span> Split tunneling — apps russes non affectées</li>
+            <li><span class="check">✓</span> Support prioritaire &amp; configuration</li>
+          </ul>
+          <a href="{{ url_for('inscription') }}" class="btn-price">Demander l'accès →</a>
           <p style="color:#555; font-size:.8rem; margin-top:12px; margin-bottom:0;">
             Déjà abonné ? <a href="{{ url_for('login') }}" style="color:var(--red);">Se connecter</a>
           </p>
         </div>
       </div>
-      <div class="col-lg-7">
+
+    </div>
+
+    <!-- Payment info below the cards -->
+    <div class="row justify-content-center">
+      <div class="col-lg-8">
         <div class="payment-info">
           <h5>💳 Comment effectuer le paiement</h5>
           <div class="payment-row">
@@ -356,10 +419,6 @@
           <div class="payment-row">
             <span class="key">Banque</span>
             <span class="val">{{ bank.banque }}</span>
-          </div>
-          <div class="payment-row">
-            <span class="key">Montant</span>
-            <span class="val red">{{ bank.montant }} ₽ / mois</span>
           </div>
           <div class="payment-row">
             <span class="key">Commentaire du virement</span>
@@ -377,6 +436,7 @@
         </div>
       </div>
     </div>
+
   </div>
 </section>
 
@@ -399,7 +459,7 @@
         <div class="step-card">
           <div class="step-num-big">2</div>
           <h5>Envoyez le paiement</h5>
-          <p>Effectuez un virement {{ bank.banque }} au montant indiqué. Pensez à mettre votre prénom en commentaire.</p>
+          <p>Effectuez un virement au montant du forfait choisi. Pensez à mettre votre prénom en commentaire.</p>
         </div>
       </div>
       <div class="col-md-4">
