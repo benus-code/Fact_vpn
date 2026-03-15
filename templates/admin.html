@@ -85,7 +85,27 @@
       <input type="text" name="reference" class="form-control form-control-sm"
              value="{{ settings.reference }}" required>
     </div>
-    <div class="col-md-2">
+    <div class="col-12 mt-1">
+      <hr class="my-2">
+      <p class="small text-muted mb-2">
+        🤖 Notifications Telegram (optionnel) —
+        <a href="https://t.me/BotFather" target="_blank">créer un bot</a> puis récupérer le Chat ID via
+        <code>@userinfobot</code>
+      </p>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label small">Bot Token</label>
+      <input type="password" name="telegram_bot_token" class="form-control form-control-sm"
+             value="{{ settings.telegram_bot_token }}"
+             placeholder="123456:ABC-DEFxxxxx" autocomplete="off">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label small">Chat ID</label>
+      <input type="text" name="telegram_chat_id" class="form-control form-control-sm"
+             value="{{ settings.telegram_chat_id }}"
+             placeholder="ex: 123456789 ou -100xxxxxxx">
+    </div>
+    <div class="col-md-2 d-flex align-items-end">
       <button class="btn btn-sm btn-success w-100">💾 Enregistrer</button>
     </div>
   </form>

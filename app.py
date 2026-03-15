@@ -4,31 +4,37 @@ app.py — Portail de facturation VPN (AmneziaWG / WireGuard)
 Lancer : python3 app.py
 """
 
+import os
 import sqlite3
 import hashlib
 import subprocess
+import urllib.request
+import json
 from datetime import date, datetime, timedelta
 from functools import wraps
 from flask import (Flask, render_template, request, redirect,
                    url_for, session, flash, g)
+from werkzeug.security import generate_password_hash, check_password_hash as wz_check
 
 app = Flask(__name__)
-app.secret_key = "CHANGE_CE_SECRET_EN_PROD_SVP"
+app.secret_key = os.environ.get("VPN_SECRET_KEY", "CHANGE_CE_SECRET_EN_PROD_SVP")
 
 DB_PATH      = "/opt/vpn-billing/vpn_billing.db"
 CONTAINER    = "amnezia-awg"
 WG_INTERFACE = "wg0"
 
-# Valeurs par défaut des paramètres de paiement (insérées si absentes de la BDD)
+# Valeurs par défaut — insérées en BDD si absentes
 SETTINGS_DEFAULTS = {
-    "beneficiaire": "Чеганг Анжес Уилфрид",
-    "telephone":    "+7 996 637-23-58",
-    "banque":       "Тбанк",
-    "montant":      "100",
-    "reference":    "VPN + твоё имя",
+    "beneficiaire":      "Чеганг Анжес Уилфрид",
+    "telephone":         "+7 996 637-23-58",
+    "banque":            "Тбанк",
+    "montant":           "100",
+    "reference":         "VPN + твоё имя",
+    "telegram_bot_token": "",
+    "telegram_chat_id":   "",
 }
 
-# ─── DB helpers ──────────────────────────────────────────────────────────────
+# ─── DB helpers ───────────────────────────────────────────────────────────────
 def get_db():
     if "db" not in g:
         g.db = sqlite3.connect(DB_PATH)
@@ -41,20 +47,18 @@ def close_db(e=None):
     if db:
         db.close()
 
-def hash_password(p):
-    return hashlib.sha256(p.encode()).hexdigest()
-
 def get_settings():
-    """Retourne un dict des paramètres de paiement depuis la BDD."""
+    """Dict des paramètres de paiement/config depuis la BDD."""
     db = get_db()
     rows = db.execute("SELECT key, value FROM settings").fetchall()
     return {row["key"]: row["value"] for row in rows}
 
-# ─── Migration douce au démarrage ────────────────────────────────────────────
+# ─── Migration douce au démarrage ─────────────────────────────────────────────
 def init_app_db():
-    """Crée les tables/colonnes manquantes sans toucher aux données existantes."""
+    """Crée tables/colonnes manquantes sans toucher aux données existantes."""
     conn = sqlite3.connect(DB_PATH)
-    # Table settings (paramètres de paiement modifiables depuis l'admin)
+
+    # Table settings
     conn.execute("""
         CREATE TABLE IF NOT EXISTS settings (
             key   TEXT PRIMARY KEY,
@@ -66,16 +70,35 @@ def init_app_db():
             "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
             (key, value)
         )
-    # Colonnes de contact optionnelles sur users
+
+    # Colonnes optionnelles sur users
     for col in ["whatsapp", "telegram"]:
         try:
             conn.execute(f"ALTER TABLE users ADD COLUMN {col} TEXT")
         except sqlite3.OperationalError:
-            pass  # colonne déjà présente
+            pass
+
+    # Colonne date_ajout sur peers
+    try:
+        conn.execute("ALTER TABLE peers ADD COLUMN date_ajout DATE")
+        conn.execute("UPDATE peers SET date_ajout = DATE('now') WHERE date_ajout IS NULL")
+    except sqlite3.OperationalError:
+        pass
+
     conn.commit()
     conn.close()
 
 # ─── Auth helpers ─────────────────────────────────────────────────────────────
+def hash_password(p):
+    return generate_password_hash(p)
+
+def verify_password(stored, provided):
+    """Vérifie le mot de passe. Compatible avec les anciens hash SHA-256."""
+    # Ancien hash SHA-256 brut (64 caractères hexadécimaux)
+    if len(stored) == 64 and all(c in "0123456789abcdef" for c in stored):
+        return stored == hashlib.sha256(provided.encode()).hexdigest()
+    return wz_check(stored, provided)
+
 def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -93,10 +116,31 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated
 
+# ─── Telegram notifications ───────────────────────────────────────────────────
+def notify_telegram(message):
+    """Envoie un message via bot Telegram. Silencieux si non configuré."""
+    s = get_settings()
+    token   = s.get("telegram_bot_token", "").strip()
+    chat_id = s.get("telegram_chat_id", "").strip()
+    if not token or not chat_id:
+        return
+    try:
+        data = json.dumps({
+            "chat_id": chat_id,
+            "text":    message,
+            "parse_mode": "HTML"
+        }).encode()
+        req = urllib.request.Request(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            data=data,
+            headers={"Content-Type": "application/json"}
+        )
+        urllib.request.urlopen(req, timeout=5)
+    except Exception as e:
+        app.logger.warning(f"Telegram notify failed: {e}")
+
 # ─── iptables helpers ─────────────────────────────────────────────────────────
 def iptables_block_peer(ip_vpn):
-    """Bloque le trafic d'un peer par son IP VPN (iptables DROP).
-    La config WireGuard reste intacte : le peer peut être réactivé sans reconfiguration."""
     ip = ip_vpn.split("/")[0]
     try:
         subprocess.run(
@@ -113,9 +157,7 @@ def iptables_block_peer(ip_vpn):
         return False
 
 def iptables_unblock_peer(ip_vpn):
-    """Réactive un peer en supprimant les règles DROP (ignoré si déjà absent)."""
     ip = ip_vpn.split("/")[0]
-    ok = True
     for direction in ["-s", "-d"]:
         try:
             subprocess.run(
@@ -123,10 +165,16 @@ def iptables_unblock_peer(ip_vpn):
                 check=True, capture_output=True
             )
         except subprocess.CalledProcessError:
-            pass  # règle absente = peer déjà débloqué, pas d'erreur
-    return ok
+            pass
+    return True
 
 # ─── Routes publiques ─────────────────────────────────────────────────────────
+@app.route("/")
+def index():
+    if "user_id" in session:
+        return redirect(url_for("admin_panel") if session.get("is_admin") else url_for("dashboard"))
+    return render_template("landing.html", bank=get_settings())
+
 @app.route("/inscription", methods=["GET", "POST"])
 def inscription():
     if "user_id" in session:
@@ -159,16 +207,18 @@ def inscription():
             (new_user["id"],)
         )
         db.commit()
+        # Notification Telegram à l'admin
+        contacts = []
+        if whatsapp: contacts.append(f"WhatsApp: {whatsapp}")
+        if telegram: contacts.append(f"Telegram: {telegram}")
+        contact_str = " | ".join(contacts) if contacts else "aucun contact fourni"
+        notify_telegram(
+            f"🆕 <b>Nouvelle inscription</b>\n"
+            f"Nom : {nom}\nEmail : {email}\n{contact_str}"
+        )
         flash("✅ Demande envoyée ! L'administrateur activera votre accès après réception du paiement.", "success")
         return redirect(url_for("login"))
     return render_template("inscription.html")
-
-
-@app.route("/")
-def index():
-    if "user_id" in session:
-        return redirect(url_for("dashboard"))
-    return redirect(url_for("login"))
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -177,10 +227,14 @@ def login():
         mdp   = request.form["password"]
         db    = get_db()
         user  = db.execute(
-            "SELECT * FROM users WHERE email = ? AND password_hash = ?",
-            (email, hash_password(mdp))
+            "SELECT * FROM users WHERE email = ?", (email,)
         ).fetchone()
-        if user:
+        if user and verify_password(user["password_hash"], mdp):
+            # Migration transparente des anciens hash SHA-256
+            if len(user["password_hash"]) == 64:
+                db.execute("UPDATE users SET password_hash = ? WHERE id = ?",
+                           (hash_password(mdp), user["id"]))
+                db.commit()
             session["user_id"]  = user["id"]
             session["user_nom"] = user["nom"]
             session["is_admin"] = bool(user["is_admin"])
@@ -201,13 +255,12 @@ def dashboard():
     uid  = session["user_id"]
     user = db.execute("SELECT * FROM users WHERE id = ?", (uid,)).fetchone()
     abo  = db.execute("SELECT * FROM abonnements WHERE user_id = ?", (uid,)).fetchone()
-    peers = db.execute("SELECT * FROM peers WHERE user_id = ?", (uid,)).fetchall()
+    peers = db.execute("SELECT * FROM peers WHERE user_id = ? ORDER BY date_ajout, id", (uid,)).fetchall()
     paiements = db.execute(
         "SELECT * FROM paiements WHERE user_id = ? ORDER BY date_paiement DESC LIMIT 5",
         (uid,)
     ).fetchall()
 
-    # Calcul statut abonnement
     statut_color = "success"
     jours_restants = None
     if abo and abo["date_fin"]:
@@ -228,13 +281,13 @@ def dashboard():
 @app.route("/changer_mdp", methods=["POST"])
 @login_required
 def changer_mdp():
-    uid      = session["user_id"]
-    ancien   = request.form["ancien"]
-    nouveau  = request.form["nouveau"]
-    confirm  = request.form["confirm"]
+    uid     = session["user_id"]
+    ancien  = request.form["ancien"]
+    nouveau = request.form["nouveau"]
+    confirm = request.form["confirm"]
     db = get_db()
     user = db.execute("SELECT * FROM users WHERE id = ?", (uid,)).fetchone()
-    if user["password_hash"] != hash_password(ancien):
+    if not verify_password(user["password_hash"], ancien):
         flash("Ancien mot de passe incorrect.", "danger")
     elif nouveau != confirm:
         flash("Les nouveaux mots de passe ne correspondent pas.", "danger")
@@ -295,14 +348,15 @@ def admin_panel():
 @admin_required
 def admin_update_settings():
     db = get_db()
-    for key in ["beneficiaire", "telephone", "banque", "montant", "reference"]:
+    for key in ["beneficiaire", "telephone", "banque", "montant", "reference",
+                "telegram_bot_token", "telegram_chat_id"]:
         value = request.form.get(key, "").strip()
         db.execute(
             "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
             (key, value)
         )
     db.commit()
-    flash("✅ Informations de paiement mises à jour.", "success")
+    flash("✅ Paramètres mis à jour.", "success")
     return redirect(url_for("admin_panel"))
 
 @app.route("/admin/user/<int:uid>")
@@ -312,7 +366,9 @@ def admin_user_detail(uid):
     db = get_db()
     user  = db.execute("SELECT * FROM users WHERE id = ?", (uid,)).fetchone()
     abo   = db.execute("SELECT * FROM abonnements WHERE user_id = ?", (uid,)).fetchone()
-    peers = db.execute("SELECT * FROM peers WHERE user_id = ?", (uid,)).fetchall()
+    peers = db.execute(
+        "SELECT * FROM peers WHERE user_id = ? ORDER BY date_ajout, id", (uid,)
+    ).fetchall()
     histo = db.execute(
         "SELECT * FROM paiements WHERE user_id = ? ORDER BY date_paiement DESC",
         (uid,)
@@ -321,47 +377,45 @@ def admin_user_detail(uid):
         user=user, abo=abo, peers=peers, histo=histo, today=date.today()
     )
 
-@app.route("/admin/paiement/ajouter", methods=["POST"])
+# ─── Gestion des peers ────────────────────────────────────────────────────────
+@app.route("/admin/peer/ajouter", methods=["POST"])
 @login_required
 @admin_required
-def admin_ajouter_paiement():
-    uid     = int(request.form["user_id"])
-    montant = float(request.form["montant"])
-    mois    = int(request.form["mois"])
-    note    = request.form.get("note", "")
+def admin_ajouter_peer():
+    uid        = int(request.form["user_id"])
+    label      = request.form["label"].strip()
+    ip_vpn     = request.form["ip_vpn"].strip()
+    date_ajout = request.form.get("date_ajout") or date.today().isoformat()
     db = get_db()
-
-    # Enregistre le paiement
-    db.execute("""
-        INSERT INTO paiements (user_id, montant, mois_prolonges, note, valide)
-        VALUES (?, ?, ?, ?, 1)
-    """, (uid, montant, mois, note))
-
-    # Prolonge l'abonnement
-    abo = db.execute("SELECT * FROM abonnements WHERE user_id = ?", (uid,)).fetchone()
-    if abo and abo["date_fin"]:
-        base = max(date.fromisoformat(abo["date_fin"]), date.today())
-    else:
-        base = date.today()
-    nouvelle_fin = base + timedelta(days=30 * mois)
-
-    db.execute("""
-        UPDATE abonnements
-        SET date_fin = ?, date_debut = COALESCE(date_debut, ?), statut = 'actif'
-        WHERE user_id = ?
-    """, (nouvelle_fin.isoformat(), date.today().isoformat(), uid))
-
-    # Réactive tous les peers de cet user
-    peers = db.execute("SELECT * FROM peers WHERE user_id = ?", (uid,)).fetchall()
-    for peer in peers:
-        if not peer["actif"]:
-            iptables_unblock_peer(peer["ip_vpn"])
-            db.execute("UPDATE peers SET actif = 1 WHERE id = ?", (peer["id"],))
-
+    # Vérifie que l'IP n'est pas déjà utilisée
+    if db.execute("SELECT id FROM peers WHERE ip_vpn = ?", (ip_vpn,)).fetchone():
+        flash(f"L'IP {ip_vpn} est déjà attribuée à un autre appareil.", "danger")
+        return redirect(url_for("admin_user_detail", uid=uid))
+    # public_key = placeholder unique (portail sans échange WireGuard)
+    public_key = f"MANUAL_{ip_vpn}"
+    db.execute(
+        "INSERT INTO peers (user_id, label, public_key, ip_vpn, actif, date_ajout) VALUES (?, ?, ?, ?, 1, ?)",
+        (uid, label, public_key, ip_vpn, date_ajout)
+    )
     db.commit()
     user = db.execute("SELECT nom FROM users WHERE id = ?", (uid,)).fetchone()
-    flash(f"✅ Paiement enregistré pour {user['nom']} — abonnement jusqu'au {nouvelle_fin.strftime('%d/%m/%Y')}.", "success")
+    flash(f"✅ Appareil « {label} » ({ip_vpn}) ajouté pour {user['nom']}.", "success")
     return redirect(url_for("admin_user_detail", uid=uid))
+
+@app.route("/admin/peer/supprimer/<int:peer_id>", methods=["POST"])
+@login_required
+@admin_required
+def admin_supprimer_peer(peer_id):
+    db   = get_db()
+    peer = db.execute("SELECT * FROM peers WHERE id = ?", (peer_id,)).fetchone()
+    if peer:
+        uid = peer["user_id"]
+        iptables_unblock_peer(peer["ip_vpn"])  # s'assure que la règle DROP est retirée
+        db.execute("DELETE FROM peers WHERE id = ?", (peer_id,))
+        db.commit()
+        flash(f"Appareil {peer['label']} ({peer['ip_vpn']}) supprimé.", "warning")
+        return redirect(url_for("admin_user_detail", uid=uid))
+    return redirect(url_for("admin_panel"))
 
 @app.route("/admin/peer/suspendre/<int:peer_id>", methods=["POST"])
 @login_required
@@ -430,6 +484,45 @@ def admin_creer_user():
     db.commit()
     flash(f"✅ Utilisateur {nom} créé avec succès.", "success")
     return redirect(url_for("admin_user_detail", uid=new_user["id"]))
+
+@app.route("/admin/paiement/ajouter", methods=["POST"])
+@login_required
+@admin_required
+def admin_ajouter_paiement():
+    uid     = int(request.form["user_id"])
+    montant = float(request.form["montant"])
+    mois    = int(request.form["mois"])
+    note    = request.form.get("note", "")
+    db = get_db()
+
+    db.execute("""
+        INSERT INTO paiements (user_id, montant, mois_prolonges, note, valide)
+        VALUES (?, ?, ?, ?, 1)
+    """, (uid, montant, mois, note))
+
+    abo = db.execute("SELECT * FROM abonnements WHERE user_id = ?", (uid,)).fetchone()
+    if abo and abo["date_fin"]:
+        base = max(date.fromisoformat(abo["date_fin"]), date.today())
+    else:
+        base = date.today()
+    nouvelle_fin = base + timedelta(days=30 * mois)
+
+    db.execute("""
+        UPDATE abonnements
+        SET date_fin = ?, date_debut = COALESCE(date_debut, ?), statut = 'actif'
+        WHERE user_id = ?
+    """, (nouvelle_fin.isoformat(), date.today().isoformat(), uid))
+
+    peers = db.execute("SELECT * FROM peers WHERE user_id = ?", (uid,)).fetchall()
+    for peer in peers:
+        if not peer["actif"]:
+            iptables_unblock_peer(peer["ip_vpn"])
+            db.execute("UPDATE peers SET actif = 1 WHERE id = ?", (peer["id"],))
+
+    db.commit()
+    user = db.execute("SELECT nom FROM users WHERE id = ?", (uid,)).fetchone()
+    flash(f"✅ Paiement enregistré pour {user['nom']} — abonnement jusqu'au {nouvelle_fin.strftime('%d/%m/%Y')}.", "success")
+    return redirect(url_for("admin_user_detail", uid=uid))
 
 @app.route("/admin/abonnement/modifier", methods=["POST"])
 @login_required
