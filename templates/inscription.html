@@ -143,7 +143,8 @@
               <div class="col-12 col-sm-4">
                 <label class="d-block" style="cursor:pointer;">
                   <input type="radio" name="forfait" value="complet" class="visually-hidden" id="f-complet">
-                  <div class="plan-radio-card plan-radio-featured" data-for="f-complet">
+                  <div class="plan-radio-card" data-for="f-complet">
+                    <div class="popular-chip">✦ Populaire</div>
                     <div class="plan-radio-name">📱💻 Complet</div>
                     <div class="plan-radio-price">349 ₽</div>
                     <div class="plan-radio-sub">Tél. + Ordi</div>
@@ -200,31 +201,55 @@
   .plan-radio-card {
     border: 1.5px solid var(--border, #e4e8f0);
     border-radius: 10px; padding: 12px 10px; text-align: center;
-    transition: border-color .15s, background .15s;
-    background: #fff; height: 100%;
+    transition: border-color .15s, background .15s, box-shadow .15s;
+    background: #fff; height: 100%; position: relative;
   }
-  .plan-radio-card.plan-radio-featured { border-color: #e94560; background: #fff8f9; }
+  /* Featured : badge "Populaire" uniquement, pas de bordure rouge permanente */
+  .plan-radio-card .popular-chip {
+    display: inline-block;
+    background: rgba(233,69,96,.1); border: 1px solid rgba(233,69,96,.3);
+    color: #e94560; border-radius: 20px;
+    padding: 2px 10px; font-size: .68rem; font-weight: 700; margin-bottom: 6px;
+  }
   .plan-radio-card .plan-radio-name { font-size: .82rem; font-weight: 700; color: #1e2535; margin-bottom: 4px; }
   .plan-radio-card .plan-radio-price { font-size: 1.25rem; font-weight: 800; color: #e94560; line-height: 1; }
   .plan-radio-card .plan-radio-sub { font-size: .72rem; color: #7a8499; margin-top: 3px; }
-  input[type="radio"]:checked + .plan-radio-card {
-    border-color: #e94560; background: #fff0f2; box-shadow: 0 0 0 2px #e9456033;
+  /* État sélectionné — s'applique via JS (plus fiable que :checked + div) */
+  .plan-radio-card.is-selected {
+    border-color: #e94560 !important;
+    background: #fff0f2 !important;
+    box-shadow: 0 0 0 3px rgba(233,69,96,.18) !important;
   }
 </style>
 <script>
-  // Make the whole card clickable and reflect radio selection visually
-  document.querySelectorAll('.plan-radio-card').forEach(function(card) {
-    var forId = card.getAttribute('data-for');
-    var radio = document.getElementById(forId);
-    if (!radio) return;
-    card.addEventListener('click', function() { radio.checked = true; });
-    radio.addEventListener('change', function() {
-      document.querySelectorAll('.plan-radio-card').forEach(function(c) {
-        c.classList.remove('selected');
+  (function() {
+    var radios = document.querySelectorAll('input[name="forfait"]');
+    function updateCards() {
+      radios.forEach(function(radio) {
+        var forId = radio.id;
+        var card = document.querySelector('[data-for="' + forId + '"]');
+        if (!card) return;
+        if (radio.checked) {
+          card.classList.add('is-selected');
+        } else {
+          card.classList.remove('is-selected');
+        }
       });
-      if (radio.checked) card.classList.add('selected');
+    }
+    radios.forEach(function(radio) {
+      radio.addEventListener('change', updateCards);
+      // Click on the card triggers the hidden radio
+      var card = document.querySelector('[data-for="' + radio.id + '"]');
+      if (card) {
+        card.addEventListener('click', function() {
+          radio.checked = true;
+          updateCards();
+        });
+      }
     });
-  });
+    // Init on page load (in case browser restores form state)
+    updateCards();
+  })();
 </script>
 <script>
   (function() {
