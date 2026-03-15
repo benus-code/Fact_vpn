@@ -32,6 +32,8 @@ SETTINGS_DEFAULTS = {
     "reference":         "VPN + твоё имя",
     "telegram_bot_token": "",
     "telegram_chat_id":   "",
+    "support_telegram":   "",   # ex: https://t.me/tonpseudo
+    "support_whatsapp":   "",   # ex: +7 996 637-23-58
 }
 
 # ─── DB helpers ───────────────────────────────────────────────────────────────
@@ -174,6 +176,10 @@ def index():
     if "user_id" in session:
         return redirect(url_for("admin_panel") if session.get("is_admin") else url_for("dashboard"))
     return render_template("landing.html", bank=get_settings())
+
+@app.route("/guide")
+def guide():
+    return render_template("guide.html", bank=get_settings())
 
 @app.route("/inscription", methods=["GET", "POST"])
 def inscription():
@@ -349,7 +355,8 @@ def admin_panel():
 def admin_update_settings():
     db = get_db()
     for key in ["beneficiaire", "telephone", "banque", "montant", "reference",
-                "telegram_bot_token", "telegram_chat_id"]:
+                "telegram_bot_token", "telegram_chat_id",
+                "support_telegram", "support_whatsapp"]:
         value = request.form.get(key, "").strip()
         db.execute(
             "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",

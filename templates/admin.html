@@ -110,6 +110,24 @@
              value="{{ settings.telegram_chat_id }}"
              placeholder="ex: 123456789 ou -100xxxxxxx">
     </div>
+    <div class="col-12 mt-1">
+      <hr class="my-2">
+      <p class="small text-muted mb-2">
+        📞 Boutons de contact sur la page Guide (visibles par tous les visiteurs)
+      </p>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label small">Lien Telegram support</label>
+      <input type="text" name="support_telegram" class="form-control form-control-sm"
+             value="{{ settings.support_telegram }}"
+             placeholder="ex: https://t.me/tonpseudo">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label small">WhatsApp support</label>
+      <input type="text" name="support_whatsapp" class="form-control form-control-sm"
+             value="{{ settings.support_whatsapp }}"
+             placeholder="ex: +7 996 637-23-58">
+    </div>
     <div class="col-md-2 d-flex align-items-end">
       <button class="btn btn-sm btn-success w-100">💾 Enregistrer</button>
     </div>
