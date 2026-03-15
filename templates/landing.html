@@ -57,6 +57,7 @@
     </button>
     <div class="collapse navbar-collapse justify-content-end" id="navbarLanding">
       <div class="d-flex gap-2 flex-column flex-lg-row mt-2 mt-lg-0">
+        <a href="{{ url_for('guide') }}" class="btn-outline-custom text-center" style="padding:8px 20px; font-size:.9rem; border-color:rgba(255,255,255,.2);">Guide</a>
         <a href="{{ url_for('login') }}" class="btn-outline-custom text-center" style="padding:8px 20px; font-size:.9rem;">Connexion</a>
         <a href="{{ url_for('inscription') }}" class="btn-primary-custom text-center" style="padding:8px 20px; font-size:.9rem;">S'inscrire</a>
       </div>
@@ -68,18 +69,18 @@
   <div class="container">
     <h1>Votre connexion,<br><span class="accent">100 % privée</span></h1>
     <p class="lead">
-      Accès VPN personnel basé sur WireGuard / AmneziaVPN.
-      Rapide, chiffré, sans logs. Géré par une personne de confiance.
+      Naviguez en toute invisibilité. Une infrastructure réseau dédiée,
+       chiffrée de bout en bout et strictement sans logs.
     </p>
 
     <div class="price-card">
       <div class="amount">{{ bank.montant }} <span style="font-size:1.8rem;">₽</span></div>
       <div class="period">par mois</div>
       <ul class="feature-list mt-3">
-        <li>Plusieurs appareils possible</li>
-        <li>Chiffrement WireGuard</li>
-        <li>Activation sous 24h</li>
-        <li>Support personnel</li>
+        <li>Connexion pour plusieurs appareils</li>
+        <li>Chiffrement Garantie 100 %</li>
+        <li>Activation Immédiate</li>
+        <li>Support client 24/7</li>
       </ul>
       <a href="{{ url_for('inscription') }}" class="btn-primary-custom w-100 text-center">
         Demander l'accès
@@ -97,7 +98,7 @@
       <div class="col-md-4">
         <div class="info-card">
           <h5>🚀 Comment ça marche ?</h5>
-          <p>Tu t'inscris → tu envoies le paiement → l'admin active ton accès et t'envoie ta configuration VPN.</p>
+          <p>Tu t'inscris → tu envoies le paiement → l'administrateur active ton accès et t'envoie ta configuration VPN.</p>
         </div>
       </div>
       <div class="col-md-4">
@@ -111,7 +112,7 @@
       <div class="col-md-4">
         <div class="info-card">
           <h5>📱 Plusieurs appareils</h5>
-          <p>Un appareil supplémentaire ? Contacte l'admin après activation. Chaque device a sa propre config.</p>
+          <p>Pour un appareil supplémentaire, contactez l'administrateur <a href="https://t.me/Joseplusti_lv2">ici.</a></p>
         </div>
       </div>
     </div>
