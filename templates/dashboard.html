@@ -67,13 +67,28 @@
     </div>
   </div>
 
+  {% if not peers %}
+  <div class="col-12">
+    <div class="card p-4" style="border-left: 4px solid #e94560; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: #fff;">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+        <div>
+          <h5 class="fw-bold mb-1" style="color: #fff;">📖 Prêt à configurer votre VPN ?</h5>
+          <p class="mb-0" style="color: #a8b2d8; font-size: .9rem;">
+            Consultez notre guide d'installation pas-à-pas pour Android, iPhone, Windows et Mac.
+          </p>
+        </div>
+        <a href="{{ url_for('guide') }}" class="btn btn-sm" style="background: #e94560; color: #fff; border: none; white-space: nowrap; padding: 8px 20px; font-weight: 600;">
+          Voir le Guide →
+        </a>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   <div class="col-12">
     <div class="card p-4">
-      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-        <h5 class="fw-bold mb-0">💳 Comment renouveler mon abonnement</h5>
-        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-paiement" aria-expanded="true" aria-controls="collapse-paiement">Afficher / masquer</button>
-      </div>
-      <div class="collapse show mt-3" id="collapse-paiement">
+      <h5 class="fw-bold mb-3">💳 Comment renouveler mon abonnement</h5>
+      <div>
         <p class="mb-3">Envoyez le paiement par virement Тбанк avec les coordonnées ci-dessous, puis contactez l'admin <a href="https://t.me/Joseplusti_lv2">ici</a> pour confirmer.</p>
         <div class="row g-3">
           <div class="col-md-6">
