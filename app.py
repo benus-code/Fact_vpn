@@ -192,6 +192,8 @@ def inscription():
         confirm  = request.form["confirm"]
         whatsapp = request.form.get("whatsapp", "").strip()
         telegram = request.form.get("telegram", "").strip()
+        forfait  = request.form.get("forfait", "mobile")
+        prix_forfait = {"mobile": 149, "ordinateur": 249, "complet": 349}.get(forfait, 149)
         if mdp != confirm:
             flash("Les mots de passe ne correspondent pas.", "danger")
             return render_template("inscription.html", bank=get_settings())
@@ -209,8 +211,8 @@ def inscription():
         db.commit()
         new_user = db.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
         db.execute(
-            "INSERT INTO abonnements (user_id, montant, statut) VALUES (?, 100, 'en_attente')",
-            (new_user["id"],)
+            "INSERT INTO abonnements (user_id, montant, statut) VALUES (?, ?, 'en_attente')",
+            (new_user["id"], prix_forfait)
         )
         db.commit()
         # Notification Telegram à l'admin
@@ -220,7 +222,7 @@ def inscription():
         contact_str = " | ".join(contacts) if contacts else "aucun contact fourni"
         notify_telegram(
             f"🆕 <b>Nouvelle inscription</b>\n"
-            f"Nom : {nom}\nEmail : {email}\n{contact_str}"
+            f"Nom : {nom}\nEmail : {email}\nForfait : {forfait.capitalize()} ({prix_forfait} ₽)\n{contact_str}"
         )
         flash("✅ Demande envoyée ! L'administrateur activera votre accès après réception du paiement.", "success")
         return redirect(url_for("login"))
