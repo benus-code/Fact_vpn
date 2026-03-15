@@ -5,16 +5,19 @@
   <div class="col-md-4">
     <div class="card p-4">
       <h4 class="mb-4 text-center fw-bold">🔐 Connexion</h4>
-      <form method="POST">
+      <form method="POST" data-prevent-double-submit>
         <div class="mb-3">
-          <label class="form-label">Email</label>
-          <input type="email" name="email" class="form-control" required autofocus>
+          <label class="form-label" for="login-email">Email</label>
+          <input id="login-email" type="email" name="email" class="form-control" required autofocus>
         </div>
         <div class="mb-4">
-          <label class="form-label">Mot de passe</label>
-          <input type="password" name="password" class="form-control" required>
+          <label class="form-label" for="login-password">Mot de passe</label>
+          <div class="password-toggle-wrap">
+            <input id="login-password" type="password" name="password" class="form-control" required>
+            <button type="button" class="btn-password-toggle" data-password-toggle="#login-password" aria-pressed="false">Afficher</button>
+          </div>
         </div>
-        <button class="btn btn-primary w-100">Se connecter</button>
+        <button type="submit" class="btn btn-primary w-100">Se connecter</button>
       </form>
       <hr>
       <p class="text-center small text-muted mb-0">

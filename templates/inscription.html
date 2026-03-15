@@ -7,22 +7,29 @@
       <h4 class="mb-1 text-center fw-bold">🔐 Accès VPN</h4>
       <p class="text-center text-muted small mb-4">Créez votre compte pour demander un accès</p>
 
-      <form method="POST">
+      <form method="POST" data-prevent-double-submit id="form-inscription">
         <div class="mb-3">
-          <label class="form-label">Nom complet <span class="text-danger">*</span></label>
-          <input type="text" name="nom" class="form-control" placeholder="ex: Ivan Petrov" required autofocus>
+          <label class="form-label" for="ins-nom">Nom complet <span class="text-danger">*</span></label>
+          <input id="ins-nom" type="text" name="nom" class="form-control" placeholder="ex: Ivan Petrov" required autofocus>
         </div>
         <div class="mb-3">
-          <label class="form-label">Email <span class="text-danger">*</span></label>
-          <input type="email" name="email" class="form-control" placeholder="ex: ivan@mail.ru" required>
+          <label class="form-label" for="ins-email">Email <span class="text-danger">*</span></label>
+          <input id="ins-email" type="email" name="email" class="form-control" placeholder="ex: ivan@mail.ru" required>
         </div>
         <div class="mb-3">
-          <label class="form-label">Mot de passe <span class="text-danger">*</span></label>
-          <input type="password" name="password" class="form-control" minlength="6" required>
+          <label class="form-label" for="ins-password">Mot de passe <span class="text-danger">*</span> <span class="text-muted small">(min. 6 caractères)</span></label>
+          <div class="password-toggle-wrap">
+            <input id="ins-password" type="password" name="password" class="form-control" minlength="6" required placeholder="Min. 6 caractères">
+            <button type="button" class="btn-password-toggle" data-password-toggle="#ins-password" aria-pressed="false">Afficher</button>
+          </div>
         </div>
         <div class="mb-3">
-          <label class="form-label">Confirmer le mot de passe <span class="text-danger">*</span></label>
-          <input type="password" name="confirm" class="form-control" required>
+          <label class="form-label" for="ins-confirm">Confirmer le mot de passe <span class="text-danger">*</span></label>
+          <div class="password-toggle-wrap">
+            <input id="ins-confirm" type="password" name="confirm" class="form-control" required placeholder="Retapez le mot de passe">
+            <button type="button" class="btn-password-toggle" data-password-toggle="#ins-confirm" aria-pressed="false">Afficher</button>
+          </div>
+          <p id="ins-confirm-msg" class="small mt-1 mb-0" role="status" aria-live="polite"></p>
         </div>
 
         <hr class="my-3">
@@ -38,11 +45,11 @@
         </div>
 
         <div class="alert alert-info small mb-3">
-          <strong>Tarif :</strong> 100 ₽ / mois<br>
+          <strong>Tarif :</strong> {{ bank.montant if bank else '100' }} ₽ / mois<br>
           Votre accès sera activé dans les 24h après réception du paiement.
         </div>
 
-        <button class="btn btn-primary w-100">Envoyer la demande</button>
+        <button type="submit" class="btn btn-primary w-100">Envoyer la demande</button>
       </form>
 
       <hr>
@@ -52,4 +59,21 @@
     </div>
   </div>
 </div>
+{% endblock %}
+{% block scripts %}
+<script>
+  (function() {
+    var pwd = document.getElementById('ins-password');
+    var conf = document.getElementById('ins-confirm');
+    var msg = document.getElementById('ins-confirm-msg');
+    if (!pwd || !conf || !msg) return;
+    function check() {
+      if (!conf.value) { msg.textContent = ''; msg.className = 'small mt-1 mb-0'; return; }
+      if (pwd.value === conf.value) { msg.textContent = '✓ Les mots de passe correspondent'; msg.className = 'small mt-1 mb-0 text-success'; }
+      else { msg.textContent = 'Les mots de passe ne correspondent pas'; msg.className = 'small mt-1 mb-0 text-danger'; }
+    }
+    pwd.addEventListener('input', check);
+    conf.addEventListener('input', check);
+  })();
+</script>
 {% endblock %}
