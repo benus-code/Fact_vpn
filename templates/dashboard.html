@@ -2,9 +2,26 @@
 {% block title %}Mon espace — VPN Billing{% endblock %}
 {% block content %}
 
+{% if abo and abo.statut == 'actif' %}
+<div class="alert alert-{{ statut_color }} d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4 py-3" role="status">
+  <div>
+    <strong>📅 Abonnement actif</strong>
+    {% if abo.date_fin %}
+      {% if jours_restants >= 0 %} — {{ jours_restants }} jour(s) restant(s) (expire le {{ abo.date_fin }})
+      {% else %} — Expiré depuis le {{ abo.date_fin }}{% endif %}
+    {% else %} — Date de fin non définie{% endif %}
+  </div>
+  <span class="badge bg-{{ statut_color }} fs-6">{{ abo.montant }} ₽ / mois</span>
+</div>
+{% elif abo %}
+<div class="alert alert-danger d-flex align-items-center mb-4 py-3" role="status">
+  <strong>📅 Abonnement : {{ abo.statut | capitalize }}</strong>
+  {% if abo.date_fin %} — Expire le {{ abo.date_fin }}{% endif %}
+</div>
+{% endif %}
+
 <div class="row g-4">
 
-  {# ── Statut abonnement ── #}
   <div class="col-md-6">
     <div class="card p-4 h-100">
       <h5 class="fw-bold mb-3">📅 Mon abonnement</h5>
@@ -45,30 +62,48 @@
           </div>
         {% endfor %}
       {% else %}
-        <p class="text-muted">Aucun appareil.</p>
+        <p class="text-muted mb-0">Aucun appareil. Après activation, l'admin vous en ajoutera ; contactez-le pour en savoir plus.</p>
       {% endif %}
     </div>
   </div>
 
-  {# ── Comment payer ── #}
   <div class="col-12">
     <div class="card p-4">
-      <h5 class="fw-bold mb-3">💳 Comment renouveler mon abonnement</h5>
-      <p class="mb-3">Envoyez le paiement par virement Тбанк avec les coordonnées ci-dessous, puis contactez l'admin pour confirmer.</p>
-      <div class="row g-3">
-        <div class="col-md-6">
-          <table class="table table-bordered table-sm mb-0">
-            <tr><th>Bénéficiaire</th><td><strong>{{ bank.beneficiaire }}</strong></td></tr>
-            <tr><th>Téléphone</th><td><code>{{ bank.telephone }}</code></td></tr>
-            <tr><th>Banque</th><td><strong>{{ bank.banque }}</strong></td></tr>
-            <tr><th>Montant</th><td><strong>{{ bank.montant }}</strong> / mois</td></tr>
-            <tr><th>Commentaire</th><td><strong>{{ bank.reference }}</strong></td></tr>
-          </table>
-        </div>
-        <div class="col-md-6 d-flex align-items-center">
-          <div class="alert alert-info mb-0 w-100">
-            <strong>⚠ Important :</strong> Indiquez votre prénom en commentaire du virement.
-            Une fois le paiement reçu, votre accès sera renouvelé dans les 24h.
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <h5 class="fw-bold mb-0">💳 Comment renouveler mon abonnement</h5>
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-paiement" aria-expanded="true" aria-controls="collapse-paiement">Afficher / masquer</button>
+      </div>
+      <div class="collapse show mt-3" id="collapse-paiement">
+        <p class="mb-3">Envoyez le paiement par virement Тбанк avec les coordonnées ci-dessous, puis contactez l'admin pour confirmer.</p>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <div class="table-responsive">
+              <table class="table table-bordered table-sm mb-0">
+                <tr>
+                  <th>Bénéficiaire</th>
+                  <td class="d-flex align-items-center justify-content-between gap-2"><strong>{{ bank.beneficiaire }}</strong><button type="button" class="btn btn-sm copy-btn btn-outline-secondary" data-copy="{{ bank.beneficiaire }}" title="Copier">Copier</button></td>
+                </tr>
+                <tr>
+                  <th>Téléphone</th>
+                  <td class="d-flex align-items-center justify-content-between gap-2"><code>{{ bank.telephone }}</code><button type="button" class="btn btn-sm copy-btn btn-outline-secondary" data-copy="{{ bank.telephone }}" title="Copier">Copier</button></td>
+                </tr>
+                <tr><th>Banque</th><td><strong>{{ bank.banque }}</strong></td></tr>
+                <tr>
+                  <th>Montant</th>
+                  <td class="d-flex align-items-center justify-content-between gap-2"><strong>{{ bank.montant }}</strong> / mois<button type="button" class="btn btn-sm copy-btn btn-outline-secondary" data-copy="{{ bank.montant }}" title="Copier">Copier</button></td>
+                </tr>
+                <tr>
+                  <th>Commentaire</th>
+                  <td class="d-flex align-items-center justify-content-between gap-2"><strong>{{ bank.reference }}</strong><button type="button" class="btn btn-sm copy-btn btn-outline-secondary" data-copy="{{ bank.reference }}" title="Copier">Copier</button></td>
+                </tr>
+              </table>
+            </div>
+          </div>
+          <div class="col-md-6 d-flex align-items-center">
+            <div class="alert alert-info mb-0 w-100">
+              <strong>⚠ Important :</strong> Indiquez votre prénom en commentaire du virement.
+              Une fois le paiement reçu, votre accès sera renouvelé dans les 24h.
+            </div>
           </div>
         </div>
       </div>
@@ -101,20 +136,37 @@
   <div class="col-md-5">
     <div class="card p-4">
       <h5 class="fw-bold mb-3">🔑 Changer mon mot de passe</h5>
-      <form method="POST" action="{{ url_for('changer_mdp') }}">
+      <form method="POST" action="{{ url_for('changer_mdp') }}" data-prevent-double-submit>
         <div class="mb-2">
           <input type="password" name="ancien" class="form-control form-control-sm" placeholder="Ancien mot de passe" required>
         </div>
         <div class="mb-2">
-          <input type="password" name="nouveau" class="form-control form-control-sm" placeholder="Nouveau mot de passe" required>
+          <input type="password" name="nouveau" class="form-control form-control-sm" placeholder="Nouveau mot de passe" required minlength="6">
         </div>
         <div class="mb-3">
-          <input type="password" name="confirm" class="form-control form-control-sm" placeholder="Confirmer le nouveau" required>
+          <input type="password" name="confirm" class="form-control form-control-sm" placeholder="Confirmer le nouveau" required minlength="6">
         </div>
-        <button class="btn btn-sm btn-outline-primary">Mettre à jour</button>
+        <button type="submit" class="btn btn-sm btn-outline-primary">Mettre à jour</button>
       </form>
     </div>
   </div>
 
 </div>
+{% endblock %}
+{% block scripts %}
+<script>
+  document.querySelectorAll('[data-copy]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var text = btn.getAttribute('data-copy');
+      if (!text) return;
+      navigator.clipboard.writeText(text).then(function() {
+        var old = btn.textContent;
+        btn.textContent = 'Copié !';
+        btn.classList.remove('btn-outline-secondary');
+        btn.classList.add('btn-success');
+        setTimeout(function() { btn.textContent = old; btn.classList.add('btn-outline-secondary'); btn.classList.remove('btn-success'); }, 1500);
+      });
+    });
+  });
+</script>
 {% endblock %}

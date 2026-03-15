@@ -188,14 +188,14 @@ def inscription():
         telegram = request.form.get("telegram", "").strip()
         if mdp != confirm:
             flash("Les mots de passe ne correspondent pas.", "danger")
-            return render_template("inscription.html")
+            return render_template("inscription.html", bank=get_settings())
         if len(mdp) < 6:
             flash("Le mot de passe doit faire au moins 6 caractères.", "danger")
-            return render_template("inscription.html")
+            return render_template("inscription.html", bank=get_settings())
         db = get_db()
         if db.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone():
             flash("Cet email est déjà utilisé.", "danger")
-            return render_template("inscription.html")
+            return render_template("inscription.html", bank=get_settings())
         db.execute(
             "INSERT INTO users (nom, email, password_hash, is_admin, whatsapp, telegram) VALUES (?, ?, ?, 0, ?, ?)",
             (nom, email, hash_password(mdp), whatsapp or None, telegram or None)
@@ -218,7 +218,7 @@ def inscription():
         )
         flash("✅ Demande envoyée ! L'administrateur activera votre accès après réception du paiement.", "success")
         return redirect(url_for("login"))
-    return render_template("inscription.html")
+    return render_template("inscription.html", bank=get_settings())
 
 @app.route("/login", methods=["GET", "POST"])
 def login():

@@ -1,7 +1,13 @@
 {% extends "base.html" %}
 {% block title %}{{ user.nom }} — Admin{% endblock %}
 {% block content %}
-
+<nav aria-label="Fil d'Ariane" class="mb-2">
+  <ol class="breadcrumb mb-0">
+    <li class="breadcrumb-item"><a href="{{ url_for('dashboard') }}">Espace</a></li>
+    <li class="breadcrumb-item"><a href="{{ url_for('admin_panel') }}">Admin</a></li>
+    <li class="breadcrumb-item active" aria-current="page">{{ user.nom }}</li>
+  </ol>
+</nav>
 <div class="d-flex align-items-center gap-3 mb-4 flex-wrap">
   <a href="{{ url_for('admin_panel') }}" class="btn btn-outline-secondary btn-sm">← Retour</a>
   <h4 class="fw-bold mb-0">{{ user.nom }}</h4>
