@@ -14,9 +14,10 @@ echo "    Dest   : $INSTALL_DIR"
 echo ""
 
 # 1. Copier les fichiers Python
-cp "$REPO_DIR/app.py"             "$INSTALL_DIR/app.py"
-cp "$REPO_DIR/cron_expire.py"     "$INSTALL_DIR/cron_expire.py"
+cp "$REPO_DIR/app.py"              "$INSTALL_DIR/app.py"
+cp "$REPO_DIR/cron_expire.py"      "$INSTALL_DIR/cron_expire.py"
 cp "$REPO_DIR/restore_iptables.py" "$INSTALL_DIR/restore_iptables.py"
+cp "$REPO_DIR/migrate_vpn_type.py" "$INSTALL_DIR/migrate_vpn_type.py"
 
 # 2. Copier les templates
 mkdir -p "$INSTALL_DIR/templates"
