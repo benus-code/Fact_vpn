@@ -43,16 +43,19 @@ systemctl daemon-reload
 systemctl enable vpn-billing
 systemctl start vpn-billing
 
-# 6. Nginx reverse proxy
+# 6. Nginx reverse proxy (HTTP uniquement — lancer setup_https.sh pour HTTPS)
 cat > /etc/nginx/sites-available/vpn-billing << 'EOF'
 server {
     listen 80;
-    server_name _;
+    server_name benusvpn.duckdns.org;
 
     location / {
-        proxy_pass http://127.0.0.1:5000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
+        proxy_pass         http://127.0.0.1:5000;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_read_timeout 60s;
     }
 }
 EOF
