@@ -167,17 +167,17 @@ def notify_telegram(message):
         app.logger.warning(f"Telegram notify failed: {e}")
 
 def send_email(to_email, subject, body_html):
-    """Envoie via Gmail SMTP. Ignore tout domaine .local* et les configs vides."""
+    """Envoie via Gmail SMTP (port 587 STARTTLS). Ignore tout domaine .local* et les configs vides."""
     if not to_email or '@' not in to_email:
-        return False
+        return False, "email invalide"
     domain = to_email.split('@', 1)[1].lower()
     if '.local' in domain or '.' not in domain:
-        return False
+        return False, "domaine .local ignoré"
     s = get_settings()
     addr = s.get('smtp_email', '').strip()
     pwd  = s.get('smtp_password', '').strip()
     if not addr or not pwd:
-        return False
+        return False, "smtp_email ou smtp_password non configurés"
     try:
         msg = MIMEMultipart('alternative')
         msg['Subject'] = subject
@@ -185,13 +185,16 @@ def send_email(to_email, subject, body_html):
         msg['To']      = to_email
         msg.attach(MIMEText(body_html, 'html', 'utf-8'))
         ctx = ssl.create_default_context()
-        with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=ctx, timeout=15) as srv:
+        with smtplib.SMTP('smtp.gmail.com', 587, timeout=15) as srv:
+            srv.ehlo()
+            srv.starttls(context=ctx)
+            srv.ehlo()
             srv.login(addr, pwd)
             srv.sendmail(addr, to_email, msg.as_string())
-        return True
+        return True, "ok"
     except Exception as e:
         app.logger.error(f"send_email → {to_email}: {e}")
-        return False
+        return False, str(e)
 
 # ─── iptables helpers ─────────────────────────────────────────────────────────
 def iptables_block_peer(ip_vpn):
@@ -386,7 +389,7 @@ def mot_de_passe_oublie():
                     f"Si vous n'avez pas fait cette demande, ignorez cet email.</p>"
                     f"<hr><small style='color:#aaa'>VPN Privé — Service personnel</small></div>"
                 )
-                send_email(email, "🔐 Réinitialisation de votre mot de passe VPN", html)
+                send_email(email, "🔐 Réinitialisation de votre mot de passe VPN", html)  # (ok, err) ignorés (message générique affiché)
     return render_template("mot_de_passe_oublie.html", sent=sent)
 
 @app.route("/reset-mdp/<token>", methods=["GET", "POST"])
@@ -577,11 +580,11 @@ def admin_test_email():
         "<p>Si vous recevez cet email, la configuration Gmail est correcte.</p>"
         "</div>"
     )
-    ok = send_email(addr, "🔧 Test SMTP — VPN Privé", html)
+    ok, err = send_email(addr, "🔧 Test SMTP — VPN Privé", html)
     if ok:
         flash(f"✅ Email de test envoyé à {addr}. Vérifiez votre boîte (et spams).", "success")
     else:
-        flash("❌ Échec de l'envoi. Vérifiez le mot de passe d'application et que le port 465 n'est pas bloqué.", "danger")
+        flash(f"❌ Échec de l'envoi : {err}", "danger")
     return redirect(url_for("admin_panel"))
 
 @app.route("/admin/user/<int:uid>")
@@ -776,7 +779,7 @@ def admin_ajouter_paiement():
         f"<p>Besoin d'aide pour l'installation ? Consultez notre guide en vous connectant.</p>"
         f"<hr><small style='color:#888'>VPN Privé — Service personnel</small></div>"
     )
-    send_email(user_data['email'], "✅ Votre accès VPN est actif !", html_welcome)
+    send_email(user_data['email'], "✅ Votre accès VPN est actif !", html_welcome)  # (ok, err) ignorés ici
     notify_telegram(
         f"💳 <b>Paiement activé</b>\nUser : {user_data['nom']}\n"
         f"Fin : {nouvelle_fin.strftime('%d/%m/%Y')}"
@@ -821,7 +824,8 @@ def admin_broadcast():
                 f"<p>{message.replace(chr(10), '<br>')}</p>"
                 f"<hr><small style='color:#888'>VPN Privé — Service personnel</small></div>"
             )
-            if send_email(u["email"], subject, html):
+            ok, _ = send_email(u["email"], subject, html)
+            if ok:
                 sent_email += 1
     if channel in ("telegram", "both"):
         notify_telegram(f"📢 <b>Broadcast</b>\n{message}")

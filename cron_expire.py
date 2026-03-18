@@ -51,7 +51,10 @@ def send_reminder_email(conn, to_email, nom, date_fin_str):
         )
         msg.attach(MIMEText(html, 'html', 'utf-8'))
         ctx = ssl.create_default_context()
-        with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=ctx) as srv:
+        with smtplib.SMTP('smtp.gmail.com', 587, timeout=15) as srv:
+            srv.ehlo()
+            srv.starttls(context=ctx)
+            srv.ehlo()
             srv.login(addr, pwd)
             srv.sendmail(addr, to_email, msg.as_string())
         return True
