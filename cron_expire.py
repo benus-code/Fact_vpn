@@ -9,6 +9,9 @@ import sqlite3
 import subprocess
 import smtplib
 import ssl
+import urllib.request
+import urllib.parse
+import json
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import date, timedelta
@@ -55,6 +58,28 @@ def send_reminder_email(conn, to_email, nom, date_fin_str):
     except Exception as e:
         print(f"[rappel email] Erreur → {to_email}: {e}")
         return False
+
+def send_telegram_admin(conn, message):
+    """Envoie un message sur le canal Telegram admin."""
+    row_token   = conn.execute("SELECT value FROM settings WHERE key='telegram_bot_token'").fetchone()
+    row_chat    = conn.execute("SELECT value FROM settings WHERE key='telegram_chat_id'").fetchone()
+    token   = row_token[0].strip()   if row_token   else ""
+    chat_id = row_chat[0].strip()    if row_chat    else ""
+    if not token or not chat_id:
+        return False
+    try:
+        data = json.dumps({"chat_id": chat_id, "text": message, "parse_mode": "HTML"}).encode()
+        req  = urllib.request.Request(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            data=data,
+            headers={"Content-Type": "application/json"},
+        )
+        urllib.request.urlopen(req, timeout=10)
+        return True
+    except Exception as e:
+        print(f"[telegram] Erreur : {e}")
+        return False
+
 
 def main():
     now = date.today().isoformat()
@@ -110,19 +135,38 @@ def main():
     # ── Rappels J-3 ──────────────────────────────────────────────────────────
     j3 = (date.today() + timedelta(days=3)).isoformat()
     reminders = c.execute("""
-        SELECT u.nom, u.email, a.date_fin
+        SELECT u.nom, u.email, u.telegram AS telegram_handle, a.date_fin
         FROM abonnements a
         JOIN users u ON u.id = a.user_id
         WHERE a.statut = 'actif'
           AND a.date_fin = ?
     """, (j3,)).fetchall()
 
+    email_ok = 0
     for r in reminders:
         sent = send_reminder_email(conn, r["email"], r["nom"], r["date_fin"])
-        print(f"[{now}] Rappel J-3 → {r['nom']} ({r['email']}) : {'✅' if sent else '⏭ skipped'}")
+        if sent:
+            email_ok += 1
+        print(f"[{now}] Rappel J-3 email → {r['nom']} ({r['email']}) : {'✅' if sent else '⏭ skipped'}")
+
+    # ── Rappel Telegram (canal admin) — liste des expirations J-3 ────────────
+    if reminders:
+        lignes = "\n".join(
+            f"  • <b>{r['nom']}</b>"
+            + (f" (@{r['telegram_handle']})" if r.get('telegram_handle') else "")
+            + f" — expire le {r['date_fin']}"
+            for r in reminders
+        )
+        tg_msg = (
+            f"⏰ <b>Rappel J-3 VPN</b>\n"
+            f"{len(reminders)} abonnement(s) expirent dans 3 jours :\n\n"
+            f"{lignes}"
+        )
+        tg_sent = send_telegram_admin(conn, tg_msg)
+        print(f"[{now}] Rappel J-3 Telegram admin : {'✅' if tg_sent else '⏭ skipped (token/chat_id manquant?)'}")
 
     conn.close()
-    print(f"[{now}] Terminé — {len(expired)} peer(s) traité(s), {len(reminders)} rappel(s) J-3.")
+    print(f"[{now}] Terminé — {len(expired)} peer(s) traité(s), {len(reminders)} rappel(s) J-3 ({email_ok} emails).")
 
 if __name__ == "__main__":
     main()
