@@ -129,6 +129,7 @@
         <thead class="table-light">
           <tr>
             <th>Label</th>
+            <th>Type</th>
             <th>IP VPN</th>
             <th>Ajouté le</th>
             <th>Statut</th>
@@ -139,6 +140,13 @@
           {% for p in peers %}
           <tr>
             <td><strong>{{ p.label }}</strong></td>
+            <td>
+              {% if p.vpn_type == 'pivpn' %}
+                <span class="badge bg-info text-dark">💻 PiVPN</span>
+              {% else %}
+                <span class="badge bg-secondary">📱 Amnezia</span>
+              {% endif %}
+            </td>
             <td><code>{{ p.ip_vpn }}</code></td>
             <td class="text-muted small">{{ p.date_ajout or '—' }}</td>
             <td>
@@ -155,6 +163,10 @@
               <form method="POST" action="{{ url_for('admin_reactiver_peer', peer_id=p.id) }}">
                 <button class="btn btn-outline-success btn-sm py-0 px-2">Réactiver</button>
               </form>
+              {% endif %}
+              {% if p.vpn_type == 'pivpn' %}
+              <a href="{{ url_for('admin_peer_config', peer_id=p.id) }}"
+                 class="btn btn-outline-info btn-sm py-0 px-2" title="Télécharger la config">⬇ .conf</a>
               {% endif %}
               <form method="POST" action="{{ url_for('admin_supprimer_peer', peer_id=p.id) }}"
                     onsubmit="return confirm('Supprimer {{ p.label }} ({{ p.ip_vpn }}) définitivement ?')">
@@ -186,13 +198,21 @@
                  pattern="^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$"
                  title="Format attendu : 10.8.1.X">
         </div>
-        <div class="col-md-3">
+        <div class="col-md-2">
+          <label class="form-label small">Type VPN</label>
+          <select name="vpn_type" class="form-select form-select-sm">
+            <option value="amnezia">📱 Amnezia (mobile)</option>
+            <option value="pivpn">💻 PiVPN (PC)</option>
+          </select>
+        </div>
+        <div class="col-md-2">
           <label class="form-label small">Date d'ajout</label>
           <input type="date" name="date_ajout" class="form-control form-control-sm"
                  value="{{ today.isoformat() }}">
         </div>
-        <div class="col-md-3">
-          <button class="btn btn-sm btn-primary w-100">Ajouter</button>
+        <div class="col-md-2">
+          <label class="form-label small">&nbsp;</label>
+          <button class="btn btn-sm btn-primary w-100 d-block">Ajouter</button>
         </div>
       </form>
     </div>

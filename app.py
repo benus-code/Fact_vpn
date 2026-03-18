@@ -17,15 +17,16 @@ from email.mime.multipart import MIMEMultipart
 from datetime import date, datetime, timedelta
 from functools import wraps
 from flask import (Flask, render_template, request, redirect,
-                   url_for, session, flash, g)
+                   url_for, session, flash, g, Response)
 from werkzeug.security import generate_password_hash, check_password_hash as wz_check
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("VPN_SECRET_KEY", "CHANGE_CE_SECRET_EN_PROD_SVP")
 
-DB_PATH      = "/opt/vpn-billing/vpn_billing.db"
-CONTAINER    = "amnezia-awg"
-WG_INTERFACE = "wg0"
+DB_PATH       = "/opt/vpn-billing/vpn_billing.db"
+CONTAINER     = "amnezia-awg"
+WG_INTERFACE  = "wg0"
+PIVPN_CONFIGS = "/home/benus/configs"
 
 # Valeurs par défaut — insérées en BDD si absentes
 SETTINGS_DEFAULTS = {
@@ -90,6 +91,12 @@ def init_app_db():
     try:
         conn.execute("ALTER TABLE peers ADD COLUMN date_ajout DATE")
         conn.execute("UPDATE peers SET date_ajout = DATE('now') WHERE date_ajout IS NULL")
+    except sqlite3.OperationalError:
+        pass
+
+    # Colonne vpn_type sur peers (amnezia=smartphone, pivpn=PC)
+    try:
+        conn.execute("ALTER TABLE peers ADD COLUMN vpn_type TEXT DEFAULT 'amnezia'")
     except sqlite3.OperationalError:
         pass
 
@@ -192,6 +199,7 @@ def iptables_block_peer(ip_vpn):
         return False
 
 def iptables_unblock_peer(ip_vpn):
+    """Débloque un peer Amnezia (via docker exec)."""
     ip = ip_vpn.split("/")[0]
     for direction in ["-s", "-d"]:
         try:
@@ -202,6 +210,48 @@ def iptables_unblock_peer(ip_vpn):
         except subprocess.CalledProcessError:
             pass
     return True
+
+def iptables_block_host(ip_vpn):
+    """Bloque un peer PiVPN par iptables sur le host (pas Docker)."""
+    ip = ip_vpn.split("/")[0]
+    try:
+        subprocess.run(["iptables", "-I", "FORWARD", "-s", ip, "-j", "DROP"], check=True, capture_output=True)
+        subprocess.run(["iptables", "-I", "FORWARD", "-d", ip, "-j", "DROP"], check=True, capture_output=True)
+        return True
+    except subprocess.CalledProcessError as e:
+        app.logger.error(f"iptables_block_host failed: {e.stderr}")
+        return False
+
+def iptables_unblock_host(ip_vpn):
+    """Débloque un peer PiVPN (iptables host)."""
+    ip = ip_vpn.split("/")[0]
+    for direction in ["-s", "-d"]:
+        try:
+            subprocess.run(["iptables", "-D", "FORWARD", direction, ip, "-j", "DROP"], check=True, capture_output=True)
+        except subprocess.CalledProcessError:
+            pass
+    return True
+
+def pivpn_get_config(label):
+    """Retourne le contenu du fichier .conf PiVPN, ou None si introuvable."""
+    path = os.path.join(PIVPN_CONFIGS, f"{label}.conf")
+    try:
+        with open(path, "r") as f:
+            return f.read()
+    except FileNotFoundError:
+        return None
+
+def block_peer(peer):
+    """Dispatch : bloque selon le type VPN du peer."""
+    if peer["vpn_type"] == "pivpn":
+        return iptables_block_host(peer["ip_vpn"])
+    return iptables_block_peer(peer["ip_vpn"])
+
+def unblock_peer(peer):
+    """Dispatch : débloque selon le type VPN du peer."""
+    if peer["vpn_type"] == "pivpn":
+        return iptables_unblock_host(peer["ip_vpn"])
+    return iptables_unblock_peer(peer["ip_vpn"])
 
 # ─── Routes publiques ─────────────────────────────────────────────────────────
 @app.route("/")
@@ -450,6 +500,25 @@ def admin_user_detail(uid):
     )
 
 # ─── Gestion des peers ────────────────────────────────────────────────────────
+@app.route("/admin/peer/config/<int:peer_id>")
+@login_required
+@admin_required
+def admin_peer_config(peer_id):
+    """Télécharge le fichier .conf PiVPN d'un peer."""
+    peer = get_db().execute("SELECT * FROM peers WHERE id = ?", (peer_id,)).fetchone()
+    if not peer or peer["vpn_type"] != "pivpn":
+        flash("Config disponible uniquement pour les peers PiVPN.", "danger")
+        return redirect(request.referrer or url_for("admin_panel"))
+    config = pivpn_get_config(peer["label"])
+    if not config:
+        flash(f"Fichier {peer['label']}.conf introuvable dans {PIVPN_CONFIGS}.", "danger")
+        return redirect(request.referrer or url_for("admin_panel"))
+    return Response(
+        config,
+        mimetype="text/plain",
+        headers={"Content-Disposition": f"attachment; filename={peer['label']}.conf"}
+    )
+
 @app.route("/admin/peer/ajouter", methods=["POST"])
 @login_required
 @admin_required
@@ -458,20 +527,20 @@ def admin_ajouter_peer():
     label      = request.form["label"].strip()
     ip_vpn     = request.form["ip_vpn"].strip()
     date_ajout = request.form.get("date_ajout") or date.today().isoformat()
+    vpn_type   = request.form.get("vpn_type", "amnezia")
     db = get_db()
-    # Vérifie que l'IP n'est pas déjà utilisée
     if db.execute("SELECT id FROM peers WHERE ip_vpn = ?", (ip_vpn,)).fetchone():
         flash(f"L'IP {ip_vpn} est déjà attribuée à un autre appareil.", "danger")
         return redirect(url_for("admin_user_detail", uid=uid))
-    # public_key = placeholder unique (portail sans échange WireGuard)
     public_key = f"MANUAL_{ip_vpn}"
     db.execute(
-        "INSERT INTO peers (user_id, label, public_key, ip_vpn, actif, date_ajout) VALUES (?, ?, ?, ?, 1, ?)",
-        (uid, label, public_key, ip_vpn, date_ajout)
+        "INSERT INTO peers (user_id, label, public_key, ip_vpn, actif, date_ajout, vpn_type) VALUES (?, ?, ?, ?, 1, ?, ?)",
+        (uid, label, public_key, ip_vpn, date_ajout, vpn_type)
     )
     db.commit()
     user = db.execute("SELECT nom FROM users WHERE id = ?", (uid,)).fetchone()
-    flash(f"✅ Appareil « {label} » ({ip_vpn}) ajouté pour {user['nom']}.", "success")
+    type_label = "PiVPN (PC)" if vpn_type == "pivpn" else "Amnezia (mobile)"
+    flash(f"✅ Appareil « {label} » ({ip_vpn}) [{type_label}] ajouté pour {user['nom']}.", "success")
     return redirect(url_for("admin_user_detail", uid=uid))
 
 @app.route("/admin/peer/supprimer/<int:peer_id>", methods=["POST"])
@@ -482,7 +551,7 @@ def admin_supprimer_peer(peer_id):
     peer = db.execute("SELECT * FROM peers WHERE id = ?", (peer_id,)).fetchone()
     if peer:
         uid = peer["user_id"]
-        iptables_unblock_peer(peer["ip_vpn"])  # s'assure que la règle DROP est retirée
+        unblock_peer(peer)  # s'assure que la règle DROP est retirée
         db.execute("DELETE FROM peers WHERE id = ?", (peer_id,))
         db.commit()
         flash(f"Appareil {peer['label']} ({peer['ip_vpn']}) supprimé.", "warning")
@@ -496,7 +565,7 @@ def admin_suspendre_peer(peer_id):
     db   = get_db()
     peer = db.execute("SELECT * FROM peers WHERE id = ?", (peer_id,)).fetchone()
     if peer:
-        ok = iptables_block_peer(peer["ip_vpn"])
+        ok = block_peer(peer)
         db.execute("UPDATE peers SET actif = 0 WHERE id = ?", (peer_id,))
         db.commit()
         flash(f"Peer {peer['label']} ({peer['ip_vpn']}) suspendu {'✅' if ok else '⚠ (erreur iptables)'}.", "warning")
@@ -509,7 +578,7 @@ def admin_reactiver_peer(peer_id):
     db   = get_db()
     peer = db.execute("SELECT * FROM peers WHERE id = ?", (peer_id,)).fetchone()
     if peer:
-        ok = iptables_unblock_peer(peer["ip_vpn"])
+        ok = unblock_peer(peer)
         db.execute("UPDATE peers SET actif = 1 WHERE id = ?", (peer_id,))
         db.commit()
         flash(f"Peer {peer['label']} ({peer['ip_vpn']}) réactivé {'✅' if ok else '⚠ (erreur iptables)'}.", "success")
@@ -522,7 +591,7 @@ def admin_suspendre_tout(uid):
     db    = get_db()
     peers = db.execute("SELECT * FROM peers WHERE user_id = ? AND actif = 1", (uid,)).fetchall()
     for peer in peers:
-        iptables_block_peer(peer["ip_vpn"])
+        block_peer(peer)
         db.execute("UPDATE peers SET actif = 0 WHERE id = ?", (peer["id"],))
     db.execute("UPDATE abonnements SET statut = 'suspendu' WHERE user_id = ?", (uid,))
     db.commit()
@@ -588,7 +657,7 @@ def admin_ajouter_paiement():
     peers = db.execute("SELECT * FROM peers WHERE user_id = ?", (uid,)).fetchall()
     for peer in peers:
         if not peer["actif"]:
-            iptables_unblock_peer(peer["ip_vpn"])
+            unblock_peer(peer)
             db.execute("UPDATE peers SET actif = 1 WHERE id = ?", (peer["id"],))
 
     db.commit()

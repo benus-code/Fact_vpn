@@ -64,7 +64,7 @@ def main():
 
     # Cherche les abonnements expirés avec des peers encore actifs
     expired = c.execute("""
-        SELECT p.id, p.public_key, p.ip_vpn, p.label, u.nom, a.date_fin
+        SELECT p.id, p.ip_vpn, p.label, p.vpn_type, u.nom, a.date_fin
         FROM peers p
         JOIN abonnements a ON a.user_id = p.user_id
         JOIN users u ON u.id = p.user_id
@@ -81,17 +81,18 @@ def main():
     for peer in expired:
         try:
             ip = peer["ip_vpn"].split("/")[0]
-            r1 = subprocess.run(
-                ["docker", "exec", CONTAINER, "iptables", "-I", "FORWARD", "-s", ip, "-j", "DROP"],
-                capture_output=True, text=True
-            )
-            r2 = subprocess.run(
-                ["docker", "exec", CONTAINER, "iptables", "-I", "FORWARD", "-d", ip, "-j", "DROP"],
-                capture_output=True, text=True
-            )
+            vpn_type = peer["vpn_type"] or "amnezia"
+            if vpn_type == "pivpn":
+                # PiVPN — iptables sur le host directement
+                r1 = subprocess.run(["iptables", "-I", "FORWARD", "-s", ip, "-j", "DROP"], capture_output=True, text=True)
+                r2 = subprocess.run(["iptables", "-I", "FORWARD", "-d", ip, "-j", "DROP"], capture_output=True, text=True)
+            else:
+                # AmneziaVPN — docker exec
+                r1 = subprocess.run(["docker", "exec", CONTAINER, "iptables", "-I", "FORWARD", "-s", ip, "-j", "DROP"], capture_output=True, text=True)
+                r2 = subprocess.run(["docker", "exec", CONTAINER, "iptables", "-I", "FORWARD", "-d", ip, "-j", "DROP"], capture_output=True, text=True)
             if r1.returncode == 0 and r2.returncode == 0:
                 c.execute("UPDATE peers SET actif = 0 WHERE id = ?", (peer["id"],))
-                print(f"[{now}] ✅ Désactivé : {peer['nom']} / {peer['label']} ({peer['ip_vpn']}) — expiré le {peer['date_fin']}")
+                print(f"[{now}] ✅ Désactivé [{vpn_type}] : {peer['nom']} / {peer['label']} ({peer['ip_vpn']})")
             else:
                 err = r1.stderr.strip() or r2.stderr.strip()
                 print(f"[{now}] ⚠  Erreur iptables pour {peer['nom']} / {peer['label']} : {err}")
