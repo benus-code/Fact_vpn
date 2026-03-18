@@ -5,6 +5,7 @@ Lancer : python3 app.py
 """
 
 import os
+import secrets
 import sqlite3
 import hashlib
 import subprocess
@@ -99,6 +100,16 @@ def init_app_db():
         conn.execute("ALTER TABLE peers ADD COLUMN vpn_type TEXT DEFAULT 'amnezia'")
     except sqlite3.OperationalError:
         pass
+
+    # Table pour les tokens de réinitialisation de mot de passe
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS password_resets (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id    INTEGER NOT NULL,
+            token      TEXT    NOT NULL UNIQUE,
+            expires_at TEXT    NOT NULL
+        )
+    """)
 
     conn.commit()
     conn.close()
@@ -337,6 +348,71 @@ def login():
 def logout():
     session.clear()
     return redirect(url_for("login"))
+
+@app.route("/mot-de-passe-oublie", methods=["GET", "POST"])
+def mot_de_passe_oublie():
+    sent = False
+    if request.method == "POST":
+        email = request.form.get("email", "").strip().lower()
+        db    = get_db()
+        user  = db.execute("SELECT * FROM users WHERE LOWER(email) = ?", (email,)).fetchone()
+        # Toujours afficher le même message (pas de fuite d'info)
+        sent = True
+        if user:
+            domain = email.split("@", 1)[1] if "@" in email else ""
+            if ".local" not in domain and "." in domain:
+                token   = secrets.token_urlsafe(32)
+                expires = (datetime.utcnow() + timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")
+                db.execute("DELETE FROM password_resets WHERE user_id = ?", (user["id"],))
+                db.execute(
+                    "INSERT INTO password_resets (user_id, token, expires_at) VALUES (?, ?, ?)",
+                    (user["id"], token, expires)
+                )
+                db.commit()
+                reset_url = url_for("reset_mdp", token=token, _external=True)
+                html = (
+                    f"<div style='font-family:sans-serif;max-width:520px;margin:0 auto'>"
+                    f"<h2 style='color:#e94560'>🔐 Réinitialisation de mot de passe</h2>"
+                    f"<p>Bonjour <strong>{user['nom']}</strong>,</p>"
+                    f"<p>Vous avez demandé à réinitialiser votre mot de passe. Cliquez sur le lien ci-dessous :</p>"
+                    f"<p style='text-align:center;margin:28px 0'>"
+                    f"<a href='{reset_url}' style='background:#e94560;color:#fff;padding:12px 28px;"
+                    f"border-radius:6px;text-decoration:none;font-weight:700;'>Choisir un nouveau mot de passe</a></p>"
+                    f"<p style='color:#888;font-size:.85rem'>Ce lien est valable <strong>1 heure</strong>. "
+                    f"Si vous n'avez pas fait cette demande, ignorez cet email.</p>"
+                    f"<hr><small style='color:#aaa'>VPN Privé — Service personnel</small></div>"
+                )
+                send_email(email, "🔐 Réinitialisation de votre mot de passe VPN", html)
+    return render_template("mot_de_passe_oublie.html", sent=sent)
+
+@app.route("/reset-mdp/<token>", methods=["GET", "POST"])
+def reset_mdp(token):
+    db  = get_db()
+    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    row = db.execute(
+        "SELECT * FROM password_resets WHERE token = ? AND expires_at > ?", (token, now)
+    ).fetchone()
+    if not row:
+        flash("Ce lien est invalide ou expiré. Faites une nouvelle demande.", "danger")
+        return redirect(url_for("mot_de_passe_oublie"))
+
+    if request.method == "POST":
+        mdp1 = request.form.get("password", "")
+        mdp2 = request.form.get("password_confirm", "")
+        if len(mdp1) < 6:
+            flash("Le mot de passe doit contenir au moins 6 caractères.", "danger")
+            return render_template("reset_mdp.html", token=token)
+        if mdp1 != mdp2:
+            flash("Les deux mots de passe ne correspondent pas.", "danger")
+            return render_template("reset_mdp.html", token=token)
+        db.execute("UPDATE users SET password_hash = ? WHERE id = ?",
+                   (generate_password_hash(mdp1), row["user_id"]))
+        db.execute("DELETE FROM password_resets WHERE token = ?", (token,))
+        db.commit()
+        flash("Mot de passe mis à jour ! Vous pouvez vous connecter.", "success")
+        return redirect(url_for("login"))
+
+    return render_template("reset_mdp.html", token=token)
 
 # ─── Portail utilisateur ──────────────────────────────────────────────────────
 @app.route("/dashboard")
