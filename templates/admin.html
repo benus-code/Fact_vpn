@@ -151,9 +151,13 @@
       <input type="url" name="site_url" class="form-control form-control-sm"
              value="{{ settings.site_url }}" placeholder="https://vpn.mondomaine.com">
     </div>
-    <div class="col-md-2 d-flex align-items-end">
+    <div class="col-md-2 d-flex align-items-end gap-1">
       <button class="btn btn-sm btn-success w-100">💾 Enregistrer</button>
     </div>
+  </form>
+  <form method="POST" action="{{ url_for('admin_test_email') }}" class="mt-2">
+    <button class="btn btn-sm btn-outline-secondary">🔧 Tester l'envoi d'email</button>
+    <span class="text-muted ms-2" style="font-size:.8rem;">Envoie un email de test à l'adresse Gmail configurée</span>
   </form>
 </div>
 

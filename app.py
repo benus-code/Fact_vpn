@@ -561,6 +561,29 @@ def admin_update_settings():
     flash("✅ Paramètres mis à jour.", "success")
     return redirect(url_for("admin_panel"))
 
+@app.route("/admin/test-email", methods=["POST"])
+@admin_required
+def admin_test_email():
+    """Envoie un email de test à l'adresse SMTP configurée pour vérifier la connexion."""
+    s    = get_settings()
+    addr = s.get("smtp_email", "").strip()
+    pwd  = s.get("smtp_password", "").strip()
+    if not addr or not pwd:
+        flash("❌ Adresse Gmail ou mot de passe d'application non configurés.", "danger")
+        return redirect(url_for("admin_panel"))
+    html = (
+        "<div style='font-family:sans-serif'>"
+        "<h2 style='color:#e94560'>✅ Test SMTP réussi</h2>"
+        "<p>Si vous recevez cet email, la configuration Gmail est correcte.</p>"
+        "</div>"
+    )
+    ok = send_email(addr, "🔧 Test SMTP — VPN Privé", html)
+    if ok:
+        flash(f"✅ Email de test envoyé à {addr}. Vérifiez votre boîte (et spams).", "success")
+    else:
+        flash("❌ Échec de l'envoi. Vérifiez le mot de passe d'application et que le port 465 n'est pas bloqué.", "danger")
+    return redirect(url_for("admin_panel"))
+
 @app.route("/admin/user/<int:uid>")
 @login_required
 @admin_required
