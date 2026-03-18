@@ -146,6 +146,11 @@
       <input type="password" name="smtp_password" class="form-control form-control-sm"
              value="{{ settings.smtp_password }}" placeholder="xxxx xxxx xxxx xxxx" autocomplete="off">
     </div>
+    <div class="col-md-3">
+      <label class="form-label small">URL publique du site <span class="text-muted">(liens emails)</span></label>
+      <input type="url" name="site_url" class="form-control form-control-sm"
+             value="{{ settings.site_url }}" placeholder="https://vpn.mondomaine.com">
+    </div>
     <div class="col-md-2 d-flex align-items-end">
       <button class="btn btn-sm btn-success w-100">💾 Enregistrer</button>
     </div>

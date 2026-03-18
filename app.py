@@ -42,6 +42,7 @@ SETTINGS_DEFAULTS = {
     "support_whatsapp":   "",   # ex: +7 996 637-23-58
     "smtp_email":         "benuslavision@gmail.com",
     "smtp_password":      "",   # Mot de passe d'application Gmail
+    "site_url":           "",   # ex: https://vpn.mondomaine.com (sans slash final)
 }
 
 # ─── DB helpers ───────────────────────────────────────────────────────────────
@@ -184,7 +185,7 @@ def send_email(to_email, subject, body_html):
         msg['To']      = to_email
         msg.attach(MIMEText(body_html, 'html', 'utf-8'))
         ctx = ssl.create_default_context()
-        with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=ctx) as srv:
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=ctx, timeout=15) as srv:
             srv.login(addr, pwd)
             srv.sendmail(addr, to_email, msg.as_string())
         return True
@@ -369,7 +370,10 @@ def mot_de_passe_oublie():
                     (user["id"], token, expires)
                 )
                 db.commit()
-                reset_url = url_for("reset_mdp", token=token, _external=True)
+                site_url  = get_settings().get("site_url", "").rstrip("/")
+                if not site_url:
+                    site_url = request.host_url.rstrip("/")
+                reset_url = f"{site_url}/reset-mdp/{token}"
                 html = (
                     f"<div style='font-family:sans-serif;max-width:520px;margin:0 auto'>"
                     f"<h2 style='color:#e94560'>🔐 Réinitialisation de mot de passe</h2>"
@@ -547,7 +551,7 @@ def admin_update_settings():
     for key in ["beneficiaire", "telephone", "banque", "montant", "reference",
                 "telegram_bot_token", "telegram_chat_id",
                 "support_telegram", "support_whatsapp",
-                "smtp_email", "smtp_password"]:
+                "smtp_email", "smtp_password", "site_url"]:
         value = request.form.get(key, "").strip()
         db.execute(
             "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
