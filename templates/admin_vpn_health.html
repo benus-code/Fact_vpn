@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+{% block title %}Santé VPN — Admin{% endblock %}
+{% block content %}
+<nav aria-label="Fil d'Ariane" class="mb-3">
+  <ol class="breadcrumb mb-0">
+    <li class="breadcrumb-item"><a href="{{ url_for('admin_panel') }}">Admin</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Santé du tunnel</li>
+  </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h4 class="fw-bold mb-0">📡 Santé du tunnel VPN</h4>
+  <div class="d-flex align-items-center gap-2">
+    <span id="refresh-countdown" class="text-muted small"></span>
+    <button class="btn btn-sm btn-outline-secondary" onclick="location.reload()">🔄 Rafraîchir</button>
+  </div>
+</div>
+
+{% if wg_error %}
+<div class="alert alert-danger">
+  <strong>⛔ Erreur wg show :</strong> {{ wg_error }}
+</div>
+{% endif %}
+
+{# ── Santé serveur ── #}
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="card p-3 text-center h-100">
+      <div class="text-muted small mb-1">Peers connectés</div>
+      <div class="fs-3 fw-bold
+        {% if server_health.connected_count > 0 %}text-success{% else %}text-secondary{% endif %}">
+        {{ server_health.connected_count }}
+        <span class="fs-6 text-muted fw-normal">/ {{ server_health.total_peers }}</span>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card p-3 text-center h-100">
+      <div class="text-muted small mb-1">CPU</div>
+      <div class="fs-3 fw-bold
+        {% if server_health.cpu_pct != 'N/A' and server_health.cpu_pct > 80 %}text-danger
+        {% elif server_health.cpu_pct != 'N/A' and server_health.cpu_pct > 50 %}text-warning
+        {% else %}text-success{% endif %}">
+        {% if server_health.cpu_pct != 'N/A' %}{{ server_health.cpu_pct }}%{% else %}N/A{% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card p-3 text-center h-100">
+      <div class="text-muted small mb-1">RAM</div>
+      <div class="fs-3 fw-bold
+        {% if server_health.ram_pct != 'N/A' and server_health.ram_pct > 85 %}text-danger
+        {% elif server_health.ram_pct != 'N/A' and server_health.ram_pct > 60 %}text-warning
+        {% else %}text-success{% endif %}">
+        {% if server_health.ram_pct != 'N/A' %}{{ server_health.ram_pct }}%{% else %}N/A{% endif %}
+      </div>
+      {% if server_health.ram_used != 'N/A' %}
+      <div class="text-muted" style="font-size:.75rem">{{ server_health.ram_used }} / {{ server_health.ram_total }}</div>
+      {% endif %}
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card p-3 text-center h-100">
+      <div class="text-muted small mb-1">Erreurs wg0</div>
+      <div class="fs-3 fw-bold
+        {% if server_health.wg0_errors != 'N/A' and server_health.wg0_errors > 0 %}text-danger
+        {% else %}text-success{% endif %}">
+        {% if server_health.wg0_errors != 'N/A' %}{{ server_health.wg0_errors }}{% else %}N/A{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Tableau des peers ── #}
+<div class="card shadow-sm">
+  <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-2">
+    <span class="fw-semibold">Peers ({{ peers|length }})</span>
+    <span class="small text-muted">
+      <span class="badge bg-success me-1">Vert</span>&lt;3min
+      <span class="badge bg-warning text-dark mx-1">Orange</span>3–10min
+      <span class="badge bg-danger ms-1">Rouge</span>&gt;10min
+    </span>
+  </div>
+  <div class="card-body p-0">
+    {% if peers %}
+    <div class="table-responsive">
+      <table class="table table-hover table-sm mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Abonné</th>
+            <th>Device</th>
+            <th>IP VPN</th>
+            <th>Dernier handshake</th>
+            <th>Reçu</th>
+            <th>Envoyé</th>
+            <th>Statut</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in peers %}
+          <tr class="{% if not p.actif %}table-secondary{% endif %}">
+            <td class="fw-semibold">{{ p.user_nom }}</td>
+            <td class="text-muted small">{{ p.label }}</td>
+            <td><code>{{ p.ip_vpn }}</code></td>
+            <td>
+              <span class="badge bg-{{ p.hs_color }}">{{ p.hs_label }}</span>
+            </td>
+            <td class="small text-muted">{{ p.transfer_rx }}</td>
+            <td class="small text-muted">{{ p.transfer_tx }}</td>
+            <td>
+              {% if p.status == 'connecte' %}
+                <span class="badge bg-success">Connecté</span>
+              {% elif p.status == 'jamais' %}
+                <span class="badge bg-secondary">Jamais connecté</span>
+              {% else %}
+                <span class="badge bg-{{ p.badge_color }}">Inactif</span>
+              {% endif %}
+              {% if not p.actif %}
+                <span class="badge bg-dark ms-1">Suspendu</span>
+              {% endif %}
+              {% if p.warn_keepalive %}
+                <span class="badge bg-warning text-dark ms-1"
+                      title="PersistentKeepalive non configuré — peut causer des reconnexions fréquentes">
+                  ⚠ Keepalive absent
+                </span>
+              {% endif %}
+            </td>
+            <td>
+              {% if p.has_real_key %}
+              <button class="btn btn-outline-primary btn-sm btn-keepalive"
+                      data-pubkey="{{ p.public_key }}"
+                      data-label="{{ p.user_nom }} / {{ p.label }}"
+                      {% if p.keepalive == 25 %}disabled title="Déjà configuré"{% endif %}>
+                {% if p.keepalive == 25 %}✅ KA=25{% else %}⚙ KA=25{% endif %}
+              </button>
+              {% else %}
+              <span class="text-muted small">—</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="p-4 text-center text-muted">Aucun peer en base de données.</div>
+    {% endif %}
+  </div>
+</div>
+
+{# Conteneur pour les notifications keepalive #}
+<div id="ka-alerts" class="mt-3"></div>
+
+<script>
+// ── Boutons PersistentKeepalive ─────────────────────────────────────────────
+document.querySelectorAll('.btn-keepalive').forEach(btn => {
+  btn.addEventListener('click', async function() {
+    const pubkey = this.dataset.pubkey;
+    const label  = this.dataset.label;
+    this.disabled = true;
+    this.textContent = '⏳…';
+
+    const fd = new FormData();
+    fd.append('pubkey', pubkey);
+
+    try {
+      const resp = await fetch('/admin/vpn-health/set-keepalive', {
+        method: 'POST',
+        body: fd
+      });
+      const data = await resp.json();
+      const container = document.getElementById('ka-alerts');
+      if (data.ok) {
+        this.textContent = '✅ KA=25';
+        container.insertAdjacentHTML('beforeend',
+          `<div class="alert alert-success alert-dismissible fade show" role="alert">
+            ✅ <strong>${label}</strong> — PersistentKeepalive=25 appliqué.
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+          </div>`
+        );
+      } else {
+        this.disabled = false;
+        this.textContent = '⚙ KA=25';
+        container.insertAdjacentHTML('beforeend',
+          `<div class="alert alert-danger alert-dismissible fade show" role="alert">
+            ⛔ <strong>${label}</strong> — Erreur : ${data.error || 'inconnue'}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+          </div>`
+        );
+      }
+    } catch(e) {
+      this.disabled = false;
+      this.textContent = '⚙ KA=25';
+      document.getElementById('ka-alerts').insertAdjacentHTML('beforeend',
+        `<div class="alert alert-danger alert-dismissible fade show">
+          ⛔ Erreur réseau : ${e}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>`
+      );
+    }
+  });
+});
+
+// ── Rafraîchissement automatique toutes les 30s ─────────────────────────────
+let remaining = 30;
+const countEl = document.getElementById('refresh-countdown');
+const tick = setInterval(() => {
+  remaining--;
+  if (remaining <= 0) {
+    clearInterval(tick);
+    location.reload();
+  } else {
+    countEl.textContent = `Rafraîchissement dans ${remaining}s`;
+  }
+}, 1000);
+</script>
+{% endblock %}

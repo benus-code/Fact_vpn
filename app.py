@@ -13,7 +13,7 @@ import json
 from datetime import date, datetime, timedelta
 from functools import wraps
 from flask import (Flask, render_template, request, redirect,
-                   url_for, session, flash, g)
+                   url_for, session, flash, g, jsonify)
 from werkzeug.security import generate_password_hash, check_password_hash as wz_check
 
 app = Flask(__name__)
@@ -169,6 +169,106 @@ def iptables_unblock_peer(ip_vpn):
         except subprocess.CalledProcessError:
             pass
     return True
+
+# ─── VPN health helpers ────────────────────────────────────────────────────────
+import re as _re
+
+def _parse_handshake_duration(text):
+    """Convertit 'X minutes, Y seconds ago' en secondes. Retourne None si absent."""
+    if not text:
+        return None
+    total = 0
+    for val, unit in _re.findall(r'(\d+)\s+(year|month|week|day|hour|minute|second)', text):
+        v = int(val)
+        if   'year'   in unit: total += v * 31536000
+        elif 'month'  in unit: total += v * 2592000
+        elif 'week'   in unit: total += v * 604800
+        elif 'day'    in unit: total += v * 86400
+        elif 'hour'   in unit: total += v * 3600
+        elif 'minute' in unit: total += v * 60
+        elif 'second' in unit: total += v
+    return total if total > 0 else None
+
+def parse_wg_output(output):
+    """Parse la sortie de 'wg show wg0'.
+    Retourne { '10.8.1.x': { pubkey, handshake_secs, transfer_rx, transfer_tx, keepalive } }
+    """
+    peers = {}
+    current = None
+    for line in output.splitlines():
+        line = line.strip()
+        if line.startswith("peer:"):
+            pubkey = line.split(":", 1)[1].strip()
+            current = {"pubkey": pubkey, "allowed_ip": None,
+                       "handshake_secs": None, "transfer_rx": "",
+                       "transfer_tx": "", "keepalive": 0}
+        elif current is None:
+            continue
+        elif line.startswith("allowed ips:"):
+            cidr = line.split(":", 1)[1].strip().split(",")[0].strip()
+            current["allowed_ip"] = cidr.split("/")[0]
+        elif line.startswith("latest handshake:"):
+            current["handshake_secs"] = _parse_handshake_duration(
+                line.split(":", 1)[1].strip()
+            )
+        elif line.startswith("transfer:"):
+            parts = line.split(":", 1)[1].strip()
+            m = _re.match(r'(.+?)\s+received,\s+(.+?)\s+sent', parts)
+            if m:
+                current["transfer_rx"] = m.group(1)
+                current["transfer_tx"] = m.group(2)
+        elif line.startswith("persistent keepalive:"):
+            m = _re.search(r'every (\d+)', line)
+            current["keepalive"] = int(m.group(1)) if m else 0
+        elif line == "" and current and current["allowed_ip"]:
+            peers[current["allowed_ip"]] = current
+            current = None
+    if current and current.get("allowed_ip"):
+        peers[current["allowed_ip"]] = current
+    return peers
+
+def get_server_health():
+    """Retourne CPU %, RAM %, erreurs wg0 — stdlib uniquement, sans psutil."""
+    import time as _time
+    health = {"cpu_pct": "N/A", "ram_pct": "N/A",
+              "ram_used": "N/A", "ram_total": "N/A", "wg0_errors": "N/A"}
+    try:
+        def _read_cpu():
+            with open("/proc/stat") as f:
+                parts = f.readline().split()
+            idle  = int(parts[4])
+            total = sum(int(x) for x in parts[1:])
+            return idle, total
+        i1, t1 = _read_cpu()
+        _time.sleep(0.1)
+        i2, t2 = _read_cpu()
+        health["cpu_pct"] = round(100 * (1 - (i2 - i1) / max(t2 - t1, 1)), 1)
+    except Exception:
+        pass
+    try:
+        mem = {}
+        with open("/proc/meminfo") as f:
+            for line in f:
+                k, v = line.split(":", 1)
+                mem[k.strip()] = int(v.split()[0])
+        total_kb = mem.get("MemTotal", 1)
+        avail_kb = mem.get("MemAvailable", total_kb)
+        used_kb  = total_kb - avail_kb
+        health["ram_pct"]   = round(100 * used_kb / total_kb, 1)
+        health["ram_used"]  = f"{used_kb // 1024} Mo"
+        health["ram_total"] = f"{total_kb // 1024} Mo"
+    except Exception:
+        pass
+    try:
+        with open("/proc/net/dev") as f:
+            for line in f:
+                if "wg0" in line:
+                    fields = line.split(":")[1].split()
+                    health["wg0_errors"] = int(fields[2]) + int(fields[10])
+                    break
+    except Exception:
+        pass
+    return health
 
 # ─── Routes publiques ─────────────────────────────────────────────────────────
 @app.route("/")
@@ -348,6 +448,113 @@ def admin_panel():
         settings=get_settings(),
         today=date.today()
     )
+
+@app.route("/admin/vpn-health")
+@login_required
+@admin_required
+def admin_vpn_health():
+    wg_data  = {}
+    wg_error = None
+    try:
+        result = subprocess.run(
+            ["docker", "exec", CONTAINER, "wg", "show", WG_INTERFACE],
+            capture_output=True, text=True, timeout=10
+        )
+        if result.returncode == 0:
+            wg_data = parse_wg_output(result.stdout)
+        else:
+            wg_error = result.stderr.strip() or "Commande wg show échouée"
+    except Exception as e:
+        wg_error = str(e)
+
+    db = get_db()
+    db_peers = db.execute("""
+        SELECT p.id, p.label, p.ip_vpn, p.public_key, p.actif,
+               u.nom AS user_nom
+        FROM peers p
+        JOIN users u ON u.id = p.user_id
+        ORDER BY u.nom, p.label
+    """).fetchall()
+
+    peers_view      = []
+    connected_count = 0
+    for p in db_peers:
+        ip  = p["ip_vpn"].split("/")[0]
+        wg  = wg_data.get(ip, {})
+        secs = wg.get("handshake_secs")
+
+        if secs is None:
+            status = "jamais"; badge_color = "secondary"
+        elif secs < 180:
+            status = "connecte"; badge_color = "success"; connected_count += 1
+        elif secs < 600:
+            status = "inactif"; badge_color = "warning"
+        else:
+            status = "inactif"; badge_color = "danger"
+
+        if secs is None:
+            hs_color = "secondary"; hs_label = "Jamais"
+        elif secs < 60:
+            hs_color = "success";  hs_label = f"{secs}s"
+        elif secs < 180:
+            hs_color = "success";  hs_label = f"{secs // 60}min {secs % 60}s"
+        elif secs < 600:
+            hs_color = "warning";  hs_label = f"{secs // 60}min"
+        elif secs < 3600:
+            hs_color = "danger";   hs_label = f"{secs // 60}min"
+        else:
+            hs_color = "danger";   hs_label = f"{secs // 3600}h"
+
+        keepalive     = wg.get("keepalive", 0)
+        warn_keepalive = (keepalive == 0 and secs is not None)
+        has_real_key  = not p["public_key"].startswith("MANUAL_")
+
+        peers_view.append({
+            "id":           p["id"],
+            "label":        p["label"],
+            "user_nom":     p["user_nom"],
+            "ip_vpn":       ip,
+            "public_key":   p["public_key"],
+            "has_real_key": has_real_key,
+            "actif":        p["actif"],
+            "status":       status,
+            "badge_color":  badge_color,
+            "hs_color":     hs_color,
+            "hs_label":     hs_label,
+            "transfer_rx":  wg.get("transfer_rx") or "—",
+            "transfer_tx":  wg.get("transfer_tx") or "—",
+            "keepalive":    keepalive,
+            "warn_keepalive": warn_keepalive,
+        })
+
+    server_health = get_server_health()
+    server_health["connected_count"] = connected_count
+    server_health["total_peers"]     = len(db_peers)
+
+    return render_template("admin_vpn_health.html",
+        peers=peers_view,
+        server_health=server_health,
+        wg_error=wg_error,
+    )
+
+@app.route("/admin/vpn-health/set-keepalive", methods=["POST"])
+@login_required
+@admin_required
+def admin_set_keepalive():
+    pubkey = request.form.get("pubkey", "").strip()
+    if not pubkey or pubkey.startswith("MANUAL_"):
+        return jsonify({"ok": False, "error": "Clé publique invalide"}), 400
+    try:
+        result = subprocess.run(
+            ["docker", "exec", CONTAINER, "wg", "set", WG_INTERFACE,
+             "peer", pubkey, "persistent-keepalive", "25"],
+            capture_output=True, text=True, timeout=10
+        )
+        if result.returncode == 0:
+            return jsonify({"ok": True})
+        return jsonify({"ok": False, "error": result.stderr.strip()}), 500
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 @app.route("/admin/settings/update", methods=["POST"])
 @login_required
