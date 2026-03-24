@@ -182,6 +182,7 @@
       <span class="nav-user-chip">{{ session.user_nom }}</span>
       {% if session.is_admin %}
         <a href="{{ url_for('admin_panel') }}" class="btn-nav-admin">⚙ Admin</a>
+        <a href="{{ url_for('admin_vpn_health') }}" class="btn-nav-admin">📡 Tunnel</a>
       {% endif %}
       <a href="{{ url_for('logout') }}" class="btn-nav-logout">Déconnexion</a>
     </div>
