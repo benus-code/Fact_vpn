@@ -60,16 +60,12 @@
               </li>
             </ul>
           </div>
-          {% if bank %}
           <div style="background:rgba(255,255,255,.05); border-radius:10px; padding:14px; margin-top:24px;">
             <p style="color:#8892b0; font-size:.78rem; margin:0; line-height:1.6;">
               <strong style="color:#a8b2d8;">Comment payer ?</strong><br>
-              Virement {{ bank.banque }}<br>
-              <span style="color:#e94560;">{{ bank.telephone }}</span><br>
-              Commentaire : <em>{{ bank.reference }}</em>
+              Les coordonnées de paiement vous seront communiquées dans votre espace personnel après validation de votre demande.
             </p>
           </div>
-          {% endif %}
         </div>
 
         {# ── Formulaire (droite) ── #}
@@ -172,7 +168,7 @@
             <div class="d-md-none mt-3">
               <div class="alert alert-info mb-0" style="font-size:.87rem;">
                 <strong>Forfaits :</strong> Mobile 149 ₽ · Ordi 249 ₽ · Complet 349 ₽<br>
-                <small>{% if bank %}Virement {{ bank.banque }} — {% endif %}activation Immédiate !</small>
+                <small>Coordonnées de paiement transmises après validation.</small>
               </div>
             </div>
 

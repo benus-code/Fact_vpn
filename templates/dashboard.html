@@ -85,45 +85,55 @@
   </div>
   {% endif %}
 
+  {% if abo and abo.statut == 'actif' %}
   <div class="col-12">
     <div class="card p-4">
-      <h5 class="fw-bold mb-3">💳 Comment renouveler mon abonnement</h5>
-      <div>
-        <p class="mb-3">Envoyez le paiement par virement Тбанк avec les coordonnées ci-dessous, puis contactez l'admin <a href="https://t.me/Joseplusti_lv2">ici</a> pour confirmer.</p>
-        <div class="row g-3">
-          <div class="col-md-6">
-            <div class="table-responsive">
-              <table class="table table-bordered table-sm mb-0">
-                <tr>
-                  <th>Bénéficiaire</th>
-                  <td class="d-flex align-items-center justify-content-between gap-2"><strong>{{ bank.beneficiaire }}</strong><button type="button" class="btn btn-sm copy-btn btn-outline-secondary" data-copy="{{ bank.beneficiaire }}" title="Copier">Copier</button></td>
-                </tr>
-                <tr>
-                  <th>Téléphone</th>
-                  <td class="d-flex align-items-center justify-content-between gap-2"><code>{{ bank.telephone }}</code><button type="button" class="btn btn-sm copy-btn btn-outline-secondary" data-copy="{{ bank.telephone }}" title="Copier">Copier</button></td>
-                </tr>
-                <tr><th>Banque</th><td><strong>{{ bank.banque }}</strong></td></tr>
-                <tr>
-                  <th>Montant</th>
-                  <td class="d-flex align-items-center justify-content-between gap-2"><strong>{{ bank.montant }}</strong> / mois<button type="button" class="btn btn-sm copy-btn btn-outline-secondary" data-copy="{{ bank.montant }}" title="Copier">Copier</button></td>
-                </tr>
-                <tr>
-                  <th>Commentaire</th>
-                  <td class="d-flex align-items-center justify-content-between gap-2"><strong>{{ bank.reference }}</strong><button type="button" class="btn btn-sm copy-btn btn-outline-secondary" data-copy="{{ bank.reference }}" title="Copier">Copier</button></td>
-                </tr>
-              </table>
-            </div>
+      <h5 class="fw-bold mb-3">💳 Renouveler mon abonnement</h5>
+      <p class="mb-3">Envoyez le paiement par virement avec les coordonnées ci-dessous, puis contactez l'admin <a href="https://t.me/Joseplusti_lv2">ici</a> pour confirmer.</p>
+      <div class="row g-3">
+        <div class="col-md-6">
+          <div class="table-responsive">
+            <table class="table table-bordered table-sm mb-0">
+              <tr>
+                <th>Bénéficiaire</th>
+                <td class="d-flex align-items-center justify-content-between gap-2"><strong>{{ bank.beneficiaire }}</strong><button type="button" class="btn btn-sm copy-btn btn-outline-secondary" data-copy="{{ bank.beneficiaire }}" title="Copier">Copier</button></td>
+              </tr>
+              <tr>
+                <th>Téléphone</th>
+                <td class="d-flex align-items-center justify-content-between gap-2"><code>{{ bank.telephone }}</code><button type="button" class="btn btn-sm copy-btn btn-outline-secondary" data-copy="{{ bank.telephone }}" title="Copier">Copier</button></td>
+              </tr>
+              <tr><th>Banque</th><td><strong>{{ bank.banque }}</strong></td></tr>
+              <tr>
+                <th>Montant</th>
+                <td class="d-flex align-items-center justify-content-between gap-2"><strong>{{ bank.montant }}</strong> / mois<button type="button" class="btn btn-sm copy-btn btn-outline-secondary" data-copy="{{ bank.montant }}" title="Copier">Copier</button></td>
+              </tr>
+              <tr>
+                <th>Commentaire</th>
+                <td class="d-flex align-items-center justify-content-between gap-2"><strong>{{ bank.reference }}</strong><button type="button" class="btn btn-sm copy-btn btn-outline-secondary" data-copy="{{ bank.reference }}" title="Copier">Copier</button></td>
+              </tr>
+            </table>
           </div>
-          <div class="col-md-6 d-flex align-items-center">
-            <div class="alert alert-info mb-0 w-100">
-              <strong>⚠ Important :</strong> Indiquez votre prénom en commentaire du virement.
-              Une fois le paiement reçu, votre accès sera renouvelé Immédiatement !.
-            </div>
+        </div>
+        <div class="col-md-6 d-flex align-items-center">
+          <div class="alert alert-info mb-0 w-100">
+            <strong>⚠ Important :</strong> Indiquez votre prénom en commentaire du virement.
+            Une fois le paiement reçu, votre accès sera renouvelé immédiatement.
           </div>
         </div>
       </div>
     </div>
   </div>
+  {% else %}
+  <div class="col-12">
+    <div class="card p-4" style="border-left: 4px solid #e94560;">
+      <h5 class="fw-bold mb-2">⏳ Demande en cours de traitement</h5>
+      <p class="text-muted mb-0" style="font-size:.93rem;">
+        Votre demande d'accès a bien été reçue. L'administrateur va l'examiner et vous activera votre accès sous 24h.
+        Les coordonnées de paiement vous seront communiquées dès l'activation de votre compte.
+      </p>
+    </div>
+  </div>
+  {% endif %}
 
   {# ── Historique paiements ── #}
   {% if paiements %}
