@@ -13,22 +13,44 @@
           <div>
             <div style="font-size:2rem; line-height:1;">🔐</div>
             <h2 style="color:#fff; font-weight:800; margin:16px 0 6px; font-size:1.4rem;">Accès VPN</h2>
-            <p style="color:#8892b0; font-size:.85rem; line-height:1.6; margin-bottom:28px;">
+            <p style="color:#8892b0; font-size:.85rem; line-height:1.6; margin-bottom:24px;">
               Service personnel, sécurisé, Immédiate.
             </p>
-            <div style="background:rgba(233,69,96,.12); border:1px solid rgba(233,69,96,.3);
-                        border-radius:12px; padding:20px 18px; text-align:center; margin-bottom:24px;">
-              <div style="font-size:2.8rem; font-weight:800; color:#e94560; line-height:1;">
-                {{ bank.montant if bank else '100' }}<span style="font-size:1.2rem;">₽</span>
+
+            <!-- 3 forfaits -->
+            <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:24px;">
+              <div style="background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1);
+                          border-radius:10px; padding:12px 14px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <span style="color:#a8b2d8; font-size:.83rem;">📱 Mobile</span>
+                  <span style="color:#e94560; font-weight:800; font-size:1.05rem;">149 ₽</span>
+                </div>
+                <div style="color:#596180; font-size:.75rem; margin-top:3px;">Android &amp; iPhone</div>
               </div>
-              <div style="color:#8892b0; font-size:.82rem; margin-top:4px;">par mois</div>
+              <div style="background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1);
+                          border-radius:10px; padding:12px 14px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <span style="color:#a8b2d8; font-size:.83rem;">💻 Ordinateur</span>
+                  <span style="color:#e94560; font-weight:800; font-size:1.05rem;">249 ₽</span>
+                </div>
+                <div style="color:#596180; font-size:.75rem; margin-top:3px;">Windows &amp; Mac</div>
+              </div>
+              <div style="background:rgba(233,69,96,.12); border:1px solid rgba(233,69,96,.35);
+                          border-radius:10px; padding:12px 14px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <span style="color:#e0c8cc; font-size:.83rem; font-weight:600;">📱💻 Complet</span>
+                  <span style="color:#e94560; font-weight:800; font-size:1.05rem;">349 ₽</span>
+                </div>
+                <div style="color:#8870a0; font-size:.75rem; margin-top:3px;">Téléphone + Ordinateur</div>
+              </div>
             </div>
+
             <ul style="list-style:none; padding:0;">
               <li style="color:#a8b2d8; padding:6px 0; font-size:.85rem; border-bottom:1px solid rgba(255,255,255,.06);">
-                <span style="color:#e94560; margin-right:8px;">✓</span> Plusieurs appareils !
+                <span style="color:#e94560; margin-right:8px;">✓</span> Services bloqués accessibles
               </li>
               <li style="color:#a8b2d8; padding:6px 0; font-size:.85rem; border-bottom:1px solid rgba(255,255,255,.06);">
-                <span style="color:#e94560; margin-right:8px;">✓</span> 100% Chiffrement ! 
+                <span style="color:#e94560; margin-right:8px;">✓</span> YouTube sans publicités
               </li>
               <li style="color:#a8b2d8; padding:6px 0; font-size:.85rem; border-bottom:1px solid rgba(255,255,255,.06);">
                 <span style="color:#e94560; margin-right:8px;">✓</span> Activation Immédiate !
@@ -95,6 +117,44 @@
 
             <hr style="margin: 20px 0 16px;">
             <p class="mb-2" style="font-size:.83rem; color:#7a8499; font-weight:700; letter-spacing:.4px;">
+              FORFAIT SOUHAITÉ <span class="text-danger">*</span>
+            </p>
+            <div class="row g-2 mb-3">
+              <div class="col-12 col-sm-4">
+                <label class="d-block" style="cursor:pointer;">
+                  <input type="radio" name="forfait" value="mobile" required class="visually-hidden" id="f-mobile">
+                  <div class="plan-radio-card" data-for="f-mobile">
+                    <div class="plan-radio-name">📱 Mobile</div>
+                    <div class="plan-radio-price">149 ₽</div>
+                    <div class="plan-radio-sub">Android / iPhone</div>
+                  </div>
+                </label>
+              </div>
+              <div class="col-12 col-sm-4">
+                <label class="d-block" style="cursor:pointer;">
+                  <input type="radio" name="forfait" value="ordinateur" class="visually-hidden" id="f-ordi">
+                  <div class="plan-radio-card" data-for="f-ordi">
+                    <div class="plan-radio-name">💻 Ordinateur</div>
+                    <div class="plan-radio-price">249 ₽</div>
+                    <div class="plan-radio-sub">Windows / Mac</div>
+                  </div>
+                </label>
+              </div>
+              <div class="col-12 col-sm-4">
+                <label class="d-block" style="cursor:pointer;">
+                  <input type="radio" name="forfait" value="complet" class="visually-hidden" id="f-complet">
+                  <div class="plan-radio-card" data-for="f-complet">
+                    <div class="popular-chip">✦ Populaire</div>
+                    <div class="plan-radio-name">📱💻 Complet</div>
+                    <div class="plan-radio-price">349 ₽</div>
+                    <div class="plan-radio-sub">Tél. + Ordi</div>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <hr style="margin: 20px 0 16px;">
+            <p class="mb-2" style="font-size:.83rem; color:#7a8499; font-weight:700; letter-spacing:.4px;">
               CONTACT OPTIONNEL <span style="font-weight:400;">(pour que l'administrateur puisse vous contacter facilement !)</span>
             </p>
             <div class="row g-3">
@@ -108,11 +168,11 @@
               </div>
             </div>
 
-            {# Tarif visible sur mobile uniquement #}
+            {# Tarifs visible sur mobile uniquement #}
             <div class="d-md-none mt-3">
-              <div class="alert alert-info mb-0">
-                <strong>Tarif : {{ bank.montant if bank else '100' }} ₽ / mois</strong><br>
-                <small>Virement {{ bank.banque if bank else '' }} — activation Immédiate ! </small>
+              <div class="alert alert-info mb-0" style="font-size:.87rem;">
+                <strong>Forfaits :</strong> Mobile 149 ₽ · Ordi 249 ₽ · Complet 349 ₽<br>
+                <small>{% if bank %}Virement {{ bank.banque }} — {% endif %}activation Immédiate !</small>
               </div>
             </div>
 
@@ -137,6 +197,60 @@
 
 {% endblock %}
 {% block scripts %}
+<style>
+  .plan-radio-card {
+    border: 1.5px solid var(--border, #e4e8f0);
+    border-radius: 10px; padding: 12px 10px; text-align: center;
+    transition: border-color .15s, background .15s, box-shadow .15s;
+    background: #fff; height: 100%; position: relative;
+  }
+  /* Featured : badge "Populaire" uniquement, pas de bordure rouge permanente */
+  .plan-radio-card .popular-chip {
+    display: inline-block;
+    background: rgba(233,69,96,.1); border: 1px solid rgba(233,69,96,.3);
+    color: #e94560; border-radius: 20px;
+    padding: 2px 10px; font-size: .68rem; font-weight: 700; margin-bottom: 6px;
+  }
+  .plan-radio-card .plan-radio-name { font-size: .82rem; font-weight: 700; color: #1e2535; margin-bottom: 4px; }
+  .plan-radio-card .plan-radio-price { font-size: 1.25rem; font-weight: 800; color: #e94560; line-height: 1; }
+  .plan-radio-card .plan-radio-sub { font-size: .72rem; color: #7a8499; margin-top: 3px; }
+  /* État sélectionné — s'applique via JS (plus fiable que :checked + div) */
+  .plan-radio-card.is-selected {
+    border-color: #e94560 !important;
+    background: #fff0f2 !important;
+    box-shadow: 0 0 0 3px rgba(233,69,96,.18) !important;
+  }
+</style>
+<script>
+  (function() {
+    var radios = document.querySelectorAll('input[name="forfait"]');
+    function updateCards() {
+      radios.forEach(function(radio) {
+        var forId = radio.id;
+        var card = document.querySelector('[data-for="' + forId + '"]');
+        if (!card) return;
+        if (radio.checked) {
+          card.classList.add('is-selected');
+        } else {
+          card.classList.remove('is-selected');
+        }
+      });
+    }
+    radios.forEach(function(radio) {
+      radio.addEventListener('change', updateCards);
+      // Click on the card triggers the hidden radio
+      var card = document.querySelector('[data-for="' + radio.id + '"]');
+      if (card) {
+        card.addEventListener('click', function() {
+          radio.checked = true;
+          updateCards();
+        });
+      }
+    });
+    // Init on page load (in case browser restores form state)
+    updateCards();
+  })();
+</script>
 <script>
   (function() {
     var pwd = document.getElementById('ins-password');

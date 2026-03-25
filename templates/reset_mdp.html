@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Nouveau mot de passe — VPN Privé{% endblock %}
+{% block content %}
+
+<div class="row justify-content-center" style="margin-top: 3rem;">
+  <div class="col-lg-8 col-xl-7">
+    <div class="card overflow-hidden p-0">
+      <div class="row g-0">
+
+        {# ── Panneau marque (gauche) ── #}
+        <div class="col-md-5 d-none d-md-flex flex-column justify-content-between"
+             style="background: #1a1a2e; padding: 40px 32px;">
+          <div>
+            <div style="font-size:2.2rem; line-height:1;">🔑</div>
+            <h2 style="color:#fff; font-weight:800; margin:16px 0 10px; font-size:1.6rem;">VPN Privé</h2>
+            <p style="color:#8892b0; font-size:.9rem; line-height:1.7;">
+              Choisissez un nouveau mot de passe sécurisé.
+            </p>
+            <ul style="list-style:none; padding:0; margin-top:28px;">
+              <li style="color:#a8b2d8; padding:7px 0; font-size:.88rem; border-bottom:1px solid rgba(255,255,255,.06);">
+                <span style="color:#e94560; margin-right:8px;">✓</span> Minimum 6 caractères
+              </li>
+              <li style="color:#a8b2d8; padding:7px 0; font-size:.88rem;">
+                <span style="color:#e94560; margin-right:8px;">✓</span> Stocké de façon chiffrée
+              </li>
+            </ul>
+          </div>
+          <p style="color:#4a5568; font-size:.78rem; margin:0;">© 2026 VPN Privé</p>
+        </div>
+
+        {# ── Formulaire (droite) ── #}
+        <div class="col-md-7 d-flex flex-column justify-content-center" style="padding: 40px 36px;">
+          <h4 class="fw-bold mb-1" style="color:#1e2535;">Nouveau mot de passe</h4>
+          <p class="text-muted mb-4" style="font-size:.9rem;">Saisissez et confirmez votre nouveau mot de passe.</p>
+
+          {% with messages = get_flashed_messages(with_categories=true) %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ 'danger' if category == 'danger' else 'success' }} py-2 mb-3" role="alert">
+                {{ message }}
+              </div>
+            {% endfor %}
+          {% endwith %}
+
+          <form method="POST" data-prevent-double-submit>
+            <div class="mb-3">
+              <label class="form-label" for="reset-pwd">Nouveau mot de passe</label>
+              <div class="password-toggle-wrap">
+                <input id="reset-pwd" type="password" name="password"
+                       class="form-control" placeholder="••••••••" required minlength="6" autofocus>
+                <button type="button" class="btn-password-toggle"
+                        data-password-toggle="#reset-pwd" aria-pressed="false">Afficher</button>
+              </div>
+            </div>
+            <div class="mb-4">
+              <label class="form-label" for="reset-pwd2">Confirmer le mot de passe</label>
+              <div class="password-toggle-wrap">
+                <input id="reset-pwd2" type="password" name="password_confirm"
+                       class="form-control" placeholder="••••••••" required minlength="6">
+                <button type="button" class="btn-password-toggle"
+                        data-password-toggle="#reset-pwd2" aria-pressed="false">Afficher</button>
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary w-100" style="padding: 10px;">
+              Enregistrer le mot de passe
+            </button>
+          </form>
+
+          <hr style="margin: 24px 0;">
+          <p class="text-center mb-0" style="font-size:.88rem; color:#7a8499;">
+            <a href="{{ url_for('login') }}" style="color:#e94560; font-weight:600;">← Retour à la connexion</a>
+          </p>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
