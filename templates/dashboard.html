@@ -88,38 +88,81 @@
   {% if abo and abo.statut == 'actif' %}
   <div class="col-12">
     <div class="card p-4">
-      <h5 class="fw-bold mb-3">💳 Renouveler mon abonnement</h5>
-      <p class="mb-3">Envoyez le paiement par virement avec les coordonnées ci-dessous, puis contactez l'admin <a href="https://t.me/Joseplusti_lv2">ici</a> pour confirmer.</p>
+      <h5 class="fw-bold mb-1">🔄 Renouveler mon abonnement</h5>
+      <p class="text-muted mb-4" style="font-size:.88rem;">Suivez ces 3 étapes pour prolonger votre accès.</p>
+
       <div class="row g-3">
-        <div class="col-md-6">
-          <div class="table-responsive">
-            <table class="table table-bordered table-sm mb-0">
-              <tr>
-                <th>Bénéficiaire</th>
-                <td class="d-flex align-items-center justify-content-between gap-2"><strong>{{ bank.beneficiaire }}</strong><button type="button" class="btn btn-sm copy-btn btn-outline-secondary" data-copy="{{ bank.beneficiaire }}" title="Copier">Copier</button></td>
-              </tr>
-              <tr>
-                <th>Téléphone</th>
-                <td class="d-flex align-items-center justify-content-between gap-2"><code>{{ bank.telephone }}</code><button type="button" class="btn btn-sm copy-btn btn-outline-secondary" data-copy="{{ bank.telephone }}" title="Copier">Copier</button></td>
-              </tr>
-              <tr><th>Banque</th><td><strong>{{ bank.banque }}</strong></td></tr>
-              <tr>
-                <th>Montant</th>
-                <td class="d-flex align-items-center justify-content-between gap-2"><strong>{{ bank.montant }}</strong> / mois<button type="button" class="btn btn-sm copy-btn btn-outline-secondary" data-copy="{{ bank.montant }}" title="Copier">Copier</button></td>
-              </tr>
-              <tr>
-                <th>Commentaire</th>
-                <td class="d-flex align-items-center justify-content-between gap-2"><strong>{{ bank.reference }}</strong><button type="button" class="btn btn-sm copy-btn btn-outline-secondary" data-copy="{{ bank.reference }}" title="Copier">Copier</button></td>
-              </tr>
-            </table>
+
+        {# Étape 1 #}
+        <div class="col-md-4">
+          <div style="background:#f8f9fc; border-radius:12px; padding:20px; height:100%;">
+            <div style="width:32px;height:32px;border-radius:50%;background:#e94560;color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;font-size:.9rem;margin-bottom:12px;">1</div>
+            <div class="fw-bold mb-1" style="font-size:.93rem;">Effectuez le virement</div>
+            <p class="text-muted mb-3" style="font-size:.82rem;">Envoyez le montant correspondant à votre forfait via {{ bank.banque }}.</p>
+            <div style="background:#fff;border:1px solid #e4e8f0;border-radius:8px;padding:12px;font-size:.85rem;">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="text-muted">Bénéficiaire</span>
+                <div class="d-flex align-items-center gap-2">
+                  <strong>{{ bank.beneficiaire }}</strong>
+                  <button type="button" class="btn btn-sm copy-btn btn-outline-secondary py-0 px-2" style="font-size:.75rem;" data-copy="{{ bank.beneficiaire }}">Copier</button>
+                </div>
+              </div>
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="text-muted">Téléphone</span>
+                <div class="d-flex align-items-center gap-2">
+                  <code style="color:#e94560;">{{ bank.telephone }}</code>
+                  <button type="button" class="btn btn-sm copy-btn btn-outline-secondary py-0 px-2" style="font-size:.75rem;" data-copy="{{ bank.telephone }}">Copier</button>
+                </div>
+              </div>
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="text-muted">Banque</span>
+                <strong>{{ bank.banque }}</strong>
+              </div>
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="text-muted">Montant</span>
+                <div class="d-flex align-items-center gap-2">
+                  <strong style="color:#e94560;">{{ bank.montant }} ₽</strong>
+                  <button type="button" class="btn btn-sm copy-btn btn-outline-secondary py-0 px-2" style="font-size:.75rem;" data-copy="{{ bank.montant }}">Copier</button>
+                </div>
+              </div>
+              <div class="d-flex justify-content-between align-items-center">
+                <span class="text-muted">Commentaire</span>
+                <div class="d-flex align-items-center gap-2">
+                  <em>{{ bank.reference }}</em>
+                  <button type="button" class="btn btn-sm copy-btn btn-outline-secondary py-0 px-2" style="font-size:.75rem;" data-copy="{{ bank.reference }}">Copier</button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-        <div class="col-md-6 d-flex align-items-center">
-          <div class="alert alert-info mb-0 w-100">
-            <strong>⚠ Important :</strong> Indiquez votre prénom en commentaire du virement.
-            Une fois le paiement reçu, votre accès sera renouvelé immédiatement.
+
+        {# Étape 2 #}
+        <div class="col-md-4">
+          <div style="background:#f8f9fc; border-radius:12px; padding:20px; height:100%;">
+            <div style="width:32px;height:32px;border-radius:50%;background:#e94560;color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;font-size:.9rem;margin-bottom:12px;">2</div>
+            <div class="fw-bold mb-1" style="font-size:.93rem;">Confirmez le paiement</div>
+            <p class="text-muted mb-3" style="font-size:.82rem;">
+              Après le virement, envoyez un message à l'administrateur avec votre prénom et une capture du paiement.
+            </p>
+            <a href="https://t.me/Joseplusti_lv2" target="_blank"
+               style="display:block;background:#229ED9;color:#fff;border-radius:8px;padding:10px 16px;text-align:center;font-weight:700;font-size:.88rem;text-decoration:none;">
+              ✈ Confirmer sur Telegram
+            </a>
           </div>
         </div>
+
+        {# Étape 3 #}
+        <div class="col-md-4">
+          <div style="background:#f8f9fc; border-radius:12px; padding:20px; height:100%;">
+            <div style="width:32px;height:32px;border-radius:50%;background:#28a745;color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;font-size:.9rem;margin-bottom:12px;">✓</div>
+            <div class="fw-bold mb-1" style="font-size:.93rem;">Accès renouvelé</div>
+            <p class="text-muted mb-0" style="font-size:.82rem; line-height:1.6;">
+              Votre abonnement est prolongé manuellement dans les <strong>24h</strong> après confirmation du paiement.
+              Votre date d'expiration sera mise à jour ici automatiquement.
+            </p>
+          </div>
+        </div>
+
       </div>
     </div>
   </div>
