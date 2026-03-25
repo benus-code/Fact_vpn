@@ -177,15 +177,20 @@
 <nav class="navbar navbar-expand-lg navbar-dark">
   <div class="container">
     <a class="navbar-brand" href="/">🔐 VPN <span>Privé</span></a>
-    {% if session.user_id %}
     <div class="ms-auto d-flex align-items-center gap-2">
-      <span class="nav-user-chip">{{ session.user_nom }}</span>
-      {% if session.is_admin %}
-        <a href="{{ url_for('admin_panel') }}" class="btn-nav-admin">⚙ Admin</a>
+      {% if session.user_id %}
+        <span class="nav-user-chip">{{ session.user_nom }}</span>
+        {% if session.is_admin %}
+          <a href="{{ url_for('admin_panel') }}" class="btn-nav-admin">⚙ Admin</a>
+        {% endif %}
+        <a href="{{ url_for('logout') }}" class="btn-nav-logout" data-en="Log out">Déconnexion</a>
       {% endif %}
-      <a href="{{ url_for('logout') }}" class="btn-nav-logout">Déconnexion</a>
+      <div style="display:flex;align-items:center;gap:1px;background:rgba(255,255,255,.12);border-radius:16px;padding:2px 6px;">
+        <button class="btn-lang" data-lang="fr" onclick="setLang('fr')" style="background:none;border:none;color:#fff;font-size:.75rem;padding:2px 8px;cursor:pointer;border-radius:12px;font-weight:800;">FR</button>
+        <span style="color:rgba(255,255,255,.25);font-size:.7rem;">|</span>
+        <button class="btn-lang" data-lang="en" onclick="setLang('en')" style="background:none;border:none;color:#fff;font-size:.75rem;padding:2px 8px;cursor:pointer;border-radius:12px;">EN</button>
+      </div>
     </div>
-    {% endif %}
   </div>
 </nav>
 
@@ -218,6 +223,30 @@
       btn.setAttribute('aria-pressed', isPass ? 'true' : 'false');
     });
   });
+</script>
+<script>
+(function() {
+  function setLang(lang) {
+    localStorage.setItem('vpn_lang', lang);
+    document.querySelectorAll('[data-en]').forEach(function(el) {
+      if (lang === 'en') {
+        if (!el.getAttribute('data-fr')) el.setAttribute('data-fr', el.innerHTML);
+        el.innerHTML = el.getAttribute('data-en');
+      } else {
+        var fr = el.getAttribute('data-fr');
+        if (fr) el.innerHTML = fr;
+      }
+    });
+    document.querySelectorAll('.btn-lang').forEach(function(b) {
+      b.style.fontWeight = b.dataset.lang === lang ? '800' : '400';
+      b.style.opacity   = b.dataset.lang === lang ? '1'   : '0.5';
+    });
+  }
+  window.setLang = setLang;
+  document.addEventListener('DOMContentLoaded', function() {
+    setLang(localStorage.getItem('vpn_lang') || 'fr');
+  });
+})();
 </script>
 {% block scripts %}{% endblock %}
 </body>
