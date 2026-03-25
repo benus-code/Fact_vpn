@@ -5,23 +5,29 @@ Lancer : python3 app.py
 """
 
 import os
+import secrets
 import sqlite3
 import hashlib
 import subprocess
 import urllib.request
 import json
+import smtplib
+import ssl
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from datetime import date, datetime, timedelta
 from functools import wraps
 from flask import (Flask, render_template, request, redirect,
-                   url_for, session, flash, g, jsonify)
+                   url_for, session, flash, g, Response)
 from werkzeug.security import generate_password_hash, check_password_hash as wz_check
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("VPN_SECRET_KEY", "CHANGE_CE_SECRET_EN_PROD_SVP")
 
-DB_PATH      = "/opt/vpn-billing/vpn_billing.db"
-CONTAINER    = "amnezia-awg"
-WG_INTERFACE = "wg0"
+DB_PATH       = "/opt/vpn-billing/vpn_billing.db"
+CONTAINER     = "amnezia-awg"
+WG_INTERFACE  = "wg0"
+PIVPN_CONFIGS = "/home/benus/configs"
 
 # Valeurs par défaut — insérées en BDD si absentes
 SETTINGS_DEFAULTS = {
@@ -34,6 +40,9 @@ SETTINGS_DEFAULTS = {
     "telegram_chat_id":   "",
     "support_telegram":   "",   # ex: https://t.me/tonpseudo
     "support_whatsapp":   "",   # ex: +7 996 637-23-58
+    "smtp_email":         "benuslavision@gmail.com",
+    "smtp_password":      "",   # Mot de passe d'application Gmail
+    "site_url":           "",   # ex: https://vpn.mondomaine.com (sans slash final)
 }
 
 # ─── DB helpers ───────────────────────────────────────────────────────────────
@@ -86,6 +95,22 @@ def init_app_db():
         conn.execute("UPDATE peers SET date_ajout = DATE('now') WHERE date_ajout IS NULL")
     except sqlite3.OperationalError:
         pass
+
+    # Colonne vpn_type sur peers (amnezia=smartphone, pivpn=PC)
+    try:
+        conn.execute("ALTER TABLE peers ADD COLUMN vpn_type TEXT DEFAULT 'amnezia'")
+    except sqlite3.OperationalError:
+        pass
+
+    # Table pour les tokens de réinitialisation de mot de passe
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS password_resets (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id    INTEGER NOT NULL,
+            token      TEXT    NOT NULL UNIQUE,
+            expires_at TEXT    NOT NULL
+        )
+    """)
 
     conn.commit()
     conn.close()
@@ -141,6 +166,36 @@ def notify_telegram(message):
     except Exception as e:
         app.logger.warning(f"Telegram notify failed: {e}")
 
+def send_email(to_email, subject, body_html):
+    """Envoie via Gmail SMTP (port 587 STARTTLS). Ignore tout domaine .local* et les configs vides."""
+    if not to_email or '@' not in to_email:
+        return False, "email invalide"
+    domain = to_email.split('@', 1)[1].lower()
+    if '.local' in domain or '.' not in domain:
+        return False, "domaine .local ignoré"
+    s = get_settings()
+    addr = s.get('smtp_email', '').strip()
+    pwd  = s.get('smtp_password', '').strip()
+    if not addr or not pwd:
+        return False, "smtp_email ou smtp_password non configurés"
+    try:
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = subject
+        msg['From']    = f"VPN Privé <{addr}>"
+        msg['To']      = to_email
+        msg.attach(MIMEText(body_html, 'html', 'utf-8'))
+        ctx = ssl.create_default_context()
+        with smtplib.SMTP('smtp.gmail.com', 587, timeout=15) as srv:
+            srv.ehlo()
+            srv.starttls(context=ctx)
+            srv.ehlo()
+            srv.login(addr, pwd)
+            srv.sendmail(addr, to_email, msg.as_string())
+        return True, "ok"
+    except Exception as e:
+        app.logger.error(f"send_email → {to_email}: {e}")
+        return False, str(e)
+
 # ─── iptables helpers ─────────────────────────────────────────────────────────
 def iptables_block_peer(ip_vpn):
     ip = ip_vpn.split("/")[0]
@@ -159,6 +214,7 @@ def iptables_block_peer(ip_vpn):
         return False
 
 def iptables_unblock_peer(ip_vpn):
+    """Débloque un peer Amnezia (via docker exec)."""
     ip = ip_vpn.split("/")[0]
     for direction in ["-s", "-d"]:
         try:
@@ -170,105 +226,47 @@ def iptables_unblock_peer(ip_vpn):
             pass
     return True
 
-# ─── VPN health helpers ────────────────────────────────────────────────────────
-import re as _re
+def iptables_block_host(ip_vpn):
+    """Bloque un peer PiVPN par iptables sur le host (pas Docker)."""
+    ip = ip_vpn.split("/")[0]
+    try:
+        subprocess.run(["iptables", "-I", "FORWARD", "-s", ip, "-j", "DROP"], check=True, capture_output=True)
+        subprocess.run(["iptables", "-I", "FORWARD", "-d", ip, "-j", "DROP"], check=True, capture_output=True)
+        return True
+    except subprocess.CalledProcessError as e:
+        app.logger.error(f"iptables_block_host failed: {e.stderr}")
+        return False
 
-def _parse_handshake_duration(text):
-    """Convertit 'X minutes, Y seconds ago' en secondes. Retourne None si absent."""
-    if not text:
+def iptables_unblock_host(ip_vpn):
+    """Débloque un peer PiVPN (iptables host)."""
+    ip = ip_vpn.split("/")[0]
+    for direction in ["-s", "-d"]:
+        try:
+            subprocess.run(["iptables", "-D", "FORWARD", direction, ip, "-j", "DROP"], check=True, capture_output=True)
+        except subprocess.CalledProcessError:
+            pass
+    return True
+
+def pivpn_get_config(label):
+    """Retourne le contenu du fichier .conf PiVPN, ou None si introuvable."""
+    path = os.path.join(PIVPN_CONFIGS, f"{label}.conf")
+    try:
+        with open(path, "r") as f:
+            return f.read()
+    except FileNotFoundError:
         return None
-    total = 0
-    for val, unit in _re.findall(r'(\d+)\s+(year|month|week|day|hour|minute|second)', text):
-        v = int(val)
-        if   'year'   in unit: total += v * 31536000
-        elif 'month'  in unit: total += v * 2592000
-        elif 'week'   in unit: total += v * 604800
-        elif 'day'    in unit: total += v * 86400
-        elif 'hour'   in unit: total += v * 3600
-        elif 'minute' in unit: total += v * 60
-        elif 'second' in unit: total += v
-    return total if total > 0 else None
 
-def parse_wg_output(output):
-    """Parse la sortie de 'wg show wg0'.
-    Retourne { '10.8.1.x': { pubkey, handshake_secs, transfer_rx, transfer_tx, keepalive } }
-    """
-    peers = {}
-    current = None
-    for line in output.splitlines():
-        line = line.strip()
-        if line.startswith("peer:"):
-            pubkey = line.split(":", 1)[1].strip()
-            current = {"pubkey": pubkey, "allowed_ip": None,
-                       "handshake_secs": None, "transfer_rx": "",
-                       "transfer_tx": "", "keepalive": 0}
-        elif current is None:
-            continue
-        elif line.startswith("allowed ips:"):
-            cidr = line.split(":", 1)[1].strip().split(",")[0].strip()
-            current["allowed_ip"] = cidr.split("/")[0]
-        elif line.startswith("latest handshake:"):
-            current["handshake_secs"] = _parse_handshake_duration(
-                line.split(":", 1)[1].strip()
-            )
-        elif line.startswith("transfer:"):
-            parts = line.split(":", 1)[1].strip()
-            m = _re.match(r'(.+?)\s+received,\s+(.+?)\s+sent', parts)
-            if m:
-                current["transfer_rx"] = m.group(1)
-                current["transfer_tx"] = m.group(2)
-        elif line.startswith("persistent keepalive:"):
-            m = _re.search(r'every (\d+)', line)
-            current["keepalive"] = int(m.group(1)) if m else 0
-        elif line == "" and current and current["allowed_ip"]:
-            peers[current["allowed_ip"]] = current
-            current = None
-    if current and current.get("allowed_ip"):
-        peers[current["allowed_ip"]] = current
-    return peers
+def block_peer(peer):
+    """Dispatch : bloque selon le type VPN du peer."""
+    if peer["vpn_type"] == "pivpn":
+        return iptables_block_host(peer["ip_vpn"])
+    return iptables_block_peer(peer["ip_vpn"])
 
-def get_server_health():
-    """Retourne CPU %, RAM %, erreurs wg0 — stdlib uniquement, sans psutil."""
-    import time as _time
-    health = {"cpu_pct": "N/A", "ram_pct": "N/A",
-              "ram_used": "N/A", "ram_total": "N/A", "wg0_errors": "N/A"}
-    try:
-        def _read_cpu():
-            with open("/proc/stat") as f:
-                parts = f.readline().split()
-            idle  = int(parts[4])
-            total = sum(int(x) for x in parts[1:])
-            return idle, total
-        i1, t1 = _read_cpu()
-        _time.sleep(0.1)
-        i2, t2 = _read_cpu()
-        health["cpu_pct"] = round(100 * (1 - (i2 - i1) / max(t2 - t1, 1)), 1)
-    except Exception:
-        pass
-    try:
-        mem = {}
-        with open("/proc/meminfo") as f:
-            for line in f:
-                k, v = line.split(":", 1)
-                mem[k.strip()] = int(v.split()[0])
-        total_kb = mem.get("MemTotal", 1)
-        avail_kb = mem.get("MemAvailable", total_kb)
-        used_kb  = total_kb - avail_kb
-        health["ram_pct"]   = round(100 * used_kb / total_kb, 1)
-        health["ram_used"]  = f"{used_kb // 1024} Mo"
-        health["ram_total"] = f"{total_kb // 1024} Mo"
-    except Exception:
-        pass
-    try:
-        with open("/proc/net/dev") as f:
-            for line in f:
-                if "wg0" in line:
-                    fields = line.split(":")[1].split()
-                    health["wg0_errors"] = int(fields[2]) + int(fields[10])
-                    break
-    except Exception:
-        pass
-    return health
+def unblock_peer(peer):
+    """Dispatch : débloque selon le type VPN du peer."""
+    if peer["vpn_type"] == "pivpn":
+        return iptables_unblock_host(peer["ip_vpn"])
+    return iptables_unblock_peer(peer["ip_vpn"])
 
 # ─── Routes publiques ─────────────────────────────────────────────────────────
 @app.route("/")
@@ -292,6 +290,8 @@ def inscription():
         confirm  = request.form["confirm"]
         whatsapp = request.form.get("whatsapp", "").strip()
         telegram = request.form.get("telegram", "").strip()
+        forfait  = request.form.get("forfait", "mobile")
+        prix_forfait = {"mobile": 149, "ordinateur": 249, "complet": 349}.get(forfait, 149)
         if mdp != confirm:
             flash("Les mots de passe ne correspondent pas.", "danger")
             return render_template("inscription.html", bank=get_settings())
@@ -309,8 +309,8 @@ def inscription():
         db.commit()
         new_user = db.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
         db.execute(
-            "INSERT INTO abonnements (user_id, montant, statut) VALUES (?, 100, 'en_attente')",
-            (new_user["id"],)
+            "INSERT INTO abonnements (user_id, montant, statut) VALUES (?, ?, 'en_attente')",
+            (new_user["id"], prix_forfait)
         )
         db.commit()
         # Notification Telegram à l'admin
@@ -320,7 +320,7 @@ def inscription():
         contact_str = " | ".join(contacts) if contacts else "aucun contact fourni"
         notify_telegram(
             f"🆕 <b>Nouvelle inscription</b>\n"
-            f"Nom : {nom}\nEmail : {email}\n{contact_str}"
+            f"Nom : {nom}\nEmail : {email}\nForfait : {forfait.capitalize()} ({prix_forfait} ₽)\n{contact_str}"
         )
         flash("✅ Demande envoyée ! L'administrateur activera votre accès après réception du paiement.", "success")
         return redirect(url_for("login"))
@@ -353,6 +353,74 @@ def logout():
     session.clear()
     return redirect(url_for("login"))
 
+@app.route("/mot-de-passe-oublie", methods=["GET", "POST"])
+def mot_de_passe_oublie():
+    sent = False
+    if request.method == "POST":
+        email = request.form.get("email", "").strip().lower()
+        db    = get_db()
+        user  = db.execute("SELECT * FROM users WHERE LOWER(email) = ?", (email,)).fetchone()
+        # Toujours afficher le même message (pas de fuite d'info)
+        sent = True
+        if user:
+            domain = email.split("@", 1)[1] if "@" in email else ""
+            if ".local" not in domain and "." in domain:
+                token   = secrets.token_urlsafe(32)
+                expires = (datetime.utcnow() + timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")
+                db.execute("DELETE FROM password_resets WHERE user_id = ?", (user["id"],))
+                db.execute(
+                    "INSERT INTO password_resets (user_id, token, expires_at) VALUES (?, ?, ?)",
+                    (user["id"], token, expires)
+                )
+                db.commit()
+                site_url  = get_settings().get("site_url", "").rstrip("/")
+                if not site_url:
+                    site_url = request.host_url.rstrip("/")
+                reset_url = f"{site_url}/reset-mdp/{token}"
+                html = (
+                    f"<div style='font-family:sans-serif;max-width:520px;margin:0 auto'>"
+                    f"<h2 style='color:#e94560'>🔐 Réinitialisation de mot de passe</h2>"
+                    f"<p>Bonjour <strong>{user['nom']}</strong>,</p>"
+                    f"<p>Vous avez demandé à réinitialiser votre mot de passe. Cliquez sur le lien ci-dessous :</p>"
+                    f"<p style='text-align:center;margin:28px 0'>"
+                    f"<a href='{reset_url}' style='background:#e94560;color:#fff;padding:12px 28px;"
+                    f"border-radius:6px;text-decoration:none;font-weight:700;'>Choisir un nouveau mot de passe</a></p>"
+                    f"<p style='color:#888;font-size:.85rem'>Ce lien est valable <strong>1 heure</strong>. "
+                    f"Si vous n'avez pas fait cette demande, ignorez cet email.</p>"
+                    f"<hr><small style='color:#aaa'>VPN Privé — Service personnel</small></div>"
+                )
+                send_email(email, "🔐 Réinitialisation de votre mot de passe VPN", html)  # (ok, err) ignorés (message générique affiché)
+    return render_template("mot_de_passe_oublie.html", sent=sent)
+
+@app.route("/reset-mdp/<token>", methods=["GET", "POST"])
+def reset_mdp(token):
+    db  = get_db()
+    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    row = db.execute(
+        "SELECT * FROM password_resets WHERE token = ? AND expires_at > ?", (token, now)
+    ).fetchone()
+    if not row:
+        flash("Ce lien est invalide ou expiré. Faites une nouvelle demande.", "danger")
+        return redirect(url_for("mot_de_passe_oublie"))
+
+    if request.method == "POST":
+        mdp1 = request.form.get("password", "")
+        mdp2 = request.form.get("password_confirm", "")
+        if len(mdp1) < 6:
+            flash("Le mot de passe doit contenir au moins 6 caractères.", "danger")
+            return render_template("reset_mdp.html", token=token)
+        if mdp1 != mdp2:
+            flash("Les deux mots de passe ne correspondent pas.", "danger")
+            return render_template("reset_mdp.html", token=token)
+        db.execute("UPDATE users SET password_hash = ? WHERE id = ?",
+                   (generate_password_hash(mdp1), row["user_id"]))
+        db.execute("DELETE FROM password_resets WHERE token = ?", (token,))
+        db.commit()
+        flash("Mot de passe mis à jour ! Vous pouvez vous connecter.", "success")
+        return redirect(url_for("login"))
+
+    return render_template("reset_mdp.html", token=token)
+
 # ─── Portail utilisateur ──────────────────────────────────────────────────────
 @app.route("/dashboard")
 @login_required
@@ -383,6 +451,35 @@ def dashboard():
         statut_color=statut_color, jours_restants=jours_restants,
         today=date.today()
     )
+
+@app.route("/profil", methods=["GET", "POST"])
+@login_required
+def profil():
+    if session.get("is_admin"):
+        return redirect(url_for("admin_panel"))
+    uid = session["user_id"]
+    db  = get_db()
+    user = db.execute("SELECT * FROM users WHERE id = ?", (uid,)).fetchone()
+    if request.method == "POST":
+        nom      = request.form.get("nom", "").strip()
+        email    = request.form.get("email", "").strip().lower()
+        whatsapp = request.form.get("whatsapp", "").strip()
+        telegram = request.form.get("telegram", "").strip()
+        if not nom or not email:
+            flash("Nom et email sont requis.", "danger")
+            return render_template("profil.html", user=user)
+        if db.execute("SELECT id FROM users WHERE email = ? AND id != ?", (email, uid)).fetchone():
+            flash("Cet email est déjà utilisé.", "danger")
+            return render_template("profil.html", user=user)
+        db.execute(
+            "UPDATE users SET nom=?, email=?, whatsapp=?, telegram=? WHERE id=?",
+            (nom, email, whatsapp or None, telegram or None, uid)
+        )
+        db.commit()
+        session["user_nom"] = nom
+        flash("✅ Informations mises à jour.", "success")
+        return redirect(url_for("profil"))
+    return render_template("profil.html", user=user)
 
 @app.route("/changer_mdp", methods=["POST"])
 @login_required
@@ -449,113 +546,6 @@ def admin_panel():
         today=date.today()
     )
 
-@app.route("/admin/vpn-health")
-@login_required
-@admin_required
-def admin_vpn_health():
-    wg_data  = {}
-    wg_error = None
-    try:
-        result = subprocess.run(
-            ["docker", "exec", CONTAINER, "wg", "show", WG_INTERFACE],
-            capture_output=True, text=True, timeout=10
-        )
-        if result.returncode == 0:
-            wg_data = parse_wg_output(result.stdout)
-        else:
-            wg_error = result.stderr.strip() or "Commande wg show échouée"
-    except Exception as e:
-        wg_error = str(e)
-
-    db = get_db()
-    db_peers = db.execute("""
-        SELECT p.id, p.label, p.ip_vpn, p.public_key, p.actif,
-               u.nom AS user_nom
-        FROM peers p
-        JOIN users u ON u.id = p.user_id
-        ORDER BY u.nom, p.label
-    """).fetchall()
-
-    peers_view      = []
-    connected_count = 0
-    for p in db_peers:
-        ip  = p["ip_vpn"].split("/")[0]
-        wg  = wg_data.get(ip, {})
-        secs = wg.get("handshake_secs")
-
-        if secs is None:
-            status = "jamais"; badge_color = "secondary"
-        elif secs < 180:
-            status = "connecte"; badge_color = "success"; connected_count += 1
-        elif secs < 600:
-            status = "inactif"; badge_color = "warning"
-        else:
-            status = "inactif"; badge_color = "danger"
-
-        if secs is None:
-            hs_color = "secondary"; hs_label = "Jamais"
-        elif secs < 60:
-            hs_color = "success";  hs_label = f"{secs}s"
-        elif secs < 180:
-            hs_color = "success";  hs_label = f"{secs // 60}min {secs % 60}s"
-        elif secs < 600:
-            hs_color = "warning";  hs_label = f"{secs // 60}min"
-        elif secs < 3600:
-            hs_color = "danger";   hs_label = f"{secs // 60}min"
-        else:
-            hs_color = "danger";   hs_label = f"{secs // 3600}h"
-
-        keepalive     = wg.get("keepalive", 0)
-        warn_keepalive = (keepalive == 0 and secs is not None)
-        has_real_key  = not p["public_key"].startswith("MANUAL_")
-
-        peers_view.append({
-            "id":           p["id"],
-            "label":        p["label"],
-            "user_nom":     p["user_nom"],
-            "ip_vpn":       ip,
-            "public_key":   p["public_key"],
-            "has_real_key": has_real_key,
-            "actif":        p["actif"],
-            "status":       status,
-            "badge_color":  badge_color,
-            "hs_color":     hs_color,
-            "hs_label":     hs_label,
-            "transfer_rx":  wg.get("transfer_rx") or "—",
-            "transfer_tx":  wg.get("transfer_tx") or "—",
-            "keepalive":    keepalive,
-            "warn_keepalive": warn_keepalive,
-        })
-
-    server_health = get_server_health()
-    server_health["connected_count"] = connected_count
-    server_health["total_peers"]     = len(db_peers)
-
-    return render_template("admin_vpn_health.html",
-        peers=peers_view,
-        server_health=server_health,
-        wg_error=wg_error,
-    )
-
-@app.route("/admin/vpn-health/set-keepalive", methods=["POST"])
-@login_required
-@admin_required
-def admin_set_keepalive():
-    pubkey = request.form.get("pubkey", "").strip()
-    if not pubkey or pubkey.startswith("MANUAL_"):
-        return jsonify({"ok": False, "error": "Clé publique invalide"}), 400
-    try:
-        result = subprocess.run(
-            ["docker", "exec", CONTAINER, "wg", "set", WG_INTERFACE,
-             "peer", pubkey, "persistent-keepalive", "25"],
-            capture_output=True, text=True, timeout=10
-        )
-        if result.returncode == 0:
-            return jsonify({"ok": True})
-        return jsonify({"ok": False, "error": result.stderr.strip()}), 500
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
-
 @app.route("/admin/settings/update", methods=["POST"])
 @login_required
 @admin_required
@@ -563,7 +553,8 @@ def admin_update_settings():
     db = get_db()
     for key in ["beneficiaire", "telephone", "banque", "montant", "reference",
                 "telegram_bot_token", "telegram_chat_id",
-                "support_telegram", "support_whatsapp"]:
+                "support_telegram", "support_whatsapp",
+                "smtp_email", "smtp_password", "site_url"]:
         value = request.form.get(key, "").strip()
         db.execute(
             "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
@@ -571,6 +562,29 @@ def admin_update_settings():
         )
     db.commit()
     flash("✅ Paramètres mis à jour.", "success")
+    return redirect(url_for("admin_panel"))
+
+@app.route("/admin/test-email", methods=["POST"])
+@admin_required
+def admin_test_email():
+    """Envoie un email de test à l'adresse SMTP configurée pour vérifier la connexion."""
+    s    = get_settings()
+    addr = s.get("smtp_email", "").strip()
+    pwd  = s.get("smtp_password", "").strip()
+    if not addr or not pwd:
+        flash("❌ Adresse Gmail ou mot de passe d'application non configurés.", "danger")
+        return redirect(url_for("admin_panel"))
+    html = (
+        "<div style='font-family:sans-serif'>"
+        "<h2 style='color:#e94560'>✅ Test SMTP réussi</h2>"
+        "<p>Si vous recevez cet email, la configuration Gmail est correcte.</p>"
+        "</div>"
+    )
+    ok, err = send_email(addr, "🔧 Test SMTP — VPN Privé", html)
+    if ok:
+        flash(f"✅ Email de test envoyé à {addr}. Vérifiez votre boîte (et spams).", "success")
+    else:
+        flash(f"❌ Échec de l'envoi : {err}", "danger")
     return redirect(url_for("admin_panel"))
 
 @app.route("/admin/user/<int:uid>")
@@ -592,6 +606,25 @@ def admin_user_detail(uid):
     )
 
 # ─── Gestion des peers ────────────────────────────────────────────────────────
+@app.route("/admin/peer/config/<int:peer_id>")
+@login_required
+@admin_required
+def admin_peer_config(peer_id):
+    """Télécharge le fichier .conf PiVPN d'un peer."""
+    peer = get_db().execute("SELECT * FROM peers WHERE id = ?", (peer_id,)).fetchone()
+    if not peer or peer["vpn_type"] != "pivpn":
+        flash("Config disponible uniquement pour les peers PiVPN.", "danger")
+        return redirect(request.referrer or url_for("admin_panel"))
+    config = pivpn_get_config(peer["label"])
+    if not config:
+        flash(f"Fichier {peer['label']}.conf introuvable dans {PIVPN_CONFIGS}.", "danger")
+        return redirect(request.referrer or url_for("admin_panel"))
+    return Response(
+        config,
+        mimetype="text/plain",
+        headers={"Content-Disposition": f"attachment; filename={peer['label']}.conf"}
+    )
+
 @app.route("/admin/peer/ajouter", methods=["POST"])
 @login_required
 @admin_required
@@ -600,20 +633,20 @@ def admin_ajouter_peer():
     label      = request.form["label"].strip()
     ip_vpn     = request.form["ip_vpn"].strip()
     date_ajout = request.form.get("date_ajout") or date.today().isoformat()
+    vpn_type   = request.form.get("vpn_type", "amnezia")
     db = get_db()
-    # Vérifie que l'IP n'est pas déjà utilisée
     if db.execute("SELECT id FROM peers WHERE ip_vpn = ?", (ip_vpn,)).fetchone():
         flash(f"L'IP {ip_vpn} est déjà attribuée à un autre appareil.", "danger")
         return redirect(url_for("admin_user_detail", uid=uid))
-    # public_key = placeholder unique (portail sans échange WireGuard)
     public_key = f"MANUAL_{ip_vpn}"
     db.execute(
-        "INSERT INTO peers (user_id, label, public_key, ip_vpn, actif, date_ajout) VALUES (?, ?, ?, ?, 1, ?)",
-        (uid, label, public_key, ip_vpn, date_ajout)
+        "INSERT INTO peers (user_id, label, public_key, ip_vpn, actif, date_ajout, vpn_type) VALUES (?, ?, ?, ?, 1, ?, ?)",
+        (uid, label, public_key, ip_vpn, date_ajout, vpn_type)
     )
     db.commit()
     user = db.execute("SELECT nom FROM users WHERE id = ?", (uid,)).fetchone()
-    flash(f"✅ Appareil « {label} » ({ip_vpn}) ajouté pour {user['nom']}.", "success")
+    type_label = "PiVPN (PC)" if vpn_type == "pivpn" else "Amnezia (mobile)"
+    flash(f"✅ Appareil « {label} » ({ip_vpn}) [{type_label}] ajouté pour {user['nom']}.", "success")
     return redirect(url_for("admin_user_detail", uid=uid))
 
 @app.route("/admin/peer/supprimer/<int:peer_id>", methods=["POST"])
@@ -624,7 +657,7 @@ def admin_supprimer_peer(peer_id):
     peer = db.execute("SELECT * FROM peers WHERE id = ?", (peer_id,)).fetchone()
     if peer:
         uid = peer["user_id"]
-        iptables_unblock_peer(peer["ip_vpn"])  # s'assure que la règle DROP est retirée
+        unblock_peer(peer)  # s'assure que la règle DROP est retirée
         db.execute("DELETE FROM peers WHERE id = ?", (peer_id,))
         db.commit()
         flash(f"Appareil {peer['label']} ({peer['ip_vpn']}) supprimé.", "warning")
@@ -638,7 +671,7 @@ def admin_suspendre_peer(peer_id):
     db   = get_db()
     peer = db.execute("SELECT * FROM peers WHERE id = ?", (peer_id,)).fetchone()
     if peer:
-        ok = iptables_block_peer(peer["ip_vpn"])
+        ok = block_peer(peer)
         db.execute("UPDATE peers SET actif = 0 WHERE id = ?", (peer_id,))
         db.commit()
         flash(f"Peer {peer['label']} ({peer['ip_vpn']}) suspendu {'✅' if ok else '⚠ (erreur iptables)'}.", "warning")
@@ -651,7 +684,7 @@ def admin_reactiver_peer(peer_id):
     db   = get_db()
     peer = db.execute("SELECT * FROM peers WHERE id = ?", (peer_id,)).fetchone()
     if peer:
-        ok = iptables_unblock_peer(peer["ip_vpn"])
+        ok = unblock_peer(peer)
         db.execute("UPDATE peers SET actif = 1 WHERE id = ?", (peer_id,))
         db.commit()
         flash(f"Peer {peer['label']} ({peer['ip_vpn']}) réactivé {'✅' if ok else '⚠ (erreur iptables)'}.", "success")
@@ -664,7 +697,7 @@ def admin_suspendre_tout(uid):
     db    = get_db()
     peers = db.execute("SELECT * FROM peers WHERE user_id = ? AND actif = 1", (uid,)).fetchall()
     for peer in peers:
-        iptables_block_peer(peer["ip_vpn"])
+        block_peer(peer)
         db.execute("UPDATE peers SET actif = 0 WHERE id = ?", (peer["id"],))
     db.execute("UPDATE abonnements SET statut = 'suspendu' WHERE user_id = ?", (uid,))
     db.commit()
@@ -730,12 +763,27 @@ def admin_ajouter_paiement():
     peers = db.execute("SELECT * FROM peers WHERE user_id = ?", (uid,)).fetchall()
     for peer in peers:
         if not peer["actif"]:
-            iptables_unblock_peer(peer["ip_vpn"])
+            unblock_peer(peer)
             db.execute("UPDATE peers SET actif = 1 WHERE id = ?", (peer["id"],))
 
     db.commit()
-    user = db.execute("SELECT nom FROM users WHERE id = ?", (uid,)).fetchone()
-    flash(f"✅ Paiement enregistré pour {user['nom']} — abonnement jusqu'au {nouvelle_fin.strftime('%d/%m/%Y')}.", "success")
+    user_data = db.execute("SELECT * FROM users WHERE id = ?", (uid,)).fetchone()
+    flash(f"✅ Paiement enregistré pour {user_data['nom']} — abonnement jusqu'au {nouvelle_fin.strftime('%d/%m/%Y')}.", "success")
+    # Email de bienvenue / renouvellement
+    html_welcome = (
+        f"<div style='font-family:sans-serif;max-width:520px;margin:0 auto'>"
+        f"<h2 style='color:#e94560'>✅ Votre accès VPN est actif !</h2>"
+        f"<p>Bonjour <strong>{user_data['nom']}</strong>,</p>"
+        f"<p>Votre abonnement est actif jusqu'au <strong>{nouvelle_fin.strftime('%d/%m/%Y')}</strong>.</p>"
+        f"<p>Connectez-vous à votre espace pour consulter vos appareils et coordonnées de paiement.</p>"
+        f"<p>Besoin d'aide pour l'installation ? Consultez notre guide en vous connectant.</p>"
+        f"<hr><small style='color:#888'>VPN Privé — Service personnel</small></div>"
+    )
+    send_email(user_data['email'], "✅ Votre accès VPN est actif !", html_welcome)  # (ok, err) ignorés ici
+    notify_telegram(
+        f"💳 <b>Paiement activé</b>\nUser : {user_data['nom']}\n"
+        f"Fin : {nouvelle_fin.strftime('%d/%m/%Y')}"
+    )
     return redirect(url_for("admin_user_detail", uid=uid))
 
 @app.route("/admin/abonnement/modifier", methods=["POST"])
@@ -754,6 +802,35 @@ def admin_modifier_abo():
     db.commit()
     flash("Abonnement mis à jour.", "success")
     return redirect(url_for("admin_user_detail", uid=uid))
+
+@app.route("/admin/broadcast", methods=["POST"])
+@login_required
+@admin_required
+def admin_broadcast():
+    subject = request.form.get("subject", "").strip() or "Information VPN"
+    message = request.form.get("message", "").strip()
+    channel = request.form.get("channel", "email")
+    if not message:
+        flash("Message vide.", "danger")
+        return redirect(url_for("admin_panel"))
+    db = get_db()
+    users = db.execute("SELECT * FROM users WHERE is_admin = 0").fetchall()
+    sent_email = 0
+    for u in users:
+        if channel in ("email", "both"):
+            html = (
+                f"<div style='font-family:sans-serif;max-width:520px;margin:0 auto'>"
+                f"<p>Bonjour <strong>{u['nom']}</strong>,</p>"
+                f"<p>{message.replace(chr(10), '<br>')}</p>"
+                f"<hr><small style='color:#888'>VPN Privé — Service personnel</small></div>"
+            )
+            ok, _ = send_email(u["email"], subject, html)
+            if ok:
+                sent_email += 1
+    if channel in ("telegram", "both"):
+        notify_telegram(f"📢 <b>Broadcast</b>\n{message}")
+    flash(f"✅ Envoyé à {sent_email} abonné(s) par email.", "success")
+    return redirect(url_for("admin_panel"))
 
 # ─── Run ──────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
