@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Mot de passe oublié — VPN Privé{% endblock %}
+{% block content %}
+
+<div class="row justify-content-center" style="margin-top: 3rem;">
+  <div class="col-lg-8 col-xl-7">
+    <div class="card overflow-hidden p-0">
+      <div class="row g-0">
+
+        {# ── Panneau marque (gauche) ── #}
+        <div class="col-md-5 d-none d-md-flex flex-column justify-content-between"
+             style="background: #1a1a2e; padding: 40px 32px;">
+          <div>
+            <div style="font-size:2.2rem; line-height:1;">🔐</div>
+            <h2 style="color:#fff; font-weight:800; margin:16px 0 10px; font-size:1.6rem;">VPN Privé</h2>
+            <p style="color:#8892b0; font-size:.9rem; line-height:1.7;">
+              Récupérez l'accès à votre espace en quelques secondes.
+            </p>
+            <ul style="list-style:none; padding:0; margin-top:28px;">
+              <li style="color:#a8b2d8; padding:7px 0; font-size:.88rem; border-bottom:1px solid rgba(255,255,255,.06);">
+                <span style="color:#e94560; margin-right:8px;">✓</span> Lien sécurisé par email
+              </li>
+              <li style="color:#a8b2d8; padding:7px 0; font-size:.88rem; border-bottom:1px solid rgba(255,255,255,.06);">
+                <span style="color:#e94560; margin-right:8px;">✓</span> Valable 1 heure
+              </li>
+              <li style="color:#a8b2d8; padding:7px 0; font-size:.88rem;">
+                <span style="color:#e94560; margin-right:8px;">✓</span> Aucune donnée exposée
+              </li>
+            </ul>
+          </div>
+          <p style="color:#4a5568; font-size:.78rem; margin:0;">© 2026 VPN Privé</p>
+        </div>
+
+        {# ── Formulaire (droite) ── #}
+        <div class="col-md-7 d-flex flex-column justify-content-center" style="padding: 40px 36px;">
+
+          {% if sent %}
+            <div style="text-align:center; padding: 12px 0 4px;">
+              <div style="font-size:2.8rem;">📬</div>
+              <h4 class="fw-bold mt-3 mb-2" style="color:#1e2535;">Email envoyé !</h4>
+              <p style="color:#4a5568; font-size:.92rem; line-height:1.7;">
+                Si cette adresse est associée à un compte, vous recevrez un lien de réinitialisation sous quelques minutes.<br>
+                <span style="color:#8892b0; font-size:.85rem;">Vérifiez aussi vos spams.</span>
+              </p>
+            </div>
+          {% else %}
+            <h4 class="fw-bold mb-1" style="color:#1e2535;">Mot de passe oublié ?</h4>
+            <p class="text-muted mb-4" style="font-size:.9rem;">Saisissez votre email pour recevoir un lien de réinitialisation.</p>
+
+            <form method="POST" data-prevent-double-submit>
+              <div class="mb-4">
+                <label class="form-label" for="reset-email">Email</label>
+                <input id="reset-email" type="email" name="email" class="form-control"
+                       placeholder="votre@email.com" required autofocus>
+              </div>
+              <button type="submit" class="btn btn-primary w-100" style="padding: 10px;">
+                Envoyer le lien
+              </button>
+            </form>
+          {% endif %}
+
+          <hr style="margin: 24px 0;">
+          <p class="text-center mb-0" style="font-size:.88rem; color:#7a8499;">
+            <a href="{{ url_for('login') }}" style="color:#e94560; font-weight:600;">← Retour à la connexion</a>
+          </p>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

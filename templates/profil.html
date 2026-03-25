@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Mon profil — VPN Privé{% endblock %}
+{% block content %}
+
+<div class="row justify-content-center" style="margin-top:2rem; margin-bottom:2rem;">
+  <div class="col-lg-6 col-md-8">
+
+    <h4 class="fw-bold mb-1">👤 Mon profil</h4>
+    <p class="text-muted mb-4" style="font-size:.9rem;">
+      Mettez à jour vos coordonnées pour recevoir les notifications et faciliter le support.
+    </p>
+
+    {% if user.email and user.email.endswith('@vpn.local') %}
+    <div class="alert alert-warning d-flex align-items-start gap-2 mb-4">
+      <span style="font-size:1.1rem;">⚠</span>
+      <div>
+        <strong>Email temporaire détecté</strong><br>
+        <span style="font-size:.88rem;">
+          Votre email actuel (<code>{{ user.email }}</code>) est un email de test —
+          vous ne pouvez pas recevoir les notifications.
+          Entrez votre vrai email ci-dessous.
+        </span>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="card p-4">
+      <form method="POST">
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Nom complet <span class="text-danger">*</span></label>
+          <input type="text" name="nom" class="form-control"
+                 value="{{ user.nom }}" required placeholder="Votre nom">
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Email <span class="text-danger">*</span></label>
+          <input type="email" name="email" class="form-control"
+                 value="{{ user.email }}" required placeholder="votre@email.com">
+          <div class="form-text">Utilisé pour les notifications d'activation et d'expiration.</div>
+        </div>
+
+        <hr class="my-3">
+        <p class="small text-muted fw-bold mb-2" style="letter-spacing:.4px;">CONTACT (OPTIONNEL)</p>
+
+        <div class="row g-3 mb-3">
+          <div class="col-sm-6">
+            <label class="form-label">WhatsApp</label>
+            <input type="text" name="whatsapp" class="form-control"
+                   value="{{ user.whatsapp or '' }}" placeholder="+7 996 123-45-67">
+            <div class="form-text">Avec l'indicatif : +7...</div>
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label">Telegram</label>
+            <input type="text" name="telegram" class="form-control"
+                   value="{{ user.telegram or '' }}" placeholder="@monpseudo">
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary w-100">Enregistrer les modifications</button>
+      </form>
+    </div>
+
+    <div class="text-center mt-3">
+      <a href="{{ url_for('dashboard') }}" class="text-muted small">← Retour au tableau de bord</a>
+    </div>
+
+  </div>
+</div>
+
+{% endblock %}
