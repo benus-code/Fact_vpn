@@ -151,18 +151,21 @@
 
             <hr style="margin: 20px 0 16px;">
             <p class="mb-2" style="font-size:.83rem; color:#7a8499; font-weight:700; letter-spacing:.4px;">
-              CONTACT OPTIONNEL <span style="font-weight:400;">(pour que l'administrateur puisse vous contacter facilement !)</span>
+              CONTACT <span style="color:#e94560;">*</span> <span style="font-weight:400;">(au moins un des deux requis — pour vous envoyer votre accès)</span>
             </p>
             <div class="row g-3">
               <div class="col-sm-6">
                 <label class="form-label">WhatsApp</label>
-                <input type="text" name="whatsapp" class="form-control" placeholder="ex: +7 996 123-45-67">
+                <input type="text" name="whatsapp" id="field-whatsapp" class="form-control" placeholder="ex: +7 996 123-45-67">
               </div>
               <div class="col-sm-6">
                 <label class="form-label">Telegram</label>
-                <input type="text" name="telegram" class="form-control" placeholder="ex: @monpseudo">
+                <input type="text" name="telegram" id="field-telegram" class="form-control" placeholder="ex: @monpseudo">
               </div>
             </div>
+            <p id="contact-error" class="small text-danger mt-1 mb-0" style="display:none;">
+              ⚠ Veuillez renseigner au moins WhatsApp ou Telegram.
+            </p>
 
             {# Tarifs visible sur mobile uniquement #}
             <div class="d-md-none mt-3">
@@ -173,7 +176,7 @@
             </div>
 
             <div class="mt-4">
-              <button type="submit" class="btn btn-primary w-100" style="padding: 11px;">
+              <button type="submit" id="btn-submit" class="btn btn-primary w-100" style="padding: 11px;">
                 Envoyer ma demande d'accès
               </button>
             </div>
@@ -260,6 +263,27 @@
     }
     pwd.addEventListener('input', check);
     conf.addEventListener('input', check);
+  })();
+</script>
+<script>
+  (function() {
+    var form = document.getElementById('form-inscription');
+    var wa   = document.getElementById('field-whatsapp');
+    var tg   = document.getElementById('field-telegram');
+    var err  = document.getElementById('contact-error');
+    if (!form || !wa || !tg || !err) return;
+    form.addEventListener('submit', function(e) {
+      if (!wa.value.trim() && !tg.value.trim()) {
+        e.preventDefault();
+        err.style.display = 'block';
+        wa.focus();
+      } else {
+        err.style.display = 'none';
+      }
+    });
+    [wa, tg].forEach(function(f) {
+      f.addEventListener('input', function() { err.style.display = 'none'; });
+    });
   })();
 </script>
 {% endblock %}

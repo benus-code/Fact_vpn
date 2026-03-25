@@ -89,6 +89,12 @@ def init_app_db():
         except sqlite3.OperationalError:
             pass
 
+    # Colonne bannissement
+    try:
+        conn.execute("ALTER TABLE users ADD COLUMN is_banned INTEGER DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
+
     # Colonne date_ajout sur peers
     try:
         conn.execute("ALTER TABLE peers ADD COLUMN date_ajout DATE")
@@ -292,6 +298,9 @@ def inscription():
         telegram = request.form.get("telegram", "").strip()
         forfait  = request.form.get("forfait", "mobile")
         prix_forfait = {"mobile": 149, "ordinateur": 249, "complet": 349}.get(forfait, 149)
+        if not whatsapp and not telegram:
+            flash("Veuillez renseigner au moins un contact : WhatsApp ou Telegram.", "danger")
+            return render_template("inscription.html", bank=get_settings())
         if mdp != confirm:
             flash("Les mots de passe ne correspondent pas.", "danger")
             return render_template("inscription.html", bank=get_settings())
@@ -336,6 +345,9 @@ def login():
             "SELECT * FROM users WHERE email = ?", (email,)
         ).fetchone()
         if user and verify_password(user["password_hash"], mdp):
+            if user["is_banned"]:
+                flash("Votre compte a été désactivé. Contactez le support.", "danger")
+                return render_template("login.html")
             # Migration transparente des anciens hash SHA-256
             if len(user["password_hash"]) == 64:
                 db.execute("UPDATE users SET password_hash = ? WHERE id = ?",
@@ -510,7 +522,7 @@ def changer_mdp():
 def admin_panel():
     db = get_db()
     users = db.execute("""
-        SELECT u.id, u.nom, u.email,
+        SELECT u.id, u.nom, u.email, u.whatsapp, u.is_banned,
                a.date_debut, a.date_fin, a.montant, a.statut,
                COUNT(p.id) as nb_peers,
                SUM(CASE WHEN p.actif=1 THEN 1 ELSE 0 END) as peers_actifs
@@ -731,6 +743,51 @@ def admin_creer_user():
     db.commit()
     flash(f"✅ Utilisateur {nom} créé avec succès.", "success")
     return redirect(url_for("admin_user_detail", uid=new_user["id"]))
+
+@app.route("/admin/essai/activer", methods=["POST"])
+@login_required
+@admin_required
+def admin_activer_essai():
+    uid   = int(request.form["user_id"])
+    today = date.today()
+    fin   = today + timedelta(days=2)
+    db    = get_db()
+    db.execute("""
+        UPDATE abonnements
+        SET statut='actif', date_debut=?, date_fin=?, montant=0
+        WHERE user_id=?
+    """, (today.isoformat(), fin.isoformat(), uid))
+    db.commit()
+    user = db.execute("SELECT nom FROM users WHERE id = ?", (uid,)).fetchone()
+    flash(f"✅ Essai gratuit de 2 jours activé pour {user['nom']}.", "success")
+    return redirect(url_for("admin_panel"))
+
+@app.route("/admin/user/bannir/<int:uid>", methods=["POST"])
+@login_required
+@admin_required
+def admin_bannir_user(uid):
+    db    = get_db()
+    peers = db.execute("SELECT * FROM peers WHERE user_id = ? AND actif = 1", (uid,)).fetchall()
+    for peer in peers:
+        block_peer(peer)
+        db.execute("UPDATE peers SET actif = 0 WHERE id = ?", (peer["id"],))
+    db.execute("UPDATE abonnements SET statut = 'suspendu' WHERE user_id = ?", (uid,))
+    db.execute("UPDATE users SET is_banned = 1 WHERE id = ?", (uid,))
+    db.commit()
+    user = db.execute("SELECT nom FROM users WHERE id = ?", (uid,)).fetchone()
+    flash(f"🚫 {user['nom']} a été banni.", "warning")
+    return redirect(url_for("admin_panel"))
+
+@app.route("/admin/user/debannir/<int:uid>", methods=["POST"])
+@login_required
+@admin_required
+def admin_debannir_user(uid):
+    db = get_db()
+    db.execute("UPDATE users SET is_banned = 0 WHERE id = ?", (uid,))
+    db.commit()
+    user = db.execute("SELECT nom FROM users WHERE id = ?", (uid,)).fetchone()
+    flash(f"✅ {user['nom']} a été débanni.", "success")
+    return redirect(url_for("admin_panel"))
 
 @app.route("/admin/paiement/ajouter", methods=["POST"])
 @login_required

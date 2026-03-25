@@ -11,7 +11,7 @@
       {% else %} — Expiré depuis le {{ abo.date_fin }}{% endif %}
     {% else %} — Date de fin non définie{% endif %}
   </div>
-  <span class="badge bg-{{ statut_color }} fs-6">{{ abo.montant }} ₽ / mois</span>
+  {% if abo.montant == 0 %}<span class="badge bg-info fs-6">Essai gratuit</span>{% else %}<span class="badge bg-{{ statut_color }} fs-6">{{ abo.montant }} ₽ / mois</span>{% endif %}
 </div>
 {% elif abo %}
 <div class="alert alert-danger d-flex align-items-center mb-4 py-3" role="status">
@@ -118,6 +118,7 @@
                 <span class="text-muted">Banque</span>
                 <strong>{{ bank.banque }}</strong>
               </div>
+              {% if abo.montant > 0 %}
               <div class="d-flex justify-content-between align-items-center mb-2">
                 <span class="text-muted">Montant</span>
                 <div class="d-flex align-items-center gap-2">
@@ -125,6 +126,7 @@
                   <button type="button" class="btn btn-sm copy-btn btn-outline-secondary py-0 px-2" style="font-size:.75rem;" data-copy="{{ abo.montant }}">Copier</button>
                 </div>
               </div>
+              {% endif %}
               <div class="d-flex justify-content-between align-items-center">
                 <span class="text-muted">Commentaire</span>
                 <div class="d-flex align-items-center gap-2">
