@@ -53,6 +53,23 @@
   {% endif %}
 </div>
 
+{# ── Code parrainage & statut invitation ── #}
+{% if user.referral_code %}
+<div class="alert alert-dark py-2 px-3 mb-3 d-flex align-items-center gap-3 flex-wrap" style="font-size:.88rem;">
+  <span>🎟 Code parrainage : <strong style="letter-spacing:.08em;">{{ user.referral_code }}</strong></span>
+  <button class="btn btn-sm btn-outline-secondary py-0"
+          onclick="navigator.clipboard.writeText('{{ user.referral_code }}');this.textContent='✅ Copié!';setTimeout(()=>this.textContent='📋 Copier',1500)">
+    📋 Copier
+  </button>
+  {% if user.referred_by %}
+    <span class="text-muted">| Parrainé par : <code>{{ user.referred_by }}</code></span>
+  {% endif %}
+  {% if user.status and user.status != 'active' %}
+    <span class="badge bg-warning text-dark">⏳ {{ user.status }}</span>
+  {% endif %}
+</div>
+{% endif %}
+
 <div class="row g-4">
 
   {# ── Abonnement ── #}
