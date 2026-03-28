@@ -369,6 +369,83 @@ def inscription():
         return redirect(url_for("login"))
     return render_template("inscription.html", bank=get_settings())
 
+@app.route("/demander-acces", methods=["GET", "POST"])
+def demander_acces():
+    """Formulaire d'invitation contrôlée — sans mot de passe immédiat."""
+    if "user_id" in session:
+        return redirect(url_for("dashboard"))
+    if request.method == "POST":
+        prenom    = request.form.get("prenom", "").strip()
+        email     = request.form.get("email", "").strip().lower()
+        contact   = request.form.get("contact_telegram", "").strip()
+        parrain   = request.form.get("referral_code", "").strip().upper()
+
+        if not prenom or not email or not contact:
+            flash("Veuillez remplir tous les champs obligatoires.", "danger")
+            return render_template("demander_acces.html")
+        if "@" not in email:
+            flash("Adresse email invalide.", "danger")
+            return render_template("demander_acces.html")
+
+        db = get_db()
+        if db.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone():
+            flash("Cette adresse email est déjà enregistrée.", "danger")
+            return render_template("demander_acces.html")
+
+        # Vérifier le code de parrainage si fourni
+        parrain_valide = None
+        if parrain:
+            row = db.execute(
+                "SELECT id FROM users WHERE referral_code = ?", (parrain,)
+            ).fetchone()
+            if not row:
+                flash("Code de parrainage invalide.", "danger")
+                return render_template("demander_acces.html")
+            parrain_valide = parrain
+
+        # Générer un mot de passe temporaire (envoyé par DM après validation)
+        mdp_temp      = secrets.token_urlsafe(10)
+        referral_code = ''.join(secrets.choice("ABCDEFGHJKLMNPQRSTUVWXYZ23456789") for _ in range(8))
+
+        db.execute(
+            """INSERT INTO users
+               (nom, email, password_hash, is_admin, telegram,
+                status, referral_code, referred_by)
+               VALUES (?, ?, ?, 0, ?, 'pending', ?, ?)""",
+            (prenom, email, hash_password(mdp_temp), contact,
+             referral_code, parrain_valide)
+        )
+        db.commit()
+        new_user = db.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
+        uid = new_user["id"]
+        db.execute(
+            "INSERT INTO abonnements (user_id, statut) VALUES (?, 'en_attente')",
+            (uid,)
+        )
+        db.commit()
+
+        # Stocker le mdp_temp pour pouvoir l'envoyer au moment de la validation
+        db.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+            (f"pending_mdp_{uid}", mdp_temp)
+        )
+        db.commit()
+
+        # Notification Telegram admin
+        parrain_str = parrain_valide if parrain_valide else "Aucun"
+        notify_telegram(
+            f"📬 <b>Nouvelle demande d'accès</b>\n\n"
+            f"👤 Prénom : {prenom}\n"
+            f"📧 Email : {email}\n"
+            f"💬 Telegram : {contact}\n"
+            f"🎟 Parrainage : {parrain_str}\n\n"
+            f"Pour valider : /valider_{uid}\n"
+            f"Pour refuser : /refuser_{uid}"
+        )
+        flash("✅ Demande envoyée. Vous serez contacté sur Telegram.", "success")
+        return redirect(url_for("login"))
+    return render_template("demander_acces.html")
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":

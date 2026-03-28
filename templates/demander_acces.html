@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}Demander l'accès — SP Network{% endblock %}
+{% block content %}
+
+<div class="row justify-content-center" style="margin-top: 2rem; margin-bottom: 2rem;">
+  <div class="col-lg-9 col-xl-8">
+    <div class="card overflow-hidden p-0">
+      <div class="row g-0">
+
+        {# ── Panneau gauche ── #}
+        <div class="col-md-4 d-none d-md-flex flex-column justify-content-between"
+             style="background: #1a1a2e; padding: 40px 28px;">
+          <div>
+            <div style="font-size:2rem; line-height:1;">🔐</div>
+            <h2 style="color:#fff; font-weight:800; margin:16px 0 6px; font-size:1.4rem;">
+              Accès sur invitation
+            </h2>
+            <p style="color:#8892b0; font-size:.85rem; line-height:1.6; margin-bottom:24px;">
+              L'accès au service est contrôlé. Votre demande sera examinée
+              et vous serez contacté directement sur Telegram.
+            </p>
+
+            <ul style="list-style:none; padding:0; margin-bottom:28px;">
+              <li style="color:#a8b2d8; padding:8px 0; font-size:.85rem; border-bottom:1px solid rgba(255,255,255,.06);">
+                <span style="color:#e94560; margin-right:8px;">①</span> Remplissez ce formulaire
+              </li>
+              <li style="color:#a8b2d8; padding:8px 0; font-size:.85rem; border-bottom:1px solid rgba(255,255,255,.06);">
+                <span style="color:#e94560; margin-right:8px;">②</span> Nous vous contactons sur Telegram
+              </li>
+              <li style="color:#a8b2d8; padding:8px 0; font-size:.85rem;">
+                <span style="color:#e94560; margin-right:8px;">③</span> Accès activé sous 24h
+              </li>
+            </ul>
+
+            <div style="background:rgba(233,69,96,.08); border:1px solid rgba(233,69,96,.2);
+                        border-radius:10px; padding:14px;">
+              <p style="color:#e0c8cc; font-size:.8rem; margin:0; line-height:1.6;">
+                🎟 <b>Parrainage</b><br>
+                Un ami déjà abonné vous a fourni un code ? Renseignez-le pour bénéficier
+                d'un avantage à l'activation.
+              </p>
+            </div>
+          </div>
+
+          <div style="border-top:1px solid rgba(255,255,255,.08); padding-top:20px; margin-top:20px;">
+            <p style="color:#596180; font-size:.78rem; margin:0;">
+              Déjà un accès ?
+              <a href="{{ url_for('login') }}" style="color:#e94560; text-decoration:none;">Se connecter</a>
+            </p>
+          </div>
+        </div>
+
+        {# ── Formulaire ── #}
+        <div class="col-md-8" style="padding: 40px 36px;">
+          <h3 style="font-weight:700; margin-bottom:6px;">Demander l'accès</h3>
+          <p style="color:#8892b0; font-size:.88rem; margin-bottom:28px;">
+            Remplissez le formulaire — nous vous répondrons sur Telegram.
+          </p>
+
+          {% with messages = get_flashed_messages(with_categories=true) %}
+            {% for cat, msg in messages %}
+              <div class="alert alert-{{ cat }} py-2 mb-3">{{ msg }}</div>
+            {% endfor %}
+          {% endwith %}
+
+          <form method="POST">
+
+            <div class="mb-3">
+              <label class="form-label fw-semibold">
+                Prénom <span style="color:#e94560;">*</span>
+              </label>
+              <input type="text" name="prenom" class="form-control"
+                     placeholder="Votre prénom" required autofocus>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-semibold">
+                Adresse email <span style="color:#e94560;">*</span>
+              </label>
+              <input type="email" name="email" class="form-control"
+                     placeholder="exemple@email.com" required>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-semibold">
+                Contact Telegram <span style="color:#e94560;">*</span>
+              </label>
+              <input type="text" name="contact_telegram" class="form-control"
+                     placeholder="@votrepseudo ou +33 6 xx xx xx xx" required>
+              <div class="form-text">Nous vous contacterons sur ce compte pour finaliser l'accès.</div>
+            </div>
+
+            <div class="mb-4">
+              <label class="form-label fw-semibold">
+                Code de parrainage
+                <span style="color:#8892b0; font-weight:400;">(optionnel)</span>
+              </label>
+              <input type="text" name="referral_code" class="form-control"
+                     placeholder="ex : SP7X2K91" maxlength="8"
+                     style="text-transform:uppercase; letter-spacing:.1em;">
+              <div class="form-text">Si un ami vous a partagé son code.</div>
+            </div>
+
+            <button type="submit" class="btn btn-danger w-100 py-2 fw-semibold">
+              📬 Envoyer ma demande
+            </button>
+
+            <p class="text-center mt-3 mb-0" style="color:#596180; font-size:.82rem;">
+              Déjà un accès ?
+              <a href="{{ url_for('login') }}" style="color:#e94560;">Se connecter</a>
+            </p>
+
+          </form>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Forcer majuscules sur le code de parrainage
+  document.querySelector('[name="referral_code"]').addEventListener('input', function() {
+    this.value = this.value.toUpperCase();
+  });
+</script>
+
+{% endblock %}
