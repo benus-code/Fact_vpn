@@ -153,7 +153,9 @@ def handle_update(update, token, channel_id, admin_id):
         return
 
     state = load_state()
-    cmd   = text.split()[0].lower().rstrip("@" + "abcdefghijklmnopqrstuvwxyz_0123456789")
+    # Extrait la commande, retire le @botname éventuel (ex: /status@MonBot → /status)
+    cmd_raw = text.split()[0].lower()
+    cmd     = cmd_raw.split("@")[0]
 
     if cmd == "/status":
         emoji  = STATUTS.get(state.get("statut", "inconnu"), "⚪")
