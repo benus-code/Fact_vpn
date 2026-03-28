@@ -73,7 +73,7 @@ def tg_call(token, method, payload):
         headers={"Content-Type": "application/json"},
     )
     try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
+        with urllib.request.urlopen(req, timeout=35) as resp:
             return json.loads(resp.read())
     except urllib.error.HTTPError as e:
         body = e.read().decode(errors="replace")
@@ -245,7 +245,7 @@ def run():
 
         result = tg_call(token, "getUpdates", {
             "offset":  offset,
-            "timeout": 30,
+            "timeout": 25,
             "allowed_updates": ["message"],
         })
 
