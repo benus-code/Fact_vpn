@@ -204,6 +204,88 @@ def handle_update(update, token, channel_id, admin_id):
         save_state(state)
         reply(token, chat_id, "✅ Message personnalisé publié sur le canal.")
 
+    elif cmd.startswith("/valider_"):
+        uid_str = cmd[len("/valider_"):]
+        if not uid_str.isdigit():
+            reply(token, chat_id, "⚠️ Usage : /valider_42")
+            return
+        uid = int(uid_str)
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        user = conn.execute(
+            "SELECT id, nom, email, telegram, referral_code, status FROM users WHERE id = ?",
+            (uid,)
+        ).fetchone()
+        if not user:
+            conn.close()
+            reply(token, chat_id, f"❌ Utilisateur #{uid} introuvable.")
+            return
+        if user["status"] == "active":
+            conn.close()
+            reply(token, chat_id, f"ℹ️ #{uid} {user['nom']} est déjà actif.")
+            return
+        # Récupérer le mdp temporaire stocké lors de la demande
+        mdp_row = conn.execute(
+            "SELECT value FROM settings WHERE key = ?",
+            (f"pending_mdp_{uid}",)
+        ).fetchone()
+        mdp_temp = mdp_row["value"] if mdp_row else "(non trouvé)"
+        # Activer l'utilisateur
+        conn.execute(
+            "UPDATE users SET status = 'active' WHERE id = ?", (uid,)
+        )
+        conn.execute(
+            "UPDATE abonnements SET statut = 'en_attente' WHERE user_id = ?", (uid,)
+        )
+        # Supprimer le mdp_temp des settings (usage unique)
+        conn.execute("DELETE FROM settings WHERE key = ?", (f"pending_mdp_{uid}",))
+        conn.commit()
+        conn.close()
+        # Envoyer à l'admin les identifiants à transmettre manuellement
+        reply(token, chat_id,
+              f"✅ <b>#{uid} {user['nom']} validé !</b>\n\n"
+              f"Transmettez ce message à <b>{user['telegram']}</b> :\n\n"
+              f"——————————————\n"
+              f"✅ <b>Accès accordé</b>\n\n"
+              f"Bienvenue ! Voici comment procéder :\n\n"
+              f"💳 Pour le paiement, contactez-moi directement ici.\n"
+              f"Je vous enverrai les instructions.\n\n"
+              f"🔑 Vos identifiants de connexion :\n"
+              f"📧 Email : <code>{user['email']}</code>\n"
+              f"🔐 Mot de passe : <code>{mdp_temp}</code>\n\n"
+              f"🎟 Votre code de parrainage : <code>{user['referral_code']}</code>\n"
+              f"Partagez-le à vos amis — vous gagnez 25% sur votre prochain mois "
+              f"pour chaque ami qui s'abonne.\n"
+              f"——————————————")
+
+    elif cmd.startswith("/refuser_"):
+        uid_str = cmd[len("/refuser_"):]
+        if not uid_str.isdigit():
+            reply(token, chat_id, "⚠️ Usage : /refuser_42")
+            return
+        uid = int(uid_str)
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        user = conn.execute(
+            "SELECT id, nom, email, telegram FROM users WHERE id = ?", (uid,)
+        ).fetchone()
+        if not user:
+            conn.close()
+            reply(token, chat_id, f"❌ Utilisateur #{uid} introuvable.")
+            return
+        nom, contact = user["nom"], user["telegram"]
+        conn.execute("DELETE FROM abonnements WHERE user_id = ?", (uid,))
+        conn.execute("DELETE FROM settings WHERE key = ?", (f"pending_mdp_{uid}",))
+        conn.execute("DELETE FROM users WHERE id = ?", (uid,))
+        conn.commit()
+        conn.close()
+        reply(token, chat_id,
+              f"🗑 Demande de <b>{nom}</b> ({contact}) refusée et supprimée.\n\n"
+              f"Si nécessaire, transmettez-lui :\n"
+              f"——————————————\n"
+              f"Ta demande n'a pas pu être acceptée pour le moment.\n"
+              f"——————————————")
+
     else:
         reply(token, chat_id,
               "Commandes disponibles :\n"
@@ -212,7 +294,9 @@ def handle_update(update, token, channel_id, admin_id):
               "/statut_maintenance — maintenance planifiée\n"
               "/statut_panne — incident en cours\n"
               "/statut_resolu — incident résolu\n"
-              "/statut_custom &lt;texte&gt; — message libre")
+              "/statut_custom &lt;texte&gt; — message libre\n"
+              "/valider_[id] — valider une demande d'accès\n"
+              "/refuser_[id] — refuser et supprimer une demande")
 
 # ─── Long-polling loop ─────────────────────────────────────────────────────────
 def run():
