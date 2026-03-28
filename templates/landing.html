@@ -236,11 +236,11 @@
     <!-- Desktop links -->
     <div class="nav-links d-none d-lg-flex">
       <a href="#services" class="nav-anchor">Services</a>
-      <a href="{{ url_for('inscription') }}" class="nav-anchor" data-en="Plans">Forfaits</a>
+      <a href="{{ url_for('demander_acces') }}" class="nav-anchor" data-en="Plans">Forfaits</a>
       <a href="{{ url_for('guide') }}" class="nav-anchor">Guide</a>
       <div style="width:1px; height:20px; background:rgba(255,255,255,.1); margin:0 4px;"></div>
       <a href="{{ url_for('login') }}" class="btn-nav-outline" data-en="Log in">Connexion</a>
-      <a href="{{ url_for('inscription') }}" class="btn-nav-red" data-en="Sign up">S'inscrire</a>
+      <a href="{{ url_for('demander_acces') }}" class="btn-nav-red" data-en="Sign up">S'inscrire</a>
       <div style="display:flex;align-items:center;gap:1px;background:rgba(255,255,255,.1);border-radius:16px;padding:2px 6px;">
         <button class="btn-lang" data-lang="fr" onclick="setLang('fr')" style="background:none;border:none;color:#fff;font-size:.75rem;padding:2px 8px;cursor:pointer;border-radius:12px;font-weight:700;">FR</button>
         <span style="color:rgba(255,255,255,.25);font-size:.7rem;">|</span>
@@ -250,7 +250,7 @@
 
     <!-- Mobile toggle -->
     <div class="d-flex gap-2 d-lg-none align-items-center">
-      <a href="{{ url_for('inscription') }}" class="btn-nav-red" style="font-size:.82rem; padding:5px 14px;" data-en="Sign up">S'inscrire</a>
+      <a href="{{ url_for('demander_acces') }}" class="btn-nav-red" style="font-size:.82rem; padding:5px 14px;" data-en="Sign up">S'inscrire</a>
       <button class="navbar-toggler-custom" type="button" data-bs-toggle="collapse" data-bs-target="#mobileMenu">
         <span></span><span></span><span></span>
       </button>
@@ -261,7 +261,7 @@
     <div class="container" style="padding: 12px 16px 16px; border-top: 1px solid rgba(255,255,255,.08); margin-top:12px;">
       <div class="d-flex flex-column gap-2">
         <a href="#services" class="nav-anchor" data-bs-toggle="collapse" data-bs-target="#mobileMenu">Services</a>
-        <a href="{{ url_for('inscription') }}" class="nav-anchor" data-en="Plans">Forfaits</a>
+        <a href="{{ url_for('demander_acces') }}" class="nav-anchor" data-en="Plans">Forfaits</a>
         <a href="{{ url_for('guide') }}" class="nav-anchor">Guide d'installation</a>
         <a href="{{ url_for('login') }}" class="nav-anchor">Connexion</a>
       </div>
@@ -280,8 +280,8 @@
       Configuration assistée incluse.
     </p>
     <div class="hero-cta">
-      <a href="{{ url_for('inscription') }}" class="btn-hero-primary" data-en="Get Access →">Demander l'accès →</a>
-      <a href="{{ url_for('inscription') }}" class="btn-hero-secondary" data-en="See the plans">Voir les forfaits</a>
+      <a href="{{ url_for('demander_acces') }}" class="btn-hero-primary" data-en="Get Access →">Demander l'accès →</a>
+      <a href="{{ url_for('demander_acces') }}" class="btn-hero-secondary" data-en="See the plans">Voir les forfaits</a>
     </div>
     <div class="hero-stats">
       <div class="stat"><div class="num">100%</div><div class="label" data-en="Encrypted">Chiffré</div></div>
@@ -365,7 +365,7 @@
              data-en="Create your free account to see available plans and payment details.">
             Créez votre compte gratuitement pour consulter les forfaits disponibles.
           </p>
-          <a href="{{ url_for('inscription') }}" class="btn-price"
+          <a href="{{ url_for('demander_acces') }}" class="btn-price"
              data-en="See the plans →">
             Voir les forfaits →
           </a>
@@ -382,7 +382,7 @@
           <p style="color:var(--muted); font-size:.93rem; margin-bottom:24px; line-height:1.7;" data-en="Create your account for free. Once registered, payment instructions appear directly in your personal space.">
             Créez votre compte gratuitement.
           </p>
-          <a href="{{ url_for('inscription') }}" class="btn-price" style="max-width:280px; margin:0 auto;" data-en="Create my account →">
+          <a href="{{ url_for('demander_acces') }}" class="btn-price" style="max-width:280px; margin:0 auto;" data-en="Create my account →">
             Créer mon compte →
           </a>
         </div>
@@ -431,7 +431,7 @@
     <h2 data-en="Ready to browse freely?">Prêt à naviguer librement ?</h2>
     <p data-en="Join subscribers who access Instagram, ChatGPT and YouTube without restrictions — starting today.">Rejoignez les abonnés qui accèdent à ChatGPT et YouTube sans publicités — dès aujourd'hui.</p>
     <div class="d-flex gap-3 justify-content-center flex-wrap">
-      <a href="{{ url_for('inscription') }}" class="btn-hero-primary" data-en="Get Access →">Demander l'accès →</a>
+      <a href="{{ url_for('demander_acces') }}" class="btn-hero-primary" data-en="Get Access →">Demander l'accès →</a>
       <a href="{{ url_for('guide') }}" class="btn-hero-secondary" data-en="View guide">Voir le guide</a>
     </div>
   </div>
@@ -444,10 +444,10 @@
       © <span id="yr"></span> VPN Privé — Service personnel
     </p>
     <div>
-      <a href="{{ url_for('inscription') }}" data-en="Plans">Forfaits</a>
+      <a href="{{ url_for('demander_acces') }}" data-en="Plans">Forfaits</a>
       <a href="{{ url_for('guide') }}">Guide</a>
       <a href="{{ url_for('login') }}" data-en="Log in">Connexion</a>
-      <a href="{{ url_for('inscription') }}" data-en="Sign up">S'inscrire</a>
+      <a href="{{ url_for('demander_acces') }}" data-en="Sign up">S'inscrire</a>
     </div>
   </div>
 </footer>
