@@ -14,20 +14,38 @@
 <div class="card p-4 mb-4 border-danger">
   <h5 class="fw-bold text-danger mb-1">⚠ IPs bloquées / orphelines ({{ peers_orphelins|length }})</h5>
   <p class="text-muted small mb-3">Ces IPs sont réservées par des peers dont le compte est banni ou supprimé. Libérez-les pour les réutiliser.</p>
-  <table class="table table-sm">
+  <table class="table table-sm align-middle">
     <thead><tr><th>IP VPN</th><th>Label</th><th>Utilisateur</th><th>Raison</th><th>Action</th></tr></thead>
     <tbody>
       {% for p in peers_orphelins %}
       <tr>
         <td><code>{{ p.ip_vpn }}</code></td>
         <td>{{ p.label }}</td>
-        <td>{{ p.nom or '—' }}</td>
-        <td>{% if not p.nom %}<span class="badge bg-secondary">User supprimé</span>{% else %}<span class="badge bg-danger">Banni</span>{% endif %}</td>
         <td>
-          <form method="POST" action="{{ url_for('admin_liberer_peer', peer_id=p.id) }}"
-                onsubmit="return confirm('Libérer l\'IP {{ p.ip_vpn }} ?')">
-            <button class="btn btn-sm btn-danger py-0 px-2">🗑 Libérer l'IP</button>
-          </form>
+          {% if p.nom %}
+            <a href="{{ url_for('admin_user_detail', uid=p.user_id) }}">{{ p.nom }}</a>
+            <div class="text-muted small">{{ p.email }}</div>
+          {% else %}—{% endif %}
+        </td>
+        <td>
+          {% if not p.nom %}
+            <span class="badge bg-secondary">User supprimé</span>
+          {% elif p.is_banned %}
+            <span class="badge bg-danger">Banni</span>
+          {% else %}
+            <span class="badge bg-warning text-dark">Abo : {{ p.abo_statut }}</span>
+          {% endif %}
+        </td>
+        <td>
+          <div class="d-flex gap-1">
+            {% if p.nom %}
+            <a href="{{ url_for('admin_user_detail', uid=p.user_id) }}" class="btn btn-sm btn-outline-secondary py-0 px-2">Voir</a>
+            {% endif %}
+            <form method="POST" action="{{ url_for('admin_liberer_peer', peer_id=p.id) }}"
+                  onsubmit="return confirm('Libérer l\'IP {{ p.ip_vpn }} définitivement ?')">
+              <button class="btn btn-sm btn-danger py-0 px-2">🗑 Libérer</button>
+            </form>
+          </div>
         </td>
       </tr>
       {% endfor %}

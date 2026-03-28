@@ -557,10 +557,14 @@ def admin_panel():
     """).fetchall()
 
     peers_orphelins = db.execute("""
-        SELECT p.*, u.nom, u.is_banned
+        SELECT p.*, u.nom, u.email, u.is_banned,
+               COALESCE(a.statut, 'inconnu') as abo_statut
         FROM peers p
         LEFT JOIN users u ON u.id = p.user_id
-        WHERE u.id IS NULL OR u.is_banned = 1
+        LEFT JOIN abonnements a ON a.user_id = p.user_id
+        WHERE u.id IS NULL
+           OR u.is_banned = 1
+           OR a.statut IN ('suspendu', 'expire', 'en_attente')
     """).fetchall()
 
     s = get_settings()
