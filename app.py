@@ -97,6 +97,32 @@ def init_app_db():
     except sqlite3.OperationalError:
         pass
 
+    # Colonnes système d'invitation
+    for migration in [
+        "ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'active'",
+        "ALTER TABLE users ADD COLUMN referral_code TEXT",
+        "ALTER TABLE users ADD COLUMN referred_by TEXT",
+        "ALTER TABLE users ADD COLUMN telegram_id TEXT",
+    ]:
+        try:
+            conn.execute(migration)
+        except sqlite3.OperationalError:
+            pass
+    # Les utilisateurs existants (inscrits avant) sont déjà actifs
+    conn.execute(
+        "UPDATE users SET status = 'active' WHERE status IS NULL OR status = 'active'"
+    )
+    # Générer les codes de parrainage manquants pour les users existants
+    import secrets, string
+    existing = conn.execute(
+        "SELECT id FROM users WHERE referral_code IS NULL"
+    ).fetchall()
+    for (uid,) in existing:
+        code = ''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(8))
+        conn.execute(
+            "UPDATE users SET referral_code = ? WHERE id = ?", (code, uid)
+        )
+
     # Colonne date_ajout sur peers
     try:
         conn.execute("ALTER TABLE peers ADD COLUMN date_ajout DATE")
