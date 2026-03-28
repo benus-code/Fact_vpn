@@ -23,7 +23,13 @@
         <td>{{ d.whatsapp or '—' }}</td>
         <td>{{ d.telegram or '—' }}</td>
         <td>{{ d.created_at[:10] if d.created_at else '—' }}</td>
-        <td><a href="{{ url_for('admin_user_detail', uid=d.id) }}" class="btn btn-sm btn-outline-info">Gérer</a></td>
+        <td class="d-flex gap-1 flex-wrap">
+          <a href="{{ url_for('admin_user_detail', uid=d.id) }}" class="btn btn-sm btn-outline-info">Gérer</a>
+          <form method="POST" action="{{ url_for('admin_activer_essai') }}" style="display:inline;">
+            <input type="hidden" name="user_id" value="{{ d.id }}">
+            <button type="submit" class="btn btn-sm btn-outline-warning">🎁 Essai 2j</button>
+          </form>
+        </td>
       </tr>
       {% endfor %}
     </tbody>
@@ -260,6 +266,16 @@
             {% set wa_num = u.whatsapp | replace('+','') | replace(' ','') | replace('-','') %}
             <a href="https://wa.me/{{ wa_num }}?text=Bonjour%20{{ u.nom | urlencode }}%2C%20votre%20acc%C3%A8s%20VPN%20est%20actif%20!"
                target="_blank" class="btn btn-sm btn-success" title="Envoyer WA bienvenue">💬</a>
+            {% endif %}
+            {% if u.is_banned %}
+            <form method="POST" action="{{ url_for('admin_debannir_user', uid=u.id) }}" style="display:inline;">
+              <button type="submit" class="btn btn-sm btn-outline-success" title="Débannir">✅ Débannir</button>
+            </form>
+            {% else %}
+            <form method="POST" action="{{ url_for('admin_bannir_user', uid=u.id) }}" style="display:inline;"
+                  onsubmit="return confirm('Bannir {{ u.nom }} ? Son accès sera coupé immédiatement.');">
+              <button type="submit" class="btn btn-sm btn-outline-danger" title="Bannir">🚫 Bannir</button>
+            </form>
             {% endif %}
           </td>
         </tr>

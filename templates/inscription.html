@@ -12,8 +12,8 @@
              style="background: #1a1a2e; padding: 40px 28px;">
           <div>
             <div style="font-size:2rem; line-height:1;">🔐</div>
-            <h2 style="color:#fff; font-weight:800; margin:16px 0 6px; font-size:1.4rem;">Accès VPN</h2>
-            <p style="color:#8892b0; font-size:.85rem; line-height:1.6; margin-bottom:24px;">
+            <h2 style="color:#fff; font-weight:800; margin:16px 0 6px; font-size:1.4rem;" data-en="VPN Access">Accès VPN</h2>
+            <p style="color:#8892b0; font-size:.85rem; line-height:1.6; margin-bottom:24px;" data-en="Personal, secure, immediate.">
               Service personnel, sécurisé, Immédiate.
             </p>
 
@@ -60,22 +60,18 @@
               </li>
             </ul>
           </div>
-          {% if bank %}
           <div style="background:rgba(255,255,255,.05); border-radius:10px; padding:14px; margin-top:24px;">
             <p style="color:#8892b0; font-size:.78rem; margin:0; line-height:1.6;">
               <strong style="color:#a8b2d8;">Comment payer ?</strong><br>
-              Virement {{ bank.banque }}<br>
-              <span style="color:#e94560;">{{ bank.telephone }}</span><br>
-              Commentaire : <em>{{ bank.reference }}</em>
+              Les coordonnées de paiement vous seront communiquées dans votre espace personnel après validation de votre demande.
             </p>
           </div>
-          {% endif %}
         </div>
 
         {# ── Formulaire (droite) ── #}
         <div class="col-md-8" style="padding: 36px 40px;">
-          <h4 class="fw-bold mb-1" style="color:#1e2535;">Créer votre compte</h4>
-          <p class="text-muted mb-4" style="font-size:.9rem;">
+          <h4 class="fw-bold mb-1" style="color:#1e2535;" data-en="Create your account">Créer votre compte</h4>
+          <p class="text-muted mb-4" style="font-size:.9rem;" data-en="Fill in the form — your access will be activated after payment receipt.">
             Remplissez le formulaire — votre accès sera activé après réception du paiement.
           </p>
 
@@ -116,7 +112,7 @@
             </div>
 
             <hr style="margin: 20px 0 16px;">
-            <p class="mb-2" style="font-size:.83rem; color:#7a8499; font-weight:700; letter-spacing:.4px;">
+            <p class="mb-2" style="font-size:.83rem; color:#7a8499; font-weight:700; letter-spacing:.4px;" data-en="DESIRED PLAN *">
               FORFAIT SOUHAITÉ <span class="text-danger">*</span>
             </p>
             <div class="row g-2 mb-3">
@@ -155,29 +151,32 @@
 
             <hr style="margin: 20px 0 16px;">
             <p class="mb-2" style="font-size:.83rem; color:#7a8499; font-weight:700; letter-spacing:.4px;">
-              CONTACT OPTIONNEL <span style="font-weight:400;">(pour que l'administrateur puisse vous contacter facilement !)</span>
+              <span data-en="CONTACT * (at least one required — to send you your access)">CONTACT <span style="color:#e94560;">*</span> <span style="font-weight:400;">(au moins un des deux requis — pour vous envoyer votre accès)</span></span>
             </p>
             <div class="row g-3">
               <div class="col-sm-6">
                 <label class="form-label">WhatsApp</label>
-                <input type="text" name="whatsapp" class="form-control" placeholder="ex: +7 996 123-45-67">
+                <input type="text" name="whatsapp" id="field-whatsapp" class="form-control" placeholder="ex: +7 996 123-45-67">
               </div>
               <div class="col-sm-6">
                 <label class="form-label">Telegram</label>
-                <input type="text" name="telegram" class="form-control" placeholder="ex: @monpseudo">
+                <input type="text" name="telegram" id="field-telegram" class="form-control" placeholder="ex: @monpseudo">
               </div>
             </div>
+            <p id="contact-error" class="small text-danger mt-1 mb-0" style="display:none;">
+              ⚠ Veuillez renseigner au moins WhatsApp ou Telegram.
+            </p>
 
             {# Tarifs visible sur mobile uniquement #}
             <div class="d-md-none mt-3">
               <div class="alert alert-info mb-0" style="font-size:.87rem;">
                 <strong>Forfaits :</strong> Mobile 149 ₽ · Ordi 249 ₽ · Complet 349 ₽<br>
-                <small>{% if bank %}Virement {{ bank.banque }} — {% endif %}activation Immédiate !</small>
+                <small>Coordonnées de paiement transmises après validation.</small>
               </div>
             </div>
 
             <div class="mt-4">
-              <button type="submit" class="btn btn-primary w-100" style="padding: 11px;">
+              <button type="submit" id="btn-submit" class="btn btn-primary w-100" style="padding: 11px;" data-en="Send my access request">
                 Envoyer ma demande d'accès
               </button>
             </div>
@@ -185,8 +184,8 @@
 
           <hr style="margin: 20px 0;">
           <p class="text-center mb-0" style="font-size:.88rem; color:#7a8499;">
-            Déjà abonné ?
-            <a href="{{ url_for('login') }}" style="color:#e94560; font-weight:600;">Se connecter</a>
+            <span data-en="Already subscribed?">Déjà abonné ?</span>
+            <a href="{{ url_for('login') }}" style="color:#e94560; font-weight:600;" data-en="Log in">Se connecter</a>
           </p>
         </div>
 
@@ -264,6 +263,27 @@
     }
     pwd.addEventListener('input', check);
     conf.addEventListener('input', check);
+  })();
+</script>
+<script>
+  (function() {
+    var form = document.getElementById('form-inscription');
+    var wa   = document.getElementById('field-whatsapp');
+    var tg   = document.getElementById('field-telegram');
+    var err  = document.getElementById('contact-error');
+    if (!form || !wa || !tg || !err) return;
+    form.addEventListener('submit', function(e) {
+      if (!wa.value.trim() && !tg.value.trim()) {
+        e.preventDefault();
+        err.style.display = 'block';
+        wa.focus();
+      } else {
+        err.style.display = 'none';
+      }
+    });
+    [wa, tg].forEach(function(f) {
+      f.addEventListener('input', function() { err.style.display = 'none'; });
+    });
   })();
 </script>
 {% endblock %}

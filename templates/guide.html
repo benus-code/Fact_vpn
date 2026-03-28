@@ -182,8 +182,13 @@
   <div class="container d-flex justify-content-between align-items-center">
     <a href="{{ url_for('index') }}" class="brand">🔐 VPN Privé</a>
     <div class="d-flex gap-2">
-      <a href="{{ url_for('login') }}" class="btn-nav-outline d-none d-sm-inline">Connexion</a>
-      <a href="{{ url_for('inscription') }}" class="btn-nav-red">S'inscrire</a>
+      <a href="{{ url_for('login') }}" class="btn-nav-outline d-none d-sm-inline" data-en="Log in">Connexion</a>
+      <a href="{{ url_for('inscription') }}" class="btn-nav-red" data-en="Sign up">S'inscrire</a>
+      <div style="display:flex;align-items:center;gap:1px;background:rgba(255,255,255,.1);border-radius:16px;padding:2px 6px;">
+        <button class="btn-lang" data-lang="fr" onclick="setLang('fr')" style="background:none;border:none;color:#fff;font-size:.75rem;padding:2px 8px;cursor:pointer;border-radius:12px;font-weight:800;">FR</button>
+        <span style="color:rgba(255,255,255,.25);font-size:.7rem;">|</span>
+        <button class="btn-lang" data-lang="en" onclick="setLang('en')" style="background:none;border:none;color:#fff;font-size:.75rem;padding:2px 8px;cursor:pointer;border-radius:12px;">EN</button>
+      </div>
     </div>
   </div>
 </nav>
@@ -359,5 +364,29 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>document.getElementById('yr').textContent = new Date().getFullYear();</script>
+<script>
+(function() {
+  function setLang(lang) {
+    localStorage.setItem('vpn_lang', lang);
+    document.querySelectorAll('[data-en]').forEach(function(el) {
+      if (lang === 'en') {
+        if (!el.getAttribute('data-fr')) el.setAttribute('data-fr', el.innerHTML);
+        el.innerHTML = el.getAttribute('data-en');
+      } else {
+        var fr = el.getAttribute('data-fr');
+        if (fr) el.innerHTML = fr;
+      }
+    });
+    document.querySelectorAll('.btn-lang').forEach(function(b) {
+      b.style.fontWeight = b.dataset.lang === lang ? '800' : '400';
+      b.style.opacity   = b.dataset.lang === lang ? '1'   : '0.5';
+    });
+  }
+  window.setLang = setLang;
+  document.addEventListener('DOMContentLoaded', function() {
+    setLang(localStorage.getItem('vpn_lang') || 'fr');
+  });
+})();
+</script>
 </body>
 </html>

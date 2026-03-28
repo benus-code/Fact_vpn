@@ -13,18 +13,18 @@
           <div>
             <div style="font-size:2.2rem; line-height:1;">🔐</div>
             <h2 style="color:#fff; font-weight:800; margin:16px 0 10px; font-size:1.6rem;">VPN Privé</h2>
-            <p style="color:#8892b0; font-size:.9rem; line-height:1.7;">
+            <p style="color:#8892b0; font-size:.9rem; line-height:1.7;" data-en="Your personal connection, encrypted and log-free.">
               Votre connexion personnelle, chiffrée et sans logs.
             </p>
             <ul style="list-style:none; padding:0; margin-top:28px;">
               <li style="color:#a8b2d8; padding:7px 0; font-size:.88rem; border-bottom:1px solid rgba(255,255,255,.06);">
-                <span style="color:#e94560; margin-right:8px;">✓</span> 100% Chiffrement
+                <span style="color:#e94560; margin-right:8px;">✓</span> <span data-en="100% Encryption">100% Chiffrement</span>
               </li>
               <li style="color:#a8b2d8; padding:7px 0; font-size:.88rem; border-bottom:1px solid rgba(255,255,255,.06);">
-                <span style="color:#e94560; margin-right:8px;">✓</span> Multi-appareils
+                <span style="color:#e94560; margin-right:8px;">✓</span> <span data-en="Multi-device">Multi-appareils</span>
               </li>
               <li style="color:#a8b2d8; padding:7px 0; font-size:.88rem;">
-                <span style="color:#e94560; margin-right:8px;">✓</span> Support personnel
+                <span style="color:#e94560; margin-right:8px;">✓</span> <span data-en="Personal support">Support personnel</span>
               </li>
             </ul>
           </div>
@@ -33,8 +33,8 @@
 
         {# ── Formulaire (droite) ── #}
         <div class="col-md-7 d-flex flex-column justify-content-center" style="padding: 40px 36px;">
-          <h4 class="fw-bold mb-1" style="color:#1e2535;">Bon retour 👋</h4>
-          <p class="text-muted mb-4" style="font-size:.9rem;">Connectez-vous à votre espace VPN</p>
+          <h4 class="fw-bold mb-1" style="color:#1e2535;" data-en="Welcome back 👋">Bon retour 👋</h4>
+          <p class="text-muted mb-4" style="font-size:.9rem;" data-en="Log in to your VPN space">Connectez-vous à votre espace VPN</p>
 
           <form method="POST" data-prevent-double-submit>
             <div class="mb-3">
@@ -43,26 +43,26 @@
                      placeholder="votre@email.com" required autofocus>
             </div>
             <div class="mb-4">
-              <label class="form-label" for="login-password">Mot de passe</label>
+              <label class="form-label" for="login-password" data-en="Password">Mot de passe</label>
               <div class="password-toggle-wrap">
                 <input id="login-password" type="password" name="password"
                        class="form-control" placeholder="••••••••" required>
                 <button type="button" class="btn-password-toggle"
-                        data-password-toggle="#login-password" aria-pressed="false">Afficher</button>
+                        data-password-toggle="#login-password" aria-pressed="false" data-en="Show">Afficher</button>
               </div>
             </div>
-            <button type="submit" class="btn btn-primary w-100" style="padding: 10px;">
+            <button type="submit" class="btn btn-primary w-100" style="padding: 10px;" data-en="Log in">
               Se connecter
             </button>
             <div class="text-end mt-2" style="font-size:.85rem;">
-              <a href="{{ url_for('mot_de_passe_oublie') }}" style="color:#8892b0;">Mot de passe oublié ?</a>
+              <a href="{{ url_for('mot_de_passe_oublie') }}" style="color:#8892b0;" data-en="Forgot password?">Mot de passe oublié ?</a>
             </div>
           </form>
 
           <hr style="margin: 24px 0;">
           <p class="text-center mb-0" style="font-size:.88rem; color:#7a8499;">
-            Pas encore abonné ?
-            <a href="{{ url_for('inscription') }}" style="color:#e94560; font-weight:600;">Demander un accès</a>
+            <span data-en="Not subscribed yet?">Pas encore abonné ?</span>
+            <a href="{{ url_for('inscription') }}" style="color:#e94560; font-weight:600;" data-en="Request access">Demander un accès</a>
           </p>
         </div>
 

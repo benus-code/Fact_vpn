@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
 <title>VPN Privé — Accès sécurisé</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
 <style>
@@ -235,16 +236,21 @@
     <!-- Desktop links -->
     <div class="nav-links d-none d-lg-flex">
       <a href="#services" class="nav-anchor">Services</a>
-      <a href="#tarifs" class="nav-anchor">Tarifs</a>
+      <a href="{{ url_for('inscription') }}" class="nav-anchor" data-en="Plans">Forfaits</a>
       <a href="{{ url_for('guide') }}" class="nav-anchor">Guide</a>
       <div style="width:1px; height:20px; background:rgba(255,255,255,.1); margin:0 4px;"></div>
-      <a href="{{ url_for('login') }}" class="btn-nav-outline">Connexion</a>
-      <a href="{{ url_for('inscription') }}" class="btn-nav-red">S'inscrire</a>
+      <a href="{{ url_for('login') }}" class="btn-nav-outline" data-en="Log in">Connexion</a>
+      <a href="{{ url_for('inscription') }}" class="btn-nav-red" data-en="Sign up">S'inscrire</a>
+      <div style="display:flex;align-items:center;gap:1px;background:rgba(255,255,255,.1);border-radius:16px;padding:2px 6px;">
+        <button class="btn-lang" data-lang="fr" onclick="setLang('fr')" style="background:none;border:none;color:#fff;font-size:.75rem;padding:2px 8px;cursor:pointer;border-radius:12px;font-weight:700;">FR</button>
+        <span style="color:rgba(255,255,255,.25);font-size:.7rem;">|</span>
+        <button class="btn-lang" data-lang="en" onclick="setLang('en')" style="background:none;border:none;color:#fff;font-size:.75rem;padding:2px 8px;cursor:pointer;border-radius:12px;">EN</button>
+      </div>
     </div>
 
     <!-- Mobile toggle -->
     <div class="d-flex gap-2 d-lg-none align-items-center">
-      <a href="{{ url_for('inscription') }}" class="btn-nav-red" style="font-size:.82rem; padding:5px 14px;">S'inscrire</a>
+      <a href="{{ url_for('inscription') }}" class="btn-nav-red" style="font-size:.82rem; padding:5px 14px;" data-en="Sign up">S'inscrire</a>
       <button class="navbar-toggler-custom" type="button" data-bs-toggle="collapse" data-bs-target="#mobileMenu">
         <span></span><span></span><span></span>
       </button>
@@ -255,7 +261,7 @@
     <div class="container" style="padding: 12px 16px 16px; border-top: 1px solid rgba(255,255,255,.08); margin-top:12px;">
       <div class="d-flex flex-column gap-2">
         <a href="#services" class="nav-anchor" data-bs-toggle="collapse" data-bs-target="#mobileMenu">Services</a>
-        <a href="#tarifs" class="nav-anchor" data-bs-toggle="collapse" data-bs-target="#mobileMenu">Tarifs</a>
+        <a href="{{ url_for('inscription') }}" class="nav-anchor" data-en="Plans">Forfaits</a>
         <a href="{{ url_for('guide') }}" class="nav-anchor">Guide d'installation</a>
         <a href="{{ url_for('login') }}" class="nav-anchor">Connexion</a>
       </div>
@@ -266,21 +272,21 @@
 <!-- ── Hero ── -->
 <section class="hero">
   <div class="container">
-    <span class="tag">✦ VPN Personnel &amp; Privé</span>
-    <h1>Naviguez librement,<br><span class="accent">sans aucune limite</span></h1>
-    <p class="sub">
-      Accédez à tous les services bloqués — Instagram, YouTube sans pub, ChatGPT.
-      Vos apps russes continuent de fonctionner normalement.
+    <span class="tag" data-en="✦ Private &amp; Secure Connection">✦ Connexion Privée &amp; Sécurisée</span>
+    <h1 data-en="Your connection,<br><span class='accent'>fully secured</span>">Votre connexion,<br><span class="accent">entièrement sécurisée</span></h1>
+    <p class="sub" data-en="Access your usual services — Instagram, uninterrupted YouTube, ChatGPT. Your apps keep working normally. Setup assistance included.">
+      Accédez à vos services habituels — Instagram, YouTube en continu, ChatGPT.
+      Vos apps continuent de fonctionner normalement.
       Configuration assistée incluse.
     </p>
     <div class="hero-cta">
-      <a href="{{ url_for('inscription') }}" class="btn-hero-primary">Demander l'accès →</a>
-      <a href="#tarifs" class="btn-hero-secondary">Voir les tarifs</a>
+      <a href="{{ url_for('inscription') }}" class="btn-hero-primary" data-en="Get Access →">Demander l'accès →</a>
+      <a href="{{ url_for('inscription') }}" class="btn-hero-secondary" data-en="See the plans">Voir les forfaits</a>
     </div>
     <div class="hero-stats">
-      <div class="stat"><div class="num">100%</div><div class="label">Chiffré</div></div>
-      <div class="stat"><div class="num">0</div><div class="label">Logs conservés</div></div>
-      <div class="stat"><div class="num">5 min</div><div class="label">Pour commencer</div></div>
+      <div class="stat"><div class="num">100%</div><div class="label" data-en="Encrypted">Chiffré</div></div>
+      <div class="stat"><div class="num">24h</div><div class="label" data-en="Activation">Activation</div></div>
+      <div class="stat"><div class="num">5 min</div><div class="label" data-en="To get started">Pour commencer</div></div>
     </div>
   </div>
 </section>
@@ -289,15 +295,15 @@
 <section id="services">
   <div class="container">
     <div class="section-header">
-      <span class="section-chip">Ce qui est débloqué</span>
-      <h2>Tous vos services préférés,<br>enfin accessibles</h2>
-      <p>La connexion est optimisée : les apps russes continuent de fonctionner normalement
-         pendant que les services internationaux passent par le tunnel sécurisé.</p>
+      <span class="section-chip" data-en="WHAT'S ACCESSIBLE">Ce qui est accessible</span>
+      <h2 data-en="All your favourite services,<br>available everywhere">Tous vos services préférés,<br>disponibles partout</h2>
+      <p data-en="Connection is optimised: your apps keep working normally while international services go through the secure connection.">La connexion est optimisée : vos apps continuent de fonctionner normalement
+         pendant que les services internationaux passent par la connexion sécurisée.</p>
     </div>
     <div class="row g-4">
       <div class="col-md-4">
         <div class="service-group-card">
-          <p class="g-title">Réseaux sociaux</p>
+          <p class="g-title" data-en="Social media">Réseaux sociaux</p>
           <div>
             <span class="service-pill"><span class="pill-dot"></span>Instagram</span>
             <span class="service-pill"><span class="pill-dot"></span>Facebook</span>
@@ -309,7 +315,7 @@
       </div>
       <div class="col-md-4">
         <div class="service-group-card">
-          <p class="g-title">Outils IA</p>
+          <p class="g-title" data-en="AI Tools">Outils IA</p>
           <div>
             <span class="service-pill"><span class="pill-dot"></span>ChatGPT</span>
             <span class="service-pill"><span class="pill-dot"></span>Gemini</span>
@@ -321,18 +327,18 @@
       </div>
       <div class="col-md-4">
         <div class="service-group-card">
-          <p class="g-title">Streaming &amp; Web</p>
+          <p class="g-title" data-en="Streaming &amp; Web">Streaming &amp; Web</p>
           <div>
-            <span class="service-pill"><span class="pill-dot"></span>YouTube sans pubs</span>
-            <span class="service-pill"><span class="pill-dot"></span>Sites internationaux</span>
-            <span class="service-pill"><span class="pill-dot"></span>Plateformes news</span>
+            <span class="service-pill" data-en="<span class='pill-dot'></span>Uninterrupted YouTube"><span class="pill-dot"></span>YouTube en continu</span>
+            <span class="service-pill" data-en="<span class='pill-dot'></span>International sites"><span class="pill-dot"></span>Sites internationaux</span>
+            <span class="service-pill" data-en="<span class='pill-dot'></span>News platforms"><span class="pill-dot"></span>Plateformes news</span>
             <span class="service-pill"><span class="pill-dot"></span>Spotify</span>
           </div>
         </div>
       </div>
     </div>
     <div class="routing-note mt-4 col-lg-8 mx-auto text-center">
-      <strong>Smart routing inclus :</strong> vos apps bancaires et services russes restent sur votre connexion normale — rien n'est cassé.
+      <span data-en="<strong>Smart routing included:</strong> your usual apps stay on your normal connection — nothing breaks."><strong>Smart routing inclus :</strong> vos apps habituelles restent sur votre connexion normale — rien n'est cassé.</span>
     </div>
   </div>
 </section>
@@ -341,98 +347,46 @@
 <section id="tarifs">
   <div class="container">
     <div class="section-header">
-      <span class="section-chip">Tarifs</span>
-      <h2>Choisissez votre forfait</h2>
-      <p>Pas de frais cachés. Pas d'engagement. Activé sous 24h.</p>
+      <span class="section-chip" data-en="PLANS">Forfaits</span>
+      <h2 data-en="Choose your plan">Choisissez votre forfait</h2>
+      <p data-en="No hidden fees. No commitment. Activated within 24h.">Pas de frais cachés. Pas d'engagement. Activé sous 24h.</p>
     </div>
 
-    <!-- 3 plans -->
-    <div class="row g-4 align-items-stretch mb-5">
-
-      <!-- Mobile -->
-      <div class="col-md-4">
-        <div class="price-card h-100">
-          <p class="plan-name">📱 Forfait Mobile</p>
-          <div class="price-amount"><sup>₽</sup>149</div>
-          <div class="price-period">par mois · Android &amp; iPhone</div>
-          <ul class="price-features">
-            <li><span class="check">✓</span> Accès aux services bloqués</li>
-            <li><span class="check">✓</span> YouTube sans publicités</li>
-            <li><span class="check">✓</span> Streaming optimisé</li>
-            <li><span class="check">✓</span> Aide à la configuration</li>
-          </ul>
-          <a href="{{ url_for('inscription') }}" class="btn-price-outline">Choisir ce forfait</a>
-        </div>
-      </div>
-
-      <!-- Computer -->
-      <div class="col-md-4">
-        <div class="price-card h-100">
-          <p class="plan-name">💻 Forfait Ordinateur</p>
-          <div class="price-amount"><sup>₽</sup>249</div>
-          <div class="price-period">par mois · Windows &amp; Mac</div>
-          <ul class="price-features">
-            <li><span class="check">✓</span> Accès aux services bloqués</li>
-            <li><span class="check">✓</span> Streaming optimisé</li>
-            <li><span class="check">✓</span> Connexion chiffrée sécurisée</li>
-            <li><span class="check">✓</span> Configuration manuelle assistée</li>
-          </ul>
-          <a href="{{ url_for('inscription') }}" class="btn-price-outline">Choisir ce forfait</a>
-        </div>
-      </div>
-
-      <!-- Full — featured -->
-      <div class="col-md-4">
-        <div class="price-card-new h-100">
-          <span class="badge-pop">✦ Le plus populaire</span>
-          <p class="plan-name" style="margin-top:8px;">📱💻 Forfait Complet</p>
-          <div class="price-amount"><sup>₽</sup>349</div>
-          <div class="price-period">par mois · Téléphone + Ordinateur</div>
-          <ul class="price-features">
-            <li><span class="check">✓</span> Accès aux services bloqués</li>
-            <li><span class="check">✓</span> YouTube sans publicités</li>
-            <li><span class="check">✓</span> Split tunneling — apps russes non affectées</li>
-            <li><span class="check">✓</span> Support prioritaire &amp; configuration</li>
-          </ul>
-          <a href="{{ url_for('inscription') }}" class="btn-price">Demander l'accès →</a>
-          <p style="color:#555; font-size:.8rem; margin-top:12px; margin-bottom:0;">
-            Déjà abonné ? <a href="{{ url_for('login') }}" style="color:var(--red);">Se connecter</a>
+    <!-- Carte neutre — prix visibles après inscription uniquement -->
+    <div class="row justify-content-center mb-5">
+      <div class="col-lg-6">
+        <div class="price-card-new h-100" style="text-align:center; padding: 48px 32px;">
+          <div style="font-size:2.4rem; margin-bottom:16px;">🔐</div>
+          <h3 style="font-family:inherit; font-weight:800; color:#fff; margin-bottom:12px;"
+              data-en="Plans available after registration">
+            Forfaits disponibles après inscription
+          </h3>
+          <p style="color:var(--muted); font-size:.95rem; line-height:1.7; margin-bottom:28px;"
+             data-en="Create your free account to see available plans and payment details.">
+            Créez votre compte gratuitement pour consulter les forfaits disponibles
+            et les instructions de paiement.
           </p>
+          <a href="{{ url_for('inscription') }}" class="btn-price"
+             data-en="See the plans →">
+            Voir les forfaits →
+          </a>
         </div>
       </div>
-
     </div>
 
-    <!-- Payment info below the cards -->
+    <!-- Payment info — shown after registration only -->
     <div class="row justify-content-center">
       <div class="col-lg-8">
-        <div class="payment-info">
-          <h5>💳 Comment effectuer le paiement</h5>
-          <div class="payment-row">
-            <span class="key">Bénéficiaire</span>
-            <span class="val">{{ bank.beneficiaire }}</span>
-          </div>
-          <div class="payment-row">
-            <span class="key">Téléphone / numéro</span>
-            <span class="val red">{{ bank.telephone }}</span>
-          </div>
-          <div class="payment-row">
-            <span class="key">Banque</span>
-            <span class="val">{{ bank.banque }}</span>
-          </div>
-          <div class="payment-row">
-            <span class="key">Commentaire du virement</span>
-            <span class="val">{{ bank.reference }}</span>
-          </div>
-        </div>
-        <div style="background:rgba(233,69,96,.07); border:1px solid rgba(233,69,96,.2);
-                    border-radius:10px; padding:14px 18px; margin-top:16px;">
-          <p style="color:#c8a4ac; font-size:.87rem; margin:0; line-height:1.6;">
-            <strong style="color:#f4b8c2;">⚠ Important :</strong>
-            Après votre virement, envoyez-nous un message pour confirmer.
-            Votre accès est activé manuellement dans les 24h.
-            Besoin d'aide ? Consultez le <a href="{{ url_for('guide') }}" style="color:var(--red);">guide d'installation</a>.
+        <div class="payment-info" style="text-align:center;">
+          <div style="font-size:2rem; margin-bottom:12px;">🔐</div>
+          <h5 style="margin-bottom:10px;" data-en="🔐 Payment details are shared after registration">Les coordonnées de paiement vous sont transmises après inscription</h5>
+          <p style="color:var(--muted); font-size:.93rem; margin-bottom:24px; line-height:1.7;" data-en="Create your account for free. Once registered, payment instructions appear directly in your personal space.">
+            Créez votre compte gratuitement. Une fois inscrit, les instructions de paiement
+            apparaissent directement dans votre espace personnel.
           </p>
+          <a href="{{ url_for('inscription') }}" class="btn-price" style="max-width:280px; margin:0 auto;" data-en="Create my account →">
+            Créer mon compte →
+          </a>
         </div>
       </div>
     </div>
@@ -444,29 +398,29 @@
 <section id="comment">
   <div class="container">
     <div class="section-header">
-      <span class="section-chip">Processus</span>
-      <h2>En 3 étapes simples</h2>
+      <span class="section-chip" data-en="HOW IT WORKS">Processus</span>
+      <h2 data-en="In 3 simple steps">En 3 étapes simples</h2>
     </div>
     <div class="row g-4">
       <div class="col-md-4">
         <div class="step-card">
           <div class="step-num-big">1</div>
-          <h5>Créez votre compte</h5>
-          <p>Inscrivez-vous en 2 minutes avec votre email. Renseignez un moyen de contact pour faciliter l'activation.</p>
+          <h5 data-en="Create your account">Créez votre compte</h5>
+          <p data-en="Register in 2 minutes with your email. Enter a contact method to help the admin activate your account.">Inscrivez-vous en 2 minutes avec votre email. Renseignez un moyen de contact pour faciliter l'activation.</p>
         </div>
       </div>
       <div class="col-md-4">
         <div class="step-card">
           <div class="step-num-big">2</div>
-          <h5>Envoyez le paiement</h5>
-          <p>Effectuez un virement au montant du forfait choisi. Pensez à mettre votre prénom en commentaire.</p>
+          <h5 data-en="Send the payment">Envoyez le paiement</h5>
+          <p data-en="Transfer the amount for your chosen plan. Remember to include your first name in the payment note.">Effectuez un virement au montant du forfait choisi. Pensez à mettre votre prénom en commentaire.</p>
         </div>
       </div>
       <div class="col-md-4">
         <div class="step-card">
           <div class="step-num-big">3</div>
-          <h5>Recevez votre config</h5>
-          <p>L'administrateur active votre accès et vous envoie la configuration VPN pour vos appareils. Connexion en 5 min.</p>
+          <h5 data-en="Receive your config">Recevez votre config</h5>
+          <p data-en="The admin activates your access and sends you the VPN config for your devices. Connected in 5 min.">L'administrateur active votre accès et vous envoie la configuration VPN pour vos appareils. Connexion en 5 min.</p>
         </div>
       </div>
     </div>
@@ -476,11 +430,11 @@
 <!-- ── CTA Final ── -->
 <section id="cta-final">
   <div class="container">
-    <h2>Prêt à naviguer librement ?</h2>
-    <p>Rejoignez les abonnés qui accèdent à Instagram, ChatGPT et YouTube sans restriction — dès aujourd'hui.</p>
+    <h2 data-en="Ready to browse freely?">Prêt à naviguer librement ?</h2>
+    <p data-en="Join subscribers who access Instagram, ChatGPT and YouTube without restrictions — starting today.">Rejoignez les abonnés qui accèdent à Instagram, ChatGPT et YouTube sans restriction — dès aujourd'hui.</p>
     <div class="d-flex gap-3 justify-content-center flex-wrap">
-      <a href="{{ url_for('inscription') }}" class="btn-hero-primary">Demander l'accès →</a>
-      <a href="{{ url_for('guide') }}" class="btn-hero-secondary">Voir le guide</a>
+      <a href="{{ url_for('inscription') }}" class="btn-hero-primary" data-en="Get Access →">Demander l'accès →</a>
+      <a href="{{ url_for('guide') }}" class="btn-hero-secondary" data-en="View guide">Voir le guide</a>
     </div>
   </div>
 </section>
@@ -492,15 +446,39 @@
       © <span id="yr"></span> VPN Privé — Service personnel
     </p>
     <div>
-      <a href="#tarifs">Tarifs</a>
+      <a href="{{ url_for('inscription') }}" data-en="Plans">Forfaits</a>
       <a href="{{ url_for('guide') }}">Guide</a>
-      <a href="{{ url_for('login') }}">Connexion</a>
-      <a href="{{ url_for('inscription') }}">S'inscrire</a>
+      <a href="{{ url_for('login') }}" data-en="Log in">Connexion</a>
+      <a href="{{ url_for('inscription') }}" data-en="Sign up">S'inscrire</a>
     </div>
   </div>
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>document.getElementById('yr').textContent = new Date().getFullYear();</script>
+<script>
+(function() {
+  function setLang(lang) {
+    localStorage.setItem('vpn_lang', lang);
+    document.querySelectorAll('[data-en]').forEach(function(el) {
+      if (lang === 'en') {
+        if (!el.getAttribute('data-fr')) el.setAttribute('data-fr', el.innerHTML);
+        el.innerHTML = el.getAttribute('data-en');
+      } else {
+        var fr = el.getAttribute('data-fr');
+        if (fr) el.innerHTML = fr;
+      }
+    });
+    document.querySelectorAll('.btn-lang').forEach(function(b) {
+      b.style.fontWeight = b.dataset.lang === lang ? '800' : '400';
+      b.style.opacity   = b.dataset.lang === lang ? '1'   : '0.5';
+    });
+  }
+  window.setLang = setLang;
+  document.addEventListener('DOMContentLoaded', function() {
+    setLang(localStorage.getItem('vpn_lang') || 'fr');
+  });
+})();
+</script>
 </body>
 </html>
