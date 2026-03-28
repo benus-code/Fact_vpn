@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
 <title>VPN Privé — Accès sécurisé</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
 <style>
@@ -73,7 +74,7 @@
   }
   .btn-hero-primary:hover { background: var(--red-dk); color: #fff; transform: translateY(-1px); }
   .btn-hero-secondary {
-    background: transparent; color: #ccc; border: 1px solid rgba(255,255,255,.2);
+    background: transparent; color: ccc; border: 1px solid rgba(255,255,255,.2);
     padding: 13px 32px; border-radius: 10px; font-size: 1rem; font-weight: 600;
     text-decoration: none; transition: all .2s;
   }
@@ -235,7 +236,7 @@
     <!-- Desktop links -->
     <div class="nav-links d-none d-lg-flex">
       <a href="#services" class="nav-anchor">Services</a>
-      <a href="#tarifs" class="nav-anchor">Tarifs</a>
+      <a href="{{ url_for('inscription') }}" class="nav-anchor" data-en="Plans">Forfaits</a>
       <a href="{{ url_for('guide') }}" class="nav-anchor">Guide</a>
       <div style="width:1px; height:20px; background:rgba(255,255,255,.1); margin:0 4px;"></div>
       <a href="{{ url_for('login') }}" class="btn-nav-outline">Connexion</a>
@@ -255,7 +256,7 @@
     <div class="container" style="padding: 12px 16px 16px; border-top: 1px solid rgba(255,255,255,.08); margin-top:12px;">
       <div class="d-flex flex-column gap-2">
         <a href="#services" class="nav-anchor" data-bs-toggle="collapse" data-bs-target="#mobileMenu">Services</a>
-        <a href="#tarifs" class="nav-anchor" data-bs-toggle="collapse" data-bs-target="#mobileMenu">Tarifs</a>
+        <a href="{{ url_for('inscription') }}" class="nav-anchor" data-bs-toggle="collapse" data-bs-target="#mobileMenu" data-en="Plans">Forfaits</a>
         <a href="{{ url_for('guide') }}" class="nav-anchor">Guide d'installation</a>
         <a href="{{ url_for('login') }}" class="nav-anchor">Connexion</a>
       </div>
@@ -266,20 +267,18 @@
 <!-- ── Hero ── -->
 <section class="hero">
   <div class="container">
-    <span class="tag">✦ VPN Personnel &amp; Privé</span>
-    <h1>Naviguez librement,<br><span class="accent">sans aucune limite</span></h1>
-    <p class="sub">
-      Accédez à tous les services bloqués — Instagram, YouTube sans pub, ChatGPT.
-      Vos apps russes continuent de fonctionner normalement.
-      Configuration assistée incluse.
+    <span class="tag" data-en="Private &amp; Secure Connection">✦ Connexion Privée &amp; Sécurisée</span>
+    <h1><span data-en="Your connection,">Votre connexion,</span><br><span class="accent" data-en="fully secured">entièrement sécurisée</span></h1>
+    <p class="sub" data-en="Access your usual services — Instagram, Uninterrupted YouTube, ChatGPT. Your Russian apps keep working as usual. Guided setup included.">
+      Accédez à vos services habituels.
     </p>
     <div class="hero-cta">
       <a href="{{ url_for('inscription') }}" class="btn-hero-primary">Demander l'accès →</a>
-      <a href="#tarifs" class="btn-hero-secondary">Voir les tarifs</a>
+      <a href="{{ url_for('inscription') }}" class="btn-hero-secondary" data-en="See the plans">Voir les forfaits</a>
     </div>
     <div class="hero-stats">
       <div class="stat"><div class="num">100%</div><div class="label">Chiffré</div></div>
-      <div class="stat"><div class="num">0</div><div class="label">Logs conservés</div></div>
+      <div class="stat"><div class="num">24h</div><div class="label" data-en="Activation">Activation</div></div>
       <div class="stat"><div class="num">5 min</div><div class="label">Pour commencer</div></div>
     </div>
   </div>
@@ -289,22 +288,15 @@
 <section id="services">
   <div class="container">
     <div class="section-header">
-      <span class="section-chip">Ce qui est débloqué</span>
-      <h2>Tous vos services préférés,<br>enfin accessibles</h2>
-      <p>La connexion est optimisée : les apps russes continuent de fonctionner normalement
-         pendant que les services internationaux passent par le tunnel sécurisé.</p>
+      <span class="section-chip" data-en="What's accessible">Ce qui est accessible</span>
+      <h2><span data-en="All your favorite services,">Tous vos services préférés,</span><br><span data-en="available everywhere">disponibles partout</span></h2>
+      <p data-en="The connection is optimized: Russian apps keep working normally while international services go through the secure connection.">
+        Votre connexion est optimisée.</p>
     </div>
     <div class="row g-4">
       <div class="col-md-4">
         <div class="service-group-card">
-          <p class="g-title">Réseaux sociaux</p>
-          <div>
-            <span class="service-pill"><span class="pill-dot"></span>Instagram</span>
-            <span class="service-pill"><span class="pill-dot"></span>Facebook</span>
-            <span class="service-pill"><span class="pill-dot"></span>WhatsApp</span>
-            <span class="service-pill"><span class="pill-dot"></span>Canvas</span>
-            <span class="service-pill"><span class="pill-dot"></span>Twitter / X</span>
-          </div>
+          <p class="g-title">Réseaux sociaux Accessibles</p>
         </div>
       </div>
       <div class="col-md-4">
@@ -323,7 +315,7 @@
         <div class="service-group-card">
           <p class="g-title">Streaming &amp; Web</p>
           <div>
-            <span class="service-pill"><span class="pill-dot"></span>YouTube sans pubs</span>
+            <span class="service-pill"><span class="pill-dot"></span><span data-en="Uninterrupted YouTube">YouTube en continu</span></span>
             <span class="service-pill"><span class="pill-dot"></span>Sites internationaux</span>
             <span class="service-pill"><span class="pill-dot"></span>Plateformes news</span>
             <span class="service-pill"><span class="pill-dot"></span>Spotify</span>
@@ -341,23 +333,47 @@
 <section id="tarifs">
   <div class="container">
     <div class="section-header">
-      <span class="section-chip">Tarifs</span>
-      <h2>Choisissez votre forfait</h2>
-      <p>Pas de frais cachés. Pas d'engagement. Activé sous 24h.</p>
+      <span class="section-chip" data-en="Plans">Forfaits</span>
+      <h2 data-en="Create your account to continue">Créez votre compte pour poursuivre</h2>
+      <p data-en="Plan details and payment instructions appear in your personal area after sign-up. No hidden fees. Activation within 24 hours.">
+        Le détail des forfaits et les instructions de paiement figurent dans votre espace après inscription.
+        Pas de frais cachés, pas d'engagement. Activation sous 24 h.
+      </p>
     </div>
 
-    <!-- 3 plans -->
+    <div class="row justify-content-center mb-5">
+      <div class="col-lg-6">
+        <div class="price-card-new h-100" style="text-align:center; padding: 48px 32px;">
+          <div style="font-size:2.4rem; margin-bottom:16px;">🔐</div>
+          <h3 style="font-family:inherit; font-weight:800; color:#fff; margin-bottom:12px;"
+              data-en="Plans available after registration">
+            Forfaits disponibles après inscription
+          </h3>
+          <p style="color:var(--muted); font-size:.95rem; line-height:1.7; margin-bottom:28px;"
+             data-en="Create your free account to see available plans and payment details.">
+            Créez votre compte gratuitement pour consulter les forfaits disponibles
+            et les instructions de paiement.
+          </p>
+          <a href="{{ url_for('inscription') }}" class="btn-price"
+             data-en="See the plans →">
+            Voir les forfaits →
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <div hidden aria-hidden="true">
+    <!-- Anciennes cartes tarifaires (conservées dans le DOM, non visibles publiquement) -->
     <div class="row g-4 align-items-stretch mb-5">
 
-      <!-- Mobile -->
       <div class="col-md-4">
         <div class="price-card h-100">
           <p class="plan-name">📱 Forfait Mobile</p>
           <div class="price-amount"><sup>₽</sup>149</div>
           <div class="price-period">par mois · Android &amp; iPhone</div>
           <ul class="price-features">
-            <li><span class="check">✓</span> Accès aux services bloqués</li>
-            <li><span class="check">✓</span> YouTube sans publicités</li>
+            <li><span class="check">✓</span> Accès aux services internationaux</li>
+            <li><span class="check">✓</span> YouTube en continu</li>
             <li><span class="check">✓</span> Streaming optimisé</li>
             <li><span class="check">✓</span> Aide à la configuration</li>
           </ul>
@@ -365,14 +381,13 @@
         </div>
       </div>
 
-      <!-- Computer -->
       <div class="col-md-4">
         <div class="price-card h-100">
           <p class="plan-name">💻 Forfait Ordinateur</p>
           <div class="price-amount"><sup>₽</sup>249</div>
           <div class="price-period">par mois · Windows &amp; Mac</div>
           <ul class="price-features">
-            <li><span class="check">✓</span> Accès aux services bloqués</li>
+            <li><span class="check">✓</span> Accès aux services internationaux</li>
             <li><span class="check">✓</span> Streaming optimisé</li>
             <li><span class="check">✓</span> Connexion chiffrée sécurisée</li>
             <li><span class="check">✓</span> Configuration manuelle assistée</li>
@@ -381,7 +396,6 @@
         </div>
       </div>
 
-      <!-- Full — featured -->
       <div class="col-md-4">
         <div class="price-card-new h-100">
           <span class="badge-pop">✦ Le plus populaire</span>
@@ -389,8 +403,8 @@
           <div class="price-amount"><sup>₽</sup>349</div>
           <div class="price-period">par mois · Téléphone + Ordinateur</div>
           <ul class="price-features">
-            <li><span class="check">✓</span> Accès aux services bloqués</li>
-            <li><span class="check">✓</span> YouTube sans publicités</li>
+            <li><span class="check">✓</span> Accès aux services internationaux</li>
+            <li><span class="check">✓</span> YouTube en continu</li>
             <li><span class="check">✓</span> Split tunneling — apps russes non affectées</li>
             <li><span class="check">✓</span> Support prioritaire &amp; configuration</li>
           </ul>
@@ -401,6 +415,7 @@
         </div>
       </div>
 
+    </div>
     </div>
 
     <!-- Payment info below the cards -->
@@ -477,7 +492,8 @@
 <section id="cta-final">
   <div class="container">
     <h2>Prêt à naviguer librement ?</h2>
-    <p>Rejoignez les abonnés qui accèdent à Instagram, ChatGPT et YouTube sans restriction — dès aujourd'hui.</p>
+    <p data-en="Join subscribers who access Instagram, ChatGPT, and Uninterrupted YouTube — starting today.">
+      Rejoignez les abonnés qui accèdent à Instagram, ChatGPT et YouTube en continu — dès aujourd'hui.</p>
     <div class="d-flex gap-3 justify-content-center flex-wrap">
       <a href="{{ url_for('inscription') }}" class="btn-hero-primary">Demander l'accès →</a>
       <a href="{{ url_for('guide') }}" class="btn-hero-secondary">Voir le guide</a>
@@ -492,7 +508,7 @@
       © <span id="yr"></span> VPN Privé — Service personnel
     </p>
     <div>
-      <a href="#tarifs">Tarifs</a>
+      <a href="{{ url_for('inscription') }}" data-en="Plans">Forfaits</a>
       <a href="{{ url_for('guide') }}">Guide</a>
       <a href="{{ url_for('login') }}">Connexion</a>
       <a href="{{ url_for('inscription') }}">S'inscrire</a>
