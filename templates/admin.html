@@ -156,10 +156,28 @@
              placeholder="123456:ABC-DEFxxxxx" autocomplete="off">
     </div>
     <div class="col-md-3">
-      <label class="form-label small">Chat ID</label>
+      <label class="form-label small">Chat ID <span class="text-muted">(notifications admin)</span></label>
       <input type="text" name="telegram_chat_id" class="form-control form-control-sm"
              value="{{ settings.telegram_chat_id }}"
              placeholder="ex: 123456789 ou -100xxxxxxx">
+    </div>
+    <div class="col-12 mt-1">
+      <hr class="my-2">
+      <p class="small text-muted mb-2">
+        📡 Canal de statut public — <code>status_bot.py</code> publie les incidents ici et accepte vos commandes <code>/statut_ok</code>, <code>/statut_panne</code>, etc.
+      </p>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label small">Canal de statut <span class="text-muted">(ID ou @handle)</span></label>
+      <input type="text" name="telegram_channel_id" class="form-control form-control-sm"
+             value="{{ settings.telegram_channel_id }}"
+             placeholder="ex: @sp_network_status ou -100xxxxxxx">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label small">Votre ID Telegram admin</label>
+      <input type="text" name="admin_telegram_id" class="form-control form-control-sm"
+             value="{{ settings.admin_telegram_id }}"
+             placeholder="ex: 123456789 (chiffres uniquement)">
     </div>
     <div class="col-12 mt-1">
       <hr class="my-2">

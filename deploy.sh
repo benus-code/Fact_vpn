@@ -17,6 +17,8 @@ echo ""
 cp "$REPO_DIR/app.py"             "$INSTALL_DIR/app.py"
 cp "$REPO_DIR/cron_expire.py"     "$INSTALL_DIR/cron_expire.py"
 cp "$REPO_DIR/restore_iptables.py" "$INSTALL_DIR/restore_iptables.py"
+cp "$REPO_DIR/status_bot.py"      "$INSTALL_DIR/status_bot.py"
+cp "$REPO_DIR/monitoring_vpn.py"  "$INSTALL_DIR/monitoring_vpn.py"
 
 # 2. Copier les templates
 mkdir -p "$INSTALL_DIR/templates"
@@ -25,8 +27,16 @@ cp "$REPO_DIR/templates/"*.html   "$INSTALL_DIR/templates/"
 # 3. Mettre à jour les dépendances Python si requirements.txt a changé
 "$INSTALL_DIR/venv/bin/pip" install -q -r "$REPO_DIR/requirements.txt"
 
-# 4. Redémarrer le service
+# 4. Redémarrer le service principal
 systemctl restart vpn-billing
+
+# 5. Redémarrer les services canal de statut (s'ils sont installés)
+for svc in sp-status-bot sp-monitoring; do
+    if systemctl is-enabled "$svc" &>/dev/null; then
+        systemctl restart "$svc"
+        echo "🔄 $svc redémarré"
+    fi
+done
 
 echo ""
 echo "✅ Mise à jour terminée !"

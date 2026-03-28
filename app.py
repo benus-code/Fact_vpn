@@ -38,6 +38,8 @@ SETTINGS_DEFAULTS = {
     "reference":         "VPN + твоё имя",
     "telegram_bot_token": "",
     "telegram_chat_id":   "",
+    "telegram_channel_id": "",  # ID du canal de statut public (ex: @sp_network_status ou -100xxxx)
+    "admin_telegram_id":   "",  # ID Telegram de l'admin (pour les commandes /statut_*)
     "support_telegram":   "",   # ex: https://t.me/tonpseudo
     "support_whatsapp":   "",   # ex: +7 996 637-23-58
     "smtp_email":         "benuslavision@gmail.com",
@@ -618,6 +620,7 @@ def admin_update_settings():
     db = get_db()
     for key in ["beneficiaire", "telephone", "banque", "montant", "reference",
                 "telegram_bot_token", "telegram_chat_id",
+                "telegram_channel_id", "admin_telegram_id",
                 "support_telegram", "support_whatsapp",
                 "smtp_email", "smtp_password", "site_url"]:
         value = request.form.get(key, "").strip()
