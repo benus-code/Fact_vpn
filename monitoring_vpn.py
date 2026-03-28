@@ -53,8 +53,19 @@ def save_state(state):
 
 # ─── Vérification service ──────────────────────────────────────────────────────
 def check_service():
-    """Retourne True si le service est actif, False sinon."""
+    """Retourne True si le conteneur Docker amnezia-awg tourne, False sinon."""
     try:
+        # Essai 1 : conteneur Docker
+        result = subprocess.run(
+            ["docker", "inspect", "--format={{.State.Status}}", SERVICE_NAME],
+            capture_output=True, text=True, timeout=10
+        )
+        if result.returncode == 0:
+            return result.stdout.strip() == "running"
+    except Exception:
+        pass
+    try:
+        # Essai 2 : service systemd (fallback)
         result = subprocess.run(
             ["systemctl", "is-active", SERVICE_NAME],
             capture_output=True, text=True, timeout=10
