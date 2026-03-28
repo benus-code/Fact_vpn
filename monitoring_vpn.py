@@ -21,7 +21,7 @@ import urllib.error
 from datetime import datetime
 
 # ─── Config ────────────────────────────────────────────────────────────────────
-DB_PATH      = os.path.join(os.path.dirname(__file__), "billing.db")
+DB_PATH      = os.path.join(os.path.dirname(__file__), "vpn_billing.db")
 STATE_FILE   = os.path.join(os.path.dirname(__file__), "monitoring_state.json")
 SERVICE_NAME = "amnezia-awg"
 CHECK_INTERVAL = 300  # secondes (5 minutes)

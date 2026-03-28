@@ -30,7 +30,7 @@ import urllib.error
 from datetime import datetime
 
 # ─── Config ────────────────────────────────────────────────────────────────────
-DB_PATH    = os.path.join(os.path.dirname(__file__), "billing.db")
+DB_PATH    = os.path.join(os.path.dirname(__file__), "vpn_billing.db")
 STATE_FILE = os.path.join(os.path.dirname(__file__), "monitoring_state.json")
 
 STATUTS = {
