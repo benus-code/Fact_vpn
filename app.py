@@ -521,6 +521,37 @@ def changer_mdp():
         flash("Mot de passe mis à jour avec succès.", "success")
     return redirect(url_for("dashboard"))
 
+@app.route("/admin/ip/rechercher")
+@login_required
+@admin_required
+def admin_rechercher_ip():
+    ip = request.args.get("ip", "").strip()
+    if not ip:
+        flash("Entrez une adresse IP à rechercher.", "warning")
+        return redirect(url_for("admin_panel"))
+    db   = get_db()
+    peer = db.execute("""
+        SELECT p.*, u.id as uid, u.nom, u.email,
+               COALESCE(a.statut, 'inconnu') as abo_statut
+        FROM peers p
+        LEFT JOIN users u ON u.id = p.user_id
+        LEFT JOIN abonnements a ON a.user_id = p.user_id
+        WHERE p.ip_vpn = ? OR p.ip_vpn = ?
+    """, (ip, ip.split("/")[0])).fetchone()
+    if peer:
+        flash(
+            f"IP {peer['ip_vpn']} → appareil «{peer['label']}» "
+            f"({'Actif' if peer['actif'] else 'Suspendu'}) "
+            f"— abonné : {peer['nom'] or 'user supprimé'} "
+            f"({peer['abo_statut']})",
+            "info"
+        )
+        if peer["uid"]:
+            return redirect(url_for("admin_user_detail", uid=peer["uid"]))
+    else:
+        flash(f"Aucun appareil trouvé pour l'IP {ip}.", "danger")
+    return redirect(url_for("admin_panel"))
+
 # ─── Panel Admin ──────────────────────────────────────────────────────────────
 @app.route("/admin")
 @login_required
