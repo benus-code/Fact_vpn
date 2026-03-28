@@ -164,10 +164,12 @@
                 <button class="btn btn-outline-success btn-sm py-0 px-2">Réactiver</button>
               </form>
               {% endif %}
-              {% if p.vpn_type == 'pivpn' %}
-              <a href="{{ url_for('admin_peer_config', peer_id=p.id) }}"
+              <a href="{{ url_for('admin_telecharger_config', peer_id=p.id) }}"
                  class="btn btn-outline-info btn-sm py-0 px-2" title="Télécharger la config">⬇ .conf</a>
-              {% endif %}
+              <form method="POST" action="{{ url_for('admin_envoyer_config_email', peer_id=p.id) }}">
+                <button class="btn btn-outline-primary btn-sm py-0 px-2" title="Envoyer config par email"
+                  {% if not p.config_data %}disabled title="Aucune config sauvegardée"{% endif %}>📧</button>
+              </form>
               <form method="POST" action="{{ url_for('admin_supprimer_peer', peer_id=p.id) }}"
                     onsubmit="return confirm('Supprimer {{ p.label }} ({{ p.ip_vpn }}) définitivement ?')">
                 <button class="btn btn-outline-danger btn-sm py-0 px-2">Supprimer</button>
@@ -179,6 +181,35 @@
       </table>
       {% else %}
       <p class="text-muted small">Aucun appareil enregistré pour cet utilisateur.</p>
+      {% endif %}
+
+      {# ── Config par appareil (sauvegarder / renvoyer) ── #}
+      {% if peers %}
+      <hr>
+      <h6 class="mb-2">📁 Configs sauvegardées</h6>
+      <p class="text-muted small mb-2">Collez la config de chaque appareil pour pouvoir la renvoyer au client si besoin (utile quand un client réinstalle l'app).</p>
+      {% for p in peers %}
+      <div class="mb-3 p-3" style="background:#f8f9fc; border-radius:10px;">
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          <strong style="font-size:.9rem;">{{ p.label }} <code class="text-muted">{{ p.ip_vpn }}</code></strong>
+          {% if p.config_data %}
+            <span class="badge bg-success">Config enregistrée ✅</span>
+          {% else %}
+            <span class="badge bg-secondary">Aucune config</span>
+          {% endif %}
+        </div>
+        <form method="POST" action="{{ url_for('admin_sauvegarder_config') }}">
+          <input type="hidden" name="peer_id" value="{{ p.id }}">
+          <input type="hidden" name="user_id" value="{{ user.id }}">
+          <textarea name="config_data" class="form-control form-control-sm mb-2"
+                    rows="3" placeholder="Collez ici la config .conf de cet appareil..."
+                    style="font-family:monospace; font-size:.78rem;">{{ p.config_data or '' }}</textarea>
+          <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-success">💾 Sauvegarder</button>
+          </div>
+        </form>
+      </div>
+      {% endfor %}
       {% endif %}
 
       {# ── Formulaire ajout appareil ── #}

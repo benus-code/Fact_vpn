@@ -9,6 +9,33 @@
 </nav>
 <h4 class="fw-bold mb-4">⚙️ Panel Administrateur</h4>
 
+{# ── IPs orphelines ── #}
+{% if peers_orphelins %}
+<div class="card p-4 mb-4 border-danger">
+  <h5 class="fw-bold text-danger mb-1">⚠ IPs bloquées / orphelines ({{ peers_orphelins|length }})</h5>
+  <p class="text-muted small mb-3">Ces IPs sont réservées par des peers dont le compte est banni ou supprimé. Libérez-les pour les réutiliser.</p>
+  <table class="table table-sm">
+    <thead><tr><th>IP VPN</th><th>Label</th><th>Utilisateur</th><th>Raison</th><th>Action</th></tr></thead>
+    <tbody>
+      {% for p in peers_orphelins %}
+      <tr>
+        <td><code>{{ p.ip_vpn }}</code></td>
+        <td>{{ p.label }}</td>
+        <td>{{ p.nom or '—' }}</td>
+        <td>{% if not p.nom %}<span class="badge bg-secondary">User supprimé</span>{% else %}<span class="badge bg-danger">Banni</span>{% endif %}</td>
+        <td>
+          <form method="POST" action="{{ url_for('admin_liberer_peer', peer_id=p.id) }}"
+                onsubmit="return confirm('Libérer l\'IP {{ p.ip_vpn }} ?')">
+            <button class="btn btn-sm btn-danger py-0 px-2">🗑 Libérer l'IP</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
 {# ── Demandes d'inscription en attente ── #}
 {% if demandes %}
 <div class="card p-4 mb-4 border-info">
@@ -161,10 +188,19 @@
       <button class="btn btn-sm btn-success w-100">💾 Enregistrer</button>
     </div>
   </form>
-  <form method="POST" action="{{ url_for('admin_test_email') }}" class="mt-2">
-    <button class="btn btn-sm btn-outline-secondary">🔧 Tester l'envoi d'email</button>
-    <span class="text-muted ms-2" style="font-size:.8rem;">Envoie un email de test à l'adresse Gmail configurée</span>
-  </form>
+  <div class="d-flex align-items-center gap-3 mt-2 flex-wrap">
+    <form method="POST" action="{{ url_for('admin_test_email') }}">
+      <button class="btn btn-sm btn-outline-secondary">🔧 Tester l'envoi d'email</button>
+    </form>
+    <form method="POST" action="{{ url_for('admin_run_cron') }}">
+      <button class="btn btn-sm btn-outline-info">▶ Lancer rappels J-3 maintenant</button>
+    </form>
+    {% if smtp_ok %}
+      <span class="badge bg-success">SMTP ✅ configuré</span>
+    {% else %}
+      <span class="badge bg-danger">SMTP ⚠ non configuré — les rappels ne partent pas</span>
+    {% endif %}
+  </div>
 </div>
 
 {# ── Diffuser un message ── #}

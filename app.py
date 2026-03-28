@@ -108,6 +108,12 @@ def init_app_db():
     except sqlite3.OperationalError:
         pass
 
+    # Colonne config_data sur peers (stockage de la config VPN pour renvoi)
+    try:
+        conn.execute("ALTER TABLE peers ADD COLUMN config_data TEXT")
+    except sqlite3.OperationalError:
+        pass
+
     # Table pour les tokens de réinitialisation de mot de passe
     conn.execute("""
         CREATE TABLE IF NOT EXISTS password_resets (
@@ -550,10 +556,22 @@ def admin_panel():
         ORDER BY u.created_at DESC
     """).fetchall()
 
+    peers_orphelins = db.execute("""
+        SELECT p.*, u.nom, u.is_banned
+        FROM peers p
+        LEFT JOIN users u ON u.id = p.user_id
+        WHERE u.id IS NULL OR u.is_banned = 1
+    """).fetchall()
+
+    s = get_settings()
+    smtp_ok = bool(s.get('smtp_email', '').strip() and s.get('smtp_password', '').strip())
+
     return render_template("admin.html",
         users=users,
         paiements_en_attente=paiements_en_attente,
         demandes=demandes,
+        peers_orphelins=peers_orphelins,
+        smtp_ok=smtp_ok,
         settings=get_settings(),
         today=date.today()
     )
@@ -637,6 +655,65 @@ def admin_peer_config(peer_id):
         headers={"Content-Disposition": f"attachment; filename={peer['label']}.conf"}
     )
 
+@app.route("/admin/peer/config/sauvegarder", methods=["POST"])
+@login_required
+@admin_required
+def admin_sauvegarder_config():
+    peer_id     = int(request.form["peer_id"])
+    config_data = request.form.get("config_data", "").strip()
+    uid         = int(request.form["user_id"])
+    db = get_db()
+    db.execute("UPDATE peers SET config_data = ? WHERE id = ?", (config_data or None, peer_id))
+    db.commit()
+    flash("✅ Config sauvegardée.", "success")
+    return redirect(url_for("admin_user_detail", uid=uid))
+
+@app.route("/admin/peer/config/email/<int:peer_id>", methods=["POST"])
+@login_required
+@admin_required
+def admin_envoyer_config_email(peer_id):
+    db   = get_db()
+    peer = db.execute("SELECT * FROM peers WHERE id = ?", (peer_id,)).fetchone()
+    if not peer or not peer["config_data"]:
+        flash("Aucune config sauvegardée pour cet appareil.", "danger")
+        return redirect(request.referrer or url_for("admin_panel"))
+    user = db.execute("SELECT * FROM users WHERE id = ?", (peer["user_id"],)).fetchone()
+    html = (
+        f"<div style='font-family:sans-serif;max-width:600px;margin:0 auto'>"
+        f"<h2 style='color:#e94560'>📱 Votre configuration VPN</h2>"
+        f"<p>Bonjour <strong>{user['nom']}</strong>,</p>"
+        f"<p>Voici la configuration pour votre appareil <strong>{peer['label']}</strong> :</p>"
+        f"<pre style='background:#1a1a2e;color:#e0e0e0;padding:16px;border-radius:8px;"
+        f"font-size:.85rem;overflow-x:auto'>{peer['config_data']}</pre>"
+        f"<p style='color:#888;font-size:.85rem'>Importez ce fichier dans votre application VPN.</p>"
+        f"<hr><small style='color:#888'>VPN Privé — Service personnel</small></div>"
+    )
+    ok, err = send_email(user["email"], f"Votre config VPN — {peer['label']}", html)
+    if ok:
+        flash(f"✅ Config envoyée à {user['email']}.", "success")
+    else:
+        flash(f"⚠ Échec envoi email : {err}", "danger")
+    return redirect(url_for("admin_user_detail", uid=user["id"]))
+
+@app.route("/admin/peer/config/telecharger/<int:peer_id>")
+@login_required
+@admin_required
+def admin_telecharger_config(peer_id):
+    db   = get_db()
+    peer = db.execute("SELECT * FROM peers WHERE id = ?", (peer_id,)).fetchone()
+    if peer and peer["config_data"]:
+        return Response(
+            peer["config_data"], mimetype="text/plain",
+            headers={"Content-Disposition": f"attachment; filename={peer['label']}.conf"}
+        )
+    if peer and peer["vpn_type"] == "pivpn":
+        config = pivpn_get_config(peer["label"])
+        if config:
+            return Response(config, mimetype="text/plain",
+                headers={"Content-Disposition": f"attachment; filename={peer['label']}.conf"})
+    flash("Aucune config disponible pour cet appareil.", "danger")
+    return redirect(request.referrer or url_for("admin_panel"))
+
 @app.route("/admin/peer/ajouter", methods=["POST"])
 @login_required
 @admin_required
@@ -660,6 +737,19 @@ def admin_ajouter_peer():
     type_label = "PiVPN (PC)" if vpn_type == "pivpn" else "Amnezia (mobile)"
     flash(f"✅ Appareil « {label} » ({ip_vpn}) [{type_label}] ajouté pour {user['nom']}.", "success")
     return redirect(url_for("admin_user_detail", uid=uid))
+
+@app.route("/admin/peer/liberer/<int:peer_id>", methods=["POST"])
+@login_required
+@admin_required
+def admin_liberer_peer(peer_id):
+    db   = get_db()
+    peer = db.execute("SELECT * FROM peers WHERE id = ?", (peer_id,)).fetchone()
+    if peer:
+        unblock_peer(peer)
+        db.execute("DELETE FROM peers WHERE id = ?", (peer_id,))
+        db.commit()
+        flash(f"✅ IP {peer['ip_vpn']} ({peer['label']}) libérée.", "success")
+    return redirect(url_for("admin_panel"))
 
 @app.route("/admin/peer/supprimer/<int:peer_id>", methods=["POST"])
 @login_required
@@ -860,6 +950,22 @@ def admin_modifier_abo():
     flash("Abonnement mis à jour.", "success")
     return redirect(url_for("admin_user_detail", uid=uid))
 
+@app.route("/admin/cron/run", methods=["POST"])
+@login_required
+@admin_required
+def admin_run_cron():
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["python3", "/opt/vpn-billing/cron_expire.py"],
+            capture_output=True, text=True, timeout=60
+        )
+        output = (result.stdout + result.stderr).strip()
+        flash(f"✅ Cron exécuté :\n{output or 'Aucune sortie.'}", "success")
+    except Exception as e:
+        flash(f"⚠ Erreur cron : {e}", "danger")
+    return redirect(url_for("admin_panel"))
+
 @app.route("/admin/broadcast", methods=["POST"])
 @login_required
 @admin_required
@@ -871,8 +977,13 @@ def admin_broadcast():
         flash("Message vide.", "danger")
         return redirect(url_for("admin_panel"))
     db = get_db()
-    users = db.execute("SELECT * FROM users WHERE is_admin = 0").fetchall()
-    sent_email = 0
+    users = db.execute("""
+        SELECT u.* FROM users u
+        JOIN abonnements a ON a.user_id = u.id
+        WHERE u.is_admin = 0 AND u.is_banned = 0
+          AND a.statut = 'actif'
+    """).fetchall()
+    sent_email, failed_email = 0, 0
     for u in users:
         if channel in ("email", "both"):
             html = (
@@ -884,9 +995,14 @@ def admin_broadcast():
             ok, _ = send_email(u["email"], subject, html)
             if ok:
                 sent_email += 1
+            else:
+                failed_email += 1
     if channel in ("telegram", "both"):
         notify_telegram(f"📢 <b>Broadcast</b>\n{message}")
-    flash(f"✅ Envoyé à {sent_email} abonné(s) par email.", "success")
+    msg = f"✅ {sent_email} envoyé(s)"
+    if failed_email:
+        msg += f", ⚠ {failed_email} échec(s) (email invalide ou SMTP)"
+    flash(msg, "success" if sent_email else "warning")
     return redirect(url_for("admin_panel"))
 
 # ─── Run ──────────────────────────────────────────────────────────────────────
