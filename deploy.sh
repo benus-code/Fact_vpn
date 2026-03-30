@@ -19,6 +19,7 @@ cp "$REPO_DIR/cron_expire.py"     "$INSTALL_DIR/cron_expire.py"
 cp "$REPO_DIR/restore_iptables.py" "$INSTALL_DIR/restore_iptables.py"
 cp "$REPO_DIR/status_bot.py"      "$INSTALL_DIR/status_bot.py"
 cp "$REPO_DIR/monitoring_vpn.py"  "$INSTALL_DIR/monitoring_vpn.py"
+cp "$REPO_DIR/setup_reminder_timer.sh" "$INSTALL_DIR/setup_reminder_timer.sh" 2>/dev/null || true
 
 # 2. Copier les templates
 mkdir -p "$INSTALL_DIR/templates"
@@ -37,6 +38,12 @@ for svc in sp-status-bot sp-monitoring; do
         echo "🔄 $svc redémarré"
     fi
 done
+
+# Redémarrer le timer de rappels si installé
+if systemctl is-enabled renewal-reminder.timer &>/dev/null; then
+    systemctl restart renewal-reminder.timer
+    echo "🔄 renewal-reminder.timer redémarré"
+fi
 
 echo ""
 echo "✅ Mise à jour terminée !"
