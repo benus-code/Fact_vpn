@@ -42,8 +42,11 @@ SETTINGS_DEFAULTS = {
     "admin_telegram_id":   "",  # ID Telegram de l'admin (pour les commandes /statut_*)
     "support_telegram":   "",   # ex: https://t.me/tonpseudo
     "support_whatsapp":   "",   # ex: +7 996 637-23-58
-    "smtp_email":         "benuslavision@gmail.com",
-    "smtp_password":      "",   # Mot de passe d'application Gmail
+    "smtp_host":          "smtp-relay.brevo.com",
+    "smtp_port":          "587",
+    "smtp_username":      "",   # Login Brevo (ex: a3df2e001@smtp-brevo.com)
+    "smtp_email":         "benuslavision@gmail.com",  # Adresse d'expédition visible
+    "smtp_password":      "",   # Clé SMTP Brevo (ou mot de passe Gmail)
     "site_url":           "",   # ex: https://vpn.mondomaine.com (sans slash final)
 }
 
@@ -207,30 +210,33 @@ def notify_telegram(message):
         app.logger.warning(f"Telegram notify failed: {e}")
 
 def send_email(to_email, subject, body_html):
-    """Envoie via Gmail SMTP (port 587 STARTTLS). Ignore tout domaine .local* et les configs vides."""
+    """Envoie via SMTP (Brevo ou autre). Ignore tout domaine .local* et les configs vides."""
     if not to_email or '@' not in to_email:
         return False, "email invalide"
     domain = to_email.split('@', 1)[1].lower()
     if '.local' in domain or '.' not in domain:
         return False, "domaine .local ignoré"
-    s = get_settings()
-    addr = s.get('smtp_email', '').strip()
-    pwd  = s.get('smtp_password', '').strip()
-    if not addr or not pwd:
-        return False, "smtp_email ou smtp_password non configurés"
+    s        = get_settings()
+    host     = s.get('smtp_host', 'smtp-relay.brevo.com').strip() or 'smtp-relay.brevo.com'
+    port     = int(s.get('smtp_port', '587').strip() or 587)
+    login    = s.get('smtp_username', '').strip() or s.get('smtp_email', '').strip()
+    pwd      = s.get('smtp_password', '').strip()
+    from_addr = s.get('smtp_email', '').strip()
+    if not login or not pwd or not from_addr:
+        return False, "SMTP non configuré (login ou mot de passe manquant)"
     try:
         msg = MIMEMultipart('alternative')
         msg['Subject'] = subject
-        msg['From']    = f"VPN Privé <{addr}>"
+        msg['From']    = f"SP Network <{from_addr}>"
         msg['To']      = to_email
         msg.attach(MIMEText(body_html, 'html', 'utf-8'))
         ctx = ssl.create_default_context()
-        with smtplib.SMTP('smtp.gmail.com', 587, timeout=15) as srv:
+        with smtplib.SMTP(host, port, timeout=15) as srv:
             srv.ehlo()
             srv.starttls(context=ctx)
             srv.ehlo()
-            srv.login(addr, pwd)
-            srv.sendmail(addr, to_email, msg.as_string())
+            srv.login(login, pwd)
+            srv.sendmail(from_addr, to_email, msg.as_string())
         return True, "ok"
     except Exception as e:
         app.logger.error(f"send_email → {to_email}: {e}")
@@ -725,6 +731,7 @@ def admin_update_settings():
                 "telegram_bot_token", "telegram_chat_id",
                 "telegram_channel_id", "admin_telegram_id",
                 "support_telegram", "support_whatsapp",
+                "smtp_host", "smtp_port", "smtp_username",
                 "smtp_email", "smtp_password", "site_url"]:
         value = request.form.get(key, "").strip()
         db.execute(

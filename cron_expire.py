@@ -19,44 +19,55 @@ from datetime import date, timedelta
 DB_PATH   = "/opt/vpn-billing/vpn_billing.db"
 CONTAINER = "amnezia-awg"
 
-def send_reminder_email(conn, to_email, nom, date_fin_str):
-    """Envoie un email de rappel J-3. Lit les settings SMTP depuis la DB."""
+def get_smtp_settings(conn):
+    """Lit la config SMTP depuis la DB."""
+    keys = ["smtp_host", "smtp_port", "smtp_username", "smtp_email", "smtp_password"]
+    rows = conn.execute(
+        f"SELECT key, value FROM settings WHERE key IN ({','.join('?'*len(keys))})", keys
+    ).fetchall()
+    s = {r[0]: r[1].strip() for r in rows if r[1]}
+    return {
+        "host":       s.get("smtp_host", "smtp-relay.brevo.com") or "smtp-relay.brevo.com",
+        "port":       int(s.get("smtp_port", "587") or 587),
+        "login":      s.get("smtp_username") or s.get("smtp_email", ""),
+        "pwd":        s.get("smtp_password", ""),
+        "from_addr":  s.get("smtp_email", ""),
+    }
+
+def send_reminder_email(conn, to_email, nom, date_fin_str, subject=None, html_body=None):
+    """Envoie un email de rappel. Lit les settings SMTP depuis la DB."""
     if not to_email or '@' not in to_email:
         return False
     domain = to_email.split('@', 1)[1].lower()
     if '.local' in domain or '.' not in domain:
         return False
-    row = conn.execute(
-        "SELECT value FROM settings WHERE key = 'smtp_email'"
-    ).fetchone()
-    addr = row[0].strip() if row else ""
-    row2 = conn.execute(
-        "SELECT value FROM settings WHERE key = 'smtp_password'"
-    ).fetchone()
-    pwd = row2[0].strip() if row2 else ""
-    if not addr or not pwd:
+    cfg = get_smtp_settings(conn)
+    if not cfg["login"] or not cfg["pwd"] or not cfg["from_addr"]:
         return False
-    try:
-        msg = MIMEMultipart('alternative')
-        msg['Subject'] = "⏰ Votre abonnement VPN expire dans 3 jours"
-        msg['From']    = f"VPN Privé <{addr}>"
-        msg['To']      = to_email
-        html = (
+    if subject is None:
+        subject = "⏰ Votre accès expire dans 3 jours"
+    if html_body is None:
+        html_body = (
             f"<div style='font-family:sans-serif;max-width:520px;margin:0 auto'>"
             f"<h2 style='color:#e94560'>⏰ Rappel d'expiration</h2>"
             f"<p>Bonjour <strong>{nom}</strong>,</p>"
-            f"<p>Votre abonnement VPN expire le <strong>{date_fin_str}</strong>.</p>"
-            f"<p>Effectuez votre renouvellement avant cette date pour ne pas perdre votre accès.</p>"
-            f"<hr><small style='color:#888'>VPN Privé — Service personnel</small></div>"
+            f"<p>Votre accès expire le <strong>{date_fin_str}</strong>.</p>"
+            f"<p>Contactez-nous pour renouveler avant cette date et éviter toute interruption.</p>"
+            f"<hr><small style='color:#888'>SP Network — Service personnel</small></div>"
         )
-        msg.attach(MIMEText(html, 'html', 'utf-8'))
+    try:
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = subject
+        msg['From']    = f"SP Network <{cfg['from_addr']}>"
+        msg['To']      = to_email
+        msg.attach(MIMEText(html_body, 'html', 'utf-8'))
         ctx = ssl.create_default_context()
-        with smtplib.SMTP('smtp.gmail.com', 587, timeout=15) as srv:
+        with smtplib.SMTP(cfg["host"], cfg["port"], timeout=15) as srv:
             srv.ehlo()
             srv.starttls(context=ctx)
             srv.ehlo()
-            srv.login(addr, pwd)
-            srv.sendmail(addr, to_email, msg.as_string())
+            srv.login(cfg["login"], cfg["pwd"])
+            srv.sendmail(cfg["from_addr"], to_email, msg.as_string())
         return True
     except Exception as e:
         print(f"[rappel email] Erreur → {to_email}: {e}")
