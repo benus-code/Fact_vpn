@@ -148,39 +148,96 @@ def main():
 
     # ── Rappels J-3 ──────────────────────────────────────────────────────────
     j3 = (date.today() + timedelta(days=3)).isoformat()
-    reminders = c.execute("""
-        SELECT u.nom, u.email, u.telegram AS telegram_handle, a.date_fin
+    reminders_j3 = c.execute("""
+        SELECT a.user_id, u.nom, u.email, u.telegram AS telegram_handle, a.date_fin
         FROM abonnements a
         JOIN users u ON u.id = a.user_id
         WHERE a.statut = 'actif'
           AND a.date_fin = ?
+          AND (a.reminded_j3 IS NULL OR a.reminded_j3 = 0)
     """, (j3,)).fetchall()
 
-    email_ok = 0
-    for r in reminders:
-        sent = send_reminder_email(conn, r["email"], r["nom"], r["date_fin"])
+    email_j3_ok = 0
+    for r in reminders_j3:
+        html_j3 = (
+            f"<div style='font-family:sans-serif;max-width:520px;margin:0 auto'>"
+            f"<h2 style='color:#e94560'>⏰ Ton accès expire dans 3 jours</h2>"
+            f"<p>Bonjour <strong>{r['nom']}</strong>,</p>"
+            f"<p>Ton accès expire le <strong>{r['date_fin']}</strong>.</p>"
+            f"<p>Pour continuer sans interruption,<br>"
+            f"contacte-nous pour renouveler ton abonnement.</p>"
+            f"<hr><small style='color:#888'>— L'équipe Network Privé</small></div>"
+        )
+        sent = send_reminder_email(
+            conn, r["email"], r["nom"], r["date_fin"],
+            subject="⏰ Ton accès expire dans 3 jours",
+            html_body=html_j3
+        )
         if sent:
-            email_ok += 1
-        print(f"[{now}] Rappel J-3 email → {r['nom']} ({r['email']}) : {'✅' if sent else '⏭ skipped'}")
+            email_j3_ok += 1
+            c.execute("UPDATE abonnements SET reminded_j3 = 1 WHERE user_id = ?", (r["user_id"],))
+        print(f"[{now}] Rappel J-3 → {r['nom']} ({r['email']}) : {'✅' if sent else '⏭ skipped'}")
 
-    # ── Rappel Telegram (canal admin) — liste des expirations J-3 ────────────
-    if reminders:
-        lignes = "\n".join(
+    # ── Rappels J-1 ──────────────────────────────────────────────────────────
+    j1 = (date.today() + timedelta(days=1)).isoformat()
+    reminders_j1 = c.execute("""
+        SELECT a.user_id, u.nom, u.email, u.telegram AS telegram_handle, a.date_fin
+        FROM abonnements a
+        JOIN users u ON u.id = a.user_id
+        WHERE a.statut = 'actif'
+          AND a.date_fin = ?
+          AND (a.reminded_j1 IS NULL OR a.reminded_j1 = 0)
+    """, (j1,)).fetchall()
+
+    email_j1_ok = 0
+    for r in reminders_j1:
+        html_j1 = (
+            f"<div style='font-family:sans-serif;max-width:520px;margin:0 auto'>"
+            f"<h2 style='color:#e94560'>⚠️ Dernier rappel — ton accès expire demain</h2>"
+            f"<p>Bonjour <strong>{r['nom']}</strong>,</p>"
+            f"<p>Ton accès expire demain le <strong>{r['date_fin']}</strong>.</p>"
+            f"<p>Renouvelle maintenant pour éviter<br>toute interruption de service.</p>"
+            f"<hr><small style='color:#888'>— L'équipe Network Privé</small></div>"
+        )
+        sent = send_reminder_email(
+            conn, r["email"], r["nom"], r["date_fin"],
+            subject="⚠️ Dernier rappel — ton accès expire demain",
+            html_body=html_j1
+        )
+        if sent:
+            email_j1_ok += 1
+            c.execute("UPDATE abonnements SET reminded_j1 = 1 WHERE user_id = ?", (r["user_id"],))
+        print(f"[{now}] Rappel J-1 → {r['nom']} ({r['email']}) : {'✅' if sent else '⏭ skipped'}")
+
+    conn.commit()
+
+    # ── Rappel Telegram admin — résumé J-3 + J-1 ─────────────────────────────
+    all_reminders = list(reminders_j3) + list(reminders_j1)
+    if all_reminders:
+        lignes_j3 = "\n".join(
             f"  • <b>{r['nom']}</b>"
             + (f" (@{r['telegram_handle']})" if r.get('telegram_handle') else "")
             + f" — expire le {r['date_fin']}"
-            for r in reminders
+            for r in reminders_j3
         )
-        tg_msg = (
-            f"⏰ <b>Rappel J-3 VPN</b>\n"
-            f"{len(reminders)} abonnement(s) expirent dans 3 jours :\n\n"
-            f"{lignes}"
+        lignes_j1 = "\n".join(
+            f"  • <b>{r['nom']}</b>"
+            + (f" (@{r['telegram_handle']})" if r.get('telegram_handle') else "")
+            + f" — expire DEMAIN {r['date_fin']}"
+            for r in reminders_j1
         )
+        tg_msg = "⏰ <b>Rappels d'expiration</b>\n"
+        if reminders_j3:
+            tg_msg += f"\n<b>J-3</b> ({len(reminders_j3)}) :\n{lignes_j3}"
+        if reminders_j1:
+            tg_msg += f"\n\n<b>J-1</b> ({len(reminders_j1)}) :\n{lignes_j1}"
         tg_sent = send_telegram_admin(conn, tg_msg)
-        print(f"[{now}] Rappel J-3 Telegram admin : {'✅' if tg_sent else '⏭ skipped (token/chat_id manquant?)'}")
+        print(f"[{now}] Rappels Telegram admin : {'✅' if tg_sent else '⏭ skipped'}")
 
     conn.close()
-    print(f"[{now}] Terminé — {len(expired)} peer(s) traité(s), {len(reminders)} rappel(s) J-3 ({email_ok} emails).")
+    print(f"[{now}] Terminé — {len(expired)} peer(s) traité(s), "
+          f"J-3: {len(reminders_j3)} rappel(s) ({email_j3_ok} emails), "
+          f"J-1: {len(reminders_j1)} rappel(s) ({email_j1_ok} emails).")
 
 if __name__ == "__main__":
     main()

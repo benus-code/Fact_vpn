@@ -145,6 +145,13 @@ def init_app_db():
     except sqlite3.OperationalError:
         pass
 
+    # Flags anti-doublon pour les rappels d'expiration
+    for col in ["reminded_j3", "reminded_j1"]:
+        try:
+            conn.execute(f"ALTER TABLE abonnements ADD COLUMN {col} INTEGER DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass
+
     # Table pour les tokens de réinitialisation de mot de passe
     conn.execute("""
         CREATE TABLE IF NOT EXISTS password_resets (
@@ -1051,7 +1058,8 @@ def admin_ajouter_paiement():
 
     db.execute("""
         UPDATE abonnements
-        SET date_fin = ?, date_debut = COALESCE(date_debut, ?), statut = 'actif'
+        SET date_fin = ?, date_debut = COALESCE(date_debut, ?), statut = 'actif',
+            reminded_j3 = 0, reminded_j1 = 0
         WHERE user_id = ?
     """, (nouvelle_fin.isoformat(), date.today().isoformat(), uid))
 
