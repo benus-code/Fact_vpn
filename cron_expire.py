@@ -19,30 +19,17 @@ from datetime import date, timedelta
 DB_PATH   = "/opt/vpn-billing/vpn_billing.db"
 CONTAINER = "amnezia-awg"
 
-def get_smtp_settings(conn):
-    """Lit la config SMTP depuis la DB."""
-    keys = ["smtp_host", "smtp_port", "smtp_username", "smtp_email", "smtp_password"]
-    rows = conn.execute(
-        f"SELECT key, value FROM settings WHERE key IN ({','.join('?'*len(keys))})", keys
-    ).fetchall()
-    s = {r[0]: r[1].strip() for r in rows if r[1]}
-    return {
-        "host":       s.get("smtp_host", "smtp-relay.brevo.com") or "smtp-relay.brevo.com",
-        "port":       int(s.get("smtp_port", "587") or 587),
-        "login":      s.get("smtp_username") or s.get("smtp_email", ""),
-        "pwd":        s.get("smtp_password", ""),
-        "from_addr":  s.get("smtp_email", ""),
-    }
+def get_settings(conn):
+    """Lit tous les settings depuis la DB."""
+    rows = conn.execute("SELECT key, value FROM settings").fetchall()
+    return {r[0]: (r[1] or "").strip() for r in rows}
 
 def send_reminder_email(conn, to_email, nom, date_fin_str, subject=None, html_body=None):
-    """Envoie un email de rappel. Lit les settings SMTP depuis la DB."""
+    """Envoie un email de rappel via API Brevo (HTTP) ou SMTP en fallback."""
     if not to_email or '@' not in to_email:
         return False
     domain = to_email.split('@', 1)[1].lower()
     if '.local' in domain or '.' not in domain:
-        return False
-    cfg = get_smtp_settings(conn)
-    if not cfg["login"] or not cfg["pwd"] or not cfg["from_addr"]:
         return False
     if subject is None:
         subject = "⏰ Votre accès expire dans 3 jours"
@@ -55,22 +42,57 @@ def send_reminder_email(conn, to_email, nom, date_fin_str, subject=None, html_bo
             f"<p>Contactez-nous pour renouveler avant cette date et éviter toute interruption.</p>"
             f"<hr><small style='color:#888'>SP Network — Service personnel</small></div>"
         )
+    s         = get_settings(conn)
+    from_addr = s.get("smtp_email", "")
+    api_key   = s.get("brevo_api_key", "")
+    if not from_addr:
+        return False
+
+    # ── Voie 1 : API HTTP Brevo ───────────────────────────────────────────────
+    if api_key:
+        try:
+            payload = json.dumps({
+                "sender":      {"name": "SP Network", "email": from_addr},
+                "to":          [{"email": to_email}],
+                "subject":     subject,
+                "htmlContent": html_body,
+            }).encode()
+            req = urllib.request.Request(
+                "https://api.brevo.com/v3/smtp/email",
+                data=payload,
+                headers={
+                    "api-key":      api_key,
+                    "Content-Type": "application/json",
+                    "Accept":       "application/json",
+                },
+            )
+            urllib.request.urlopen(req, timeout=15)
+            return True
+        except Exception as e:
+            print(f"[rappel email] Erreur API Brevo → {to_email}: {e}")
+            return False
+
+    # ── Voie 2 : SMTP fallback ────────────────────────────────────────────────
+    host  = s.get("smtp_host", "smtp-relay.brevo.com") or "smtp-relay.brevo.com"
+    port  = int(s.get("smtp_port", "587") or 587)
+    login = s.get("smtp_username") or from_addr
+    pwd   = s.get("smtp_password", "")
+    if not pwd:
+        return False
     try:
         msg = MIMEMultipart('alternative')
         msg['Subject'] = subject
-        msg['From']    = f"SP Network <{cfg['from_addr']}>"
+        msg['From']    = f"SP Network <{from_addr}>"
         msg['To']      = to_email
         msg.attach(MIMEText(html_body, 'html', 'utf-8'))
         ctx = ssl.create_default_context()
-        with smtplib.SMTP(cfg["host"], cfg["port"], timeout=15) as srv:
-            srv.ehlo()
-            srv.starttls(context=ctx)
-            srv.ehlo()
-            srv.login(cfg["login"], cfg["pwd"])
-            srv.sendmail(cfg["from_addr"], to_email, msg.as_string())
+        with smtplib.SMTP(host, port, timeout=15) as srv:
+            srv.ehlo(); srv.starttls(context=ctx); srv.ehlo()
+            srv.login(login, pwd)
+            srv.sendmail(from_addr, to_email, msg.as_string())
         return True
     except Exception as e:
-        print(f"[rappel email] Erreur → {to_email}: {e}")
+        print(f"[rappel email] Erreur SMTP → {to_email}: {e}")
         return False
 
 def send_telegram_admin(conn, message):

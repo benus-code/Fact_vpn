@@ -200,11 +200,28 @@
     <div class="col-12 mt-1">
       <hr class="my-2">
       <p class="small text-muted mb-2">
-        📧 Email automatique —
-        Configuré pour <strong>Brevo</strong> (smtp-relay.brevo.com).
-        Récupérez vos identifiants SMTP sur
-        <a href="https://app.brevo.com/settings/keys/smtp" target="_blank">app.brevo.com → SMTP & API</a>.
+        📧 Email automatique via <strong>Brevo</strong> —
+        Clé API sur <a href="https://app.brevo.com/settings/keys/api" target="_blank">app.brevo.com → Paramètres → Clés API</a>
+        (commence par <code>xkeysib-</code>). Si renseignée, le port SMTP n'est pas utilisé.
       </p>
+    </div>
+    <div class="col-md-5">
+      <label class="form-label small">Clé API Brevo <span class="text-success fw-semibold">(recommandée)</span></label>
+      <input type="password" name="brevo_api_key" class="form-control form-control-sm"
+             value="{{ settings.brevo_api_key }}" placeholder="xkeysib-xxxxxxxx" autocomplete="off">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label small">Adresse d'expédition</label>
+      <input type="email" name="smtp_email" class="form-control form-control-sm"
+             value="{{ settings.smtp_email }}" placeholder="contact@mondomaine.com">
+    </div>
+    <div class="col-md-2 d-flex align-items-end">
+      <button class="btn btn-sm btn-success w-100">💾 Enregistrer</button>
+    </div>
+    <div class="col-12">
+      <details class="mt-1">
+        <summary class="small text-muted" style="cursor:pointer;">⚙️ Config SMTP avancée (fallback si pas de clé API)</summary>
+        <div class="row g-2 mt-1">
     </div>
     <div class="col-md-2">
       <label class="form-label small">Serveur SMTP</label>
@@ -222,14 +239,12 @@
              value="{{ settings.smtp_username }}" placeholder="ex: a3df2e001@smtp-brevo.com" autocomplete="off">
     </div>
     <div class="col-md-3">
-      <label class="form-label small">Adresse d'expédition <span class="text-muted">(visible par clients)</span></label>
-      <input type="email" name="smtp_email" class="form-control form-control-sm"
-             value="{{ settings.smtp_email }}" placeholder="ex: contact@mondomaine.com">
-    </div>
-    <div class="col-md-3">
-      <label class="form-label small">Clé SMTP Brevo</label>
+      <label class="form-label small">Clé SMTP <span class="text-muted">(xsmtpsib-...)</span></label>
       <input type="password" name="smtp_password" class="form-control form-control-sm"
              value="{{ settings.smtp_password }}" placeholder="xsmtpsib-xxxxxxxx" autocomplete="off">
+    </div>
+        </div>
+      </details>
     </div>
     <div class="col-md-3">
       <label class="form-label small">URL publique du site <span class="text-muted">(liens emails)</span></label>
