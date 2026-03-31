@@ -281,6 +281,33 @@
     </div>
   </div>
 
+  {# ── Parrainage ── #}
+  {% if user.referral_code %}
+  <div class="col-12">
+    <div class="card p-4">
+      <h5 class="fw-bold mb-3">🎟 Mon code de parrainage</h5>
+      <hr class="my-2">
+      {% if user.discount_next and user.discount_next > 0 %}
+      <div class="alert alert-success py-2 mb-3">
+        🎉 Tu bénéficies d'une réduction de <strong>25%</strong> sur ton prochain renouvellement !
+      </div>
+      {% endif %}
+      <div class="d-flex align-items-center gap-3 flex-wrap mb-3">
+        <span style="font-size:1.5rem; font-weight:800; letter-spacing:.12em;">{{ user.referral_code }}</span>
+        <button class="btn btn-sm btn-outline-secondary"
+                data-copy="{{ user.referral_code }}">📋 Copier</button>
+      </div>
+      <p class="text-muted small mb-2">
+        Partage ce code à tes amis lors de leur inscription.<br>
+        Tu gagnes <strong>25% sur ton prochain mois</strong> pour chaque ami qui s'abonne.
+      </p>
+      <div class="d-flex align-items-center gap-2">
+        <span class="badge bg-secondary fs-6">👥 Filleuls actifs : {{ filleuls_count }}</span>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
 </div>
 {% endblock %}
 {% block scripts %}

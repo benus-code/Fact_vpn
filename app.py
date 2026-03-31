@@ -107,6 +107,8 @@ def init_app_db():
         "ALTER TABLE users ADD COLUMN referral_code TEXT",
         "ALTER TABLE users ADD COLUMN referred_by TEXT",
         "ALTER TABLE users ADD COLUMN telegram_id TEXT",
+        "ALTER TABLE users ADD COLUMN discount_next REAL DEFAULT 0.0",
+        "ALTER TABLE users ADD COLUMN first_renewal_done INTEGER DEFAULT 0",
     ]:
         try:
             conn.execute(migration)
@@ -434,14 +436,17 @@ def demander_acces():
             flash("Cette adresse email est déjà enregistrée.", "danger")
             return render_template("demander_acces.html")
 
-        # Vérifier le code de parrainage si fourni
+        # Vérifier le code de parrainage si fourni (et bloquer l'auto-parrainage)
         parrain_valide = None
         if parrain:
             row = db.execute(
-                "SELECT id FROM users WHERE referral_code = ?", (parrain,)
+                "SELECT id, email FROM users WHERE referral_code = ?", (parrain,)
             ).fetchone()
             if not row:
                 flash("Code de parrainage invalide.", "danger")
+                return render_template("demander_acces.html")
+            if row["email"].lower() == email:
+                flash("Vous ne pouvez pas utiliser votre propre code de parrainage.", "danger")
                 return render_template("demander_acces.html")
             parrain_valide = parrain
 
@@ -611,11 +616,18 @@ def dashboard():
             statut_color = "warning"
 
     s = get_settings()
+    # Parrainage
+    filleuls_count = 0
+    if user["referral_code"]:
+        filleuls_count = db.execute(
+            "SELECT COUNT(*) FROM users WHERE referred_by = ?",
+            (user["referral_code"],)
+        ).fetchone()[0]
     return render_template("dashboard.html",
         user=user, abo=abo, peers=peers,
         paiements=paiements, bank=s, settings=s,
         statut_color=statut_color, jours_restants=jours_restants,
-        today=date.today()
+        today=date.today(), filleuls_count=filleuls_count
     )
 
 @app.route("/profil", methods=["GET", "POST"])

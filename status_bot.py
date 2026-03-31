@@ -295,12 +295,28 @@ def handle_update(update, token, channel_id, admin_id):
         conn = sqlite3.connect(DB_PATH)
         conn.row_factory = sqlite3.Row
         user = conn.execute(
-            "SELECT id, nom, email, telegram FROM users WHERE id = ?", (uid,)
+            """SELECT id, nom, email, telegram, referred_by,
+                      first_renewal_done, discount_next, referral_code
+               FROM users WHERE id = ?""", (uid,)
         ).fetchone()
         if not user:
             conn.close()
             reply(token, chat_id, f"❌ Utilisateur #{uid} introuvable.")
             return
+
+        # ── Étape 3 : réduction parrainage sur ce client ? ────────────────────
+        abo_row   = conn.execute("SELECT montant FROM abonnements WHERE user_id=?", (uid,)).fetchone()
+        prix_base = float(abo_row["montant"]) if abo_row and abo_row["montant"] else 0.0
+        has_discount = user["discount_next"] and float(user["discount_next"]) > 0
+        discount_info = ""
+        if has_discount:
+            prix_reduit = round(prix_base * 0.75, 2)
+            discount_info = (
+                f"\n\n⚠️ <b>Ce client bénéficie d'une réduction de 25%</b>\n"
+                f"Montant normal : {prix_base} ₽\n"
+                f"Montant réduit : {prix_reduit} ₽"
+            )
+
         peers = conn.execute(
             "SELECT ip_vpn, vpn_type FROM peers WHERE user_id = ?", (uid,)
         ).fetchall()
@@ -308,6 +324,7 @@ def handle_update(update, token, channel_id, admin_id):
         # Débloquer iptables pour chaque peer
         CONTAINER = "amnezia-awg"
         errors = []
+        import subprocess
         for peer in peers:
             ip = peer["ip_vpn"].split("/")[0]
             vpn_type = peer["vpn_type"] or "amnezia"
@@ -316,7 +333,6 @@ def handle_update(update, token, channel_id, admin_id):
                     cmd_ip = ["iptables", "-D", "FORWARD", direction, ip, "-j", "DROP"]
                 else:
                     cmd_ip = ["docker", "exec", CONTAINER, "iptables", "-D", "FORWARD", direction, ip, "-j", "DROP"]
-                import subprocess
                 r = subprocess.run(cmd_ip, capture_output=True)
                 if r.returncode != 0:
                     errors.append(ip)
@@ -332,16 +348,73 @@ def handle_update(update, token, channel_id, admin_id):
             SET statut='actif', date_fin=?, reminded_j3=0, reminded_j1=0
             WHERE user_id=?
         """, (nouvelle_fin, uid))
-        conn.execute("UPDATE users SET status='active' WHERE id=?", (uid,))
+        # Réinitialiser la réduction après usage
+        conn.execute(
+            "UPDATE users SET status='active', discount_next=0.0 WHERE id=?", (uid,)
+        )
+
+        # ── Étape 2 : récompense parrainage (1er renouvellement du filleul) ───
+        parrainage_msg = ""
+        if user["referred_by"] and not user["first_renewal_done"]:
+            parrain = conn.execute(
+                "SELECT id, nom, email FROM users WHERE referral_code = ?",
+                (user["referred_by"],)
+            ).fetchone()
+            if parrain:
+                conn.execute(
+                    "UPDATE users SET discount_next = 0.25 WHERE id = ?",
+                    (parrain["id"],)
+                )
+                conn.execute(
+                    "UPDATE users SET first_renewal_done = 1 WHERE id = ?",
+                    (uid,)
+                )
+                parrainage_msg = (
+                    f"\n\n🤝 <b>Parrainage validé !</b>\n"
+                    f"Parrain : {parrain['nom']} (code {user['referred_by']})\n"
+                    f"Filleul : {user['nom']}\n"
+                    f"Réduction appliquée : -25% prochain mois du parrain"
+                )
+                # Email au parrain
+                s_cfg = get_settings()
+                from_addr_p = s_cfg.get("smtp_email", "").strip()
+                api_key_p   = s_cfg.get("brevo_api_key", "").strip()
+                if from_addr_p and api_key_p and parrain["email"] and "@" in parrain["email"]:
+                    html_parrain = (
+                        f"<div style='font-family:sans-serif;max-width:520px;margin:0 auto'>"
+                        f"<h2 style='color:#27ae60'>🎉 Merci pour ton parrainage !</h2>"
+                        f"<p>Bonjour <strong>{parrain['nom']}</strong>,</p>"
+                        f"<p>Bonne nouvelle ! Ton ami <strong>{user['nom']}</strong> "
+                        f"vient de rejoindre le service.</p>"
+                        f"<p>Tu bénéficies de <strong>25% de réduction</strong> "
+                        f"sur ton prochain renouvellement. 🙌</p>"
+                        f"<hr><small style='color:#888'>— L'équipe Network Privé</small></div>"
+                    )
+                    import json as _json, urllib.request as _req
+                    try:
+                        payload = _json.dumps({
+                            "sender":      {"name": "SP Network", "email": from_addr_p},
+                            "to":          [{"email": parrain["email"]}],
+                            "subject":     "🎉 Merci pour ton parrainage !",
+                            "htmlContent": html_parrain,
+                        }).encode()
+                        _req.urlopen(_req.Request(
+                            "https://api.brevo.com/v3/smtp/email", data=payload,
+                            headers={"api-key": api_key_p, "Content-Type": "application/json"},
+                        ), timeout=15)
+                    except Exception as e:
+                        print(f"[status_bot] Email parrain erreur: {e}", flush=True)
+
         conn.commit()
         conn.close()
 
-        # Email au client
+        # Email de renouvellement au client
         nouvelle_fin_fmt = date.fromisoformat(nouvelle_fin).strftime("%d/%m/%Y")
         s = get_settings()
         from_addr = s.get("smtp_email", "").strip()
         api_key   = s.get("brevo_api_key", "").strip()
         if from_addr and api_key and user["email"] and "@" in user["email"]:
+            import json as _json, urllib.request as _req
             html_renouvellement = (
                 f"<div style='font-family:sans-serif;max-width:520px;margin:0 auto'>"
                 f"<h2 style='color:#27ae60'>✅ Ton accès a été renouvelé</h2>"
@@ -350,7 +423,6 @@ def handle_update(update, token, channel_id, admin_id):
                 f"Bonne connexion !</p>"
                 f"<hr><small style='color:#888'>— L'équipe Network Privé</small></div>"
             )
-            import json as _json, urllib.request as _req
             try:
                 payload = _json.dumps({
                     "sender":      {"name": "SP Network", "email": from_addr},
@@ -358,19 +430,17 @@ def handle_update(update, token, channel_id, admin_id):
                     "subject":     "✅ Ton accès a été renouvelé",
                     "htmlContent": html_renouvellement,
                 }).encode()
-                request = _req.Request(
-                    "https://api.brevo.com/v3/smtp/email",
-                    data=payload,
+                _req.urlopen(_req.Request(
+                    "https://api.brevo.com/v3/smtp/email", data=payload,
                     headers={"api-key": api_key, "Content-Type": "application/json"},
-                )
-                _req.urlopen(request, timeout=15)
+                ), timeout=15)
             except Exception as e:
                 print(f"[status_bot] Email renouvellement erreur: {e}", flush=True)
 
         warn = f"\n⚠️ Erreurs iptables sur : {set(errors)}" if errors else ""
         reply(token, chat_id,
-              f"✅ <b>#{uid} {user['nom']} réactivé jusqu'au {nouvelle_fin_fmt}</b>{warn}\n\n"
-              f"Email de confirmation envoyé à {user['email']}.")
+              f"✅ <b>#{uid} {user['nom']} réactivé jusqu'au {nouvelle_fin_fmt}</b>"
+              f"{discount_info}{parrainage_msg}{warn}")
 
     else:
         reply(token, chat_id,
