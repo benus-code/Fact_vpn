@@ -2,7 +2,39 @@
 {% block title %}Mon espace — VPN Billing{% endblock %}
 {% block content %}
 
-{% if abo and abo.statut == 'actif' %}
+{% if abo and abo.statut == 'suspendu' %}
+<div class="alert alert-danger d-flex align-items-center gap-3 mb-4 py-3" role="alert">
+  <span style="font-size:1.4rem;">⏸</span>
+  <div>
+    <strong>Ton accès est suspendu.</strong>
+    Contacte-nous pour le réactiver.
+    {% set s = settings %}
+    {% if s.support_telegram %}
+      <a href="{{ s.support_telegram }}" target="_blank" class="btn btn-sm btn-outline-light ms-2">Telegram</a>
+    {% endif %}
+    {% if s.support_whatsapp %}
+      {% set wa = s.support_whatsapp | replace('+','') | replace(' ','') | replace('-','') %}
+      <a href="https://wa.me/{{ wa }}" target="_blank" class="btn btn-sm btn-outline-light ms-1">WhatsApp</a>
+    {% endif %}
+  </div>
+</div>
+{% elif abo and abo.statut == 'actif' and jours_restants is not none and jours_restants <= 3 %}
+<div class="alert alert-warning d-flex align-items-center gap-3 mb-4 py-3" role="alert">
+  <span style="font-size:1.4rem;">⚠️</span>
+  <div>
+    <strong>Ton accès expire le {{ abo.date_fin }}.</strong>
+    Contacte-nous pour renouveler.
+    {% set s = settings %}
+    {% if s.support_telegram %}
+      <a href="{{ s.support_telegram }}" target="_blank" class="btn btn-sm btn-outline-dark ms-2">Telegram</a>
+    {% endif %}
+    {% if s.support_whatsapp %}
+      {% set wa = s.support_whatsapp | replace('+','') | replace(' ','') | replace('-','') %}
+      <a href="https://wa.me/{{ wa }}" target="_blank" class="btn btn-sm btn-outline-dark ms-1">WhatsApp</a>
+    {% endif %}
+  </div>
+</div>
+{% elif abo and abo.statut == 'actif' %}
 <div class="alert alert-{{ statut_color }} d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4 py-3" role="status">
   <div>
     <strong>📅 Abonnement actif</strong>

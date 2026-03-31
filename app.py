@@ -610,9 +610,10 @@ def dashboard():
         elif jours_restants <= 7:
             statut_color = "warning"
 
+    s = get_settings()
     return render_template("dashboard.html",
         user=user, abo=abo, peers=peers,
-        paiements=paiements, bank=get_settings(),
+        paiements=paiements, bank=s, settings=s,
         statut_color=statut_color, jours_restants=jours_restants,
         today=date.today()
     )

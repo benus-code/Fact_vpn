@@ -165,8 +165,42 @@ def main():
         UPDATE abonnements SET statut = 'expire'
         WHERE date_fin < ? AND statut = 'actif'
     """, (now,))
-
     conn.commit()
+
+    # ── Email + Telegram admin pour chaque suspension ─────────────────────────
+    for peer in expired:
+        user = conn.execute(
+            "SELECT u.id, u.nom, u.email, u.telegram FROM users u WHERE u.nom = ?",
+            (peer["nom"],)
+        ).fetchone()
+        if not user:
+            continue
+
+        # Email au client
+        html_suspension = (
+            f"<div style='font-family:sans-serif;max-width:520px;margin:0 auto'>"
+            f"<h2 style='color:#e94560'>⏸ Ton accès a été suspendu</h2>"
+            f"<p>Bonjour <strong>{user['nom']}</strong>,</p>"
+            f"<p>Ton abonnement a expiré le <strong>{peer['date_fin']}</strong>.<br>"
+            f"Ton accès a été suspendu.</p>"
+            f"<p>Contacte-nous pour le renouveler.</p>"
+            f"<hr><small style='color:#888'>— L'équipe Network Privé</small></div>"
+        )
+        send_reminder_email(
+            conn, user["email"], user["nom"], peer["date_fin"],
+            subject="⏸ Ton accès a été suspendu",
+            html_body=html_suspension
+        )
+
+        # Notification Telegram admin
+        contact = f"@{user['telegram']}" if user.get("telegram") else "—"
+        send_telegram_admin(conn,
+            f"🔴 <b>Suspension automatique</b>\n\n"
+            f"👤 {user['nom']} — {user['email']}\n"
+            f"📅 Expiré le : {peer['date_fin']}\n"
+            f"💬 Telegram : {contact}\n\n"
+            f"Pour réactiver : /reactiver_{user['id']}"
+        )
 
     # ── Rappels J-3 ──────────────────────────────────────────────────────────
     j3 = (date.today() + timedelta(days=3)).isoformat()

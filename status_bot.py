@@ -286,6 +286,92 @@ def handle_update(update, token, channel_id, admin_id):
               f"Ta demande n'a pas pu être acceptée pour le moment.\n"
               f"——————————————")
 
+    elif cmd.startswith("/reactiver_"):
+        uid_str = cmd[len("/reactiver_"):]
+        if not uid_str.isdigit():
+            reply(token, chat_id, "⚠️ Usage : /reactiver_42")
+            return
+        uid = int(uid_str)
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        user = conn.execute(
+            "SELECT id, nom, email, telegram FROM users WHERE id = ?", (uid,)
+        ).fetchone()
+        if not user:
+            conn.close()
+            reply(token, chat_id, f"❌ Utilisateur #{uid} introuvable.")
+            return
+        peers = conn.execute(
+            "SELECT ip_vpn, vpn_type FROM peers WHERE user_id = ?", (uid,)
+        ).fetchall()
+
+        # Débloquer iptables pour chaque peer
+        CONTAINER = "amnezia-awg"
+        errors = []
+        for peer in peers:
+            ip = peer["ip_vpn"].split("/")[0]
+            vpn_type = peer["vpn_type"] or "amnezia"
+            for direction in ["-s", "-d"]:
+                if vpn_type == "pivpn":
+                    cmd_ip = ["iptables", "-D", "FORWARD", direction, ip, "-j", "DROP"]
+                else:
+                    cmd_ip = ["docker", "exec", CONTAINER, "iptables", "-D", "FORWARD", direction, ip, "-j", "DROP"]
+                import subprocess
+                r = subprocess.run(cmd_ip, capture_output=True)
+                if r.returncode != 0:
+                    errors.append(ip)
+
+        # Calculer nouvelle date de fin (+30 jours)
+        from datetime import date, timedelta
+        nouvelle_fin = (date.today() + timedelta(days=30)).isoformat()
+
+        # Mettre à jour DB
+        conn.execute("UPDATE peers SET actif = 1 WHERE user_id = ?", (uid,))
+        conn.execute("""
+            UPDATE abonnements
+            SET statut='actif', date_fin=?, reminded_j3=0, reminded_j1=0
+            WHERE user_id=?
+        """, (nouvelle_fin, uid))
+        conn.execute("UPDATE users SET status='active' WHERE id=?", (uid,))
+        conn.commit()
+        conn.close()
+
+        # Email au client
+        nouvelle_fin_fmt = date.fromisoformat(nouvelle_fin).strftime("%d/%m/%Y")
+        s = get_settings()
+        from_addr = s.get("smtp_email", "").strip()
+        api_key   = s.get("brevo_api_key", "").strip()
+        if from_addr and api_key and user["email"] and "@" in user["email"]:
+            html_renouvellement = (
+                f"<div style='font-family:sans-serif;max-width:520px;margin:0 auto'>"
+                f"<h2 style='color:#27ae60'>✅ Ton accès a été renouvelé</h2>"
+                f"<p>Bonjour <strong>{user['nom']}</strong>,</p>"
+                f"<p>Ton accès a été renouvelé jusqu'au <strong>{nouvelle_fin_fmt}</strong>.<br>"
+                f"Bonne connexion !</p>"
+                f"<hr><small style='color:#888'>— L'équipe Network Privé</small></div>"
+            )
+            import json as _json, urllib.request as _req
+            try:
+                payload = _json.dumps({
+                    "sender":      {"name": "SP Network", "email": from_addr},
+                    "to":          [{"email": user["email"]}],
+                    "subject":     "✅ Ton accès a été renouvelé",
+                    "htmlContent": html_renouvellement,
+                }).encode()
+                request = _req.Request(
+                    "https://api.brevo.com/v3/smtp/email",
+                    data=payload,
+                    headers={"api-key": api_key, "Content-Type": "application/json"},
+                )
+                _req.urlopen(request, timeout=15)
+            except Exception as e:
+                print(f"[status_bot] Email renouvellement erreur: {e}", flush=True)
+
+        warn = f"\n⚠️ Erreurs iptables sur : {set(errors)}" if errors else ""
+        reply(token, chat_id,
+              f"✅ <b>#{uid} {user['nom']} réactivé jusqu'au {nouvelle_fin_fmt}</b>{warn}\n\n"
+              f"Email de confirmation envoyé à {user['email']}.")
+
     else:
         reply(token, chat_id,
               "Commandes disponibles :\n"
@@ -296,7 +382,8 @@ def handle_update(update, token, channel_id, admin_id):
               "/statut_resolu — incident résolu\n"
               "/statut_custom &lt;texte&gt; — message libre\n"
               "/valider_[id] — valider une demande d'accès\n"
-              "/refuser_[id] — refuser et supprimer une demande")
+              "/refuser_[id] — refuser et supprimer une demande\n"
+              "/reactiver_[id] — réactiver un accès suspendu")
 
 # ─── Long-polling loop ─────────────────────────────────────────────────────────
 def run():
