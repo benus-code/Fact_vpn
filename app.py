@@ -1065,6 +1065,28 @@ def admin_debannir_user(uid):
     flash(f"✅ {user['nom']} a été débanni.", "success")
     return redirect(url_for("admin_panel"))
 
+@app.route("/admin/user/reset-password/<int:uid>", methods=["POST"])
+@login_required
+@admin_required
+def admin_reset_password(uid):
+    """Génère un nouveau mot de passe temporaire pour un client et l'affiche à l'admin."""
+    db   = get_db()
+    user = db.execute("SELECT nom, email FROM users WHERE id = ?", (uid,)).fetchone()
+    if not user:
+        flash("Utilisateur introuvable.", "danger")
+        return redirect(url_for("admin_panel"))
+    nouveau_mdp = secrets.token_urlsafe(10)
+    db.execute("UPDATE users SET password_hash = ? WHERE id = ?",
+               (hash_password(nouveau_mdp), uid))
+    db.commit()
+    flash(
+        f"🔑 Nouveau mot de passe pour <strong>{user['nom']}</strong> ({user['email']}) : "
+        f"<code style='font-size:1.1em; letter-spacing:.05em;'>{nouveau_mdp}</code> "
+        f"— Transmettez-le au client.",
+        "warning"
+    )
+    return redirect(url_for("admin_user_detail", uid=uid))
+
 @app.route("/admin/paiement/ajouter", methods=["POST"])
 @login_required
 @admin_required

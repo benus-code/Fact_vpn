@@ -125,11 +125,15 @@
           <label class="form-label small">Note (optionnel)</label>
           <input type="text" name="note" class="form-control form-control-sm" placeholder="ex: virement 01/03">
         </div>
-        <div class="col-12 d-flex gap-2 mt-1">
+        <div class="col-12 d-flex gap-2 mt-1 flex-wrap">
           <button class="btn btn-sm btn-success">✅ Valider le paiement</button>
           <form method="POST" action="{{ url_for('admin_suspendre_tout', uid=user.id) }}"
                 onsubmit="return confirm('Suspendre tous les accès de {{ user.nom }} ?')">
             <button class="btn btn-sm btn-danger">🚫 Tout suspendre</button>
+          </form>
+          <form method="POST" action="{{ url_for('admin_reset_password', uid=user.id) }}"
+                onsubmit="return confirm('Générer un nouveau mot de passe pour {{ user.nom }} ? L\'ancien sera immédiatement invalidé.')">
+            <button class="btn btn-sm btn-outline-warning">🔑 Réinitialiser le mot de passe</button>
           </form>
         </div>
       </form>
