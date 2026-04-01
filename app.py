@@ -1278,12 +1278,20 @@ def admin_vpn_health():
             mult = {'B': 1, 'KiB': 1024, 'MiB': 1024**2, 'GiB': 1024**3}
             return int(v * mult.get(m.group(2), 1))
 
-        r = subprocess.run(
-            ["docker", "exec", CONTAINER, "awg", "show"],
-            capture_output=True, text=True, timeout=10
-        )
-        if r.returncode != 0:
-            raise RuntimeError(r.stderr.strip() or "docker exec awg show failed")
+        # Try awg show first, fall back to wg show (AmneziaWG containers vary)
+        errors = []
+        r = None
+        for cmd in (["awg", "show"], ["wg", "show"]):
+            r = subprocess.run(
+                ["docker", "exec", CONTAINER] + cmd,
+                capture_output=True, text=True, timeout=10
+            )
+            if r.returncode == 0:
+                break
+            errors.append(f"{' '.join(cmd)}: {r.stderr.strip() or r.stdout.strip() or 'exit '+str(r.returncode)}")
+            r = None
+        if r is None:
+            raise RuntimeError(" | ".join(errors))
 
         cur_peer = None
         peer_map = {}   # pubkey → dict
