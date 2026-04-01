@@ -1251,6 +1251,64 @@ def _fmt_bytes(n):
     return f"{n // (1024 * 1024)} MB"
 
 
+def _patch_keepalive(config_text, pubkey, ka=25):
+    """
+    Modifie le fichier de config WireGuard/AmneziaWG en mémoire :
+    - Trouve la section [Peer] dont PublicKey correspond à `pubkey`
+    - Ajoute ou remplace PersistentKeepalive = ka
+    Retourne le texte modifié, ou None si le peer n'a pas été trouvé.
+    """
+    lines  = config_text.splitlines()
+    result = []
+    in_peer     = False
+    target_peer = False
+    ka_done     = False
+    peer_found  = False
+
+    for line in lines:
+        s = line.strip()
+
+        if s == "[Peer]":
+            # On quitte l'éventuel peer précédent sans KA
+            if in_peer and target_peer and not ka_done:
+                result.append(f"PersistentKeepalive = {ka}")
+                ka_done = True
+            in_peer     = True
+            target_peer = False
+            ka_done     = False
+            result.append(line)
+            continue
+
+        if s.startswith("[") and s != "[Peer]":
+            if in_peer and target_peer and not ka_done:
+                result.append(f"PersistentKeepalive = {ka}")
+                ka_done = True
+            in_peer     = False
+            target_peer = False
+            result.append(line)
+            continue
+
+        if in_peer:
+            if "PublicKey" in s and pubkey in s:
+                target_peer = True
+                peer_found  = True
+            if target_peer and s.startswith("PersistentKeepalive"):
+                result.append(f"PersistentKeepalive = {ka}")
+                ka_done = True
+                continue   # remplace la ligne existante
+
+        result.append(line)
+
+    # Peer en fin de fichier sans KA
+    if in_peer and target_peer and not ka_done:
+        result.append(f"PersistentKeepalive = {ka}")
+
+    if not peer_found:
+        return None
+
+    return "\n".join(result) + "\n"
+
+
 @app.route("/admin/vpn-health")
 @login_required
 @admin_required
@@ -1430,14 +1488,18 @@ def admin_vpn_health():
 @login_required
 @admin_required
 def admin_set_keepalive():
+    """
+    Applique PersistentKeepalive=25 via awg syncconf UNIQUEMENT.
+    wg set est INTERDIT sur AmneziaWG (corrompt l'interface).
+    Flux : lire conf → modifier → réécrire → awg syncconf.
+    """
     pubkey = request.form.get("pubkey", "").strip()
     if not pubkey or len(pubkey) < 10:
         return jsonify({"ok": False, "error": "Clé publique invalide"}), 400
     try:
-        # Detect active interface name first
+        # 1. Détecter l'interface active (awg show uniquement)
         ri = subprocess.run(
-            ["docker", "exec", CONTAINER, "sh", "-c",
-             "awg show 2>/dev/null || wg show 2>/dev/null"],
+            ["docker", "exec", CONTAINER, "awg", "show"],
             capture_output=True, text=True, timeout=10
         )
         iface = WG_INTERFACE
@@ -1446,20 +1508,61 @@ def admin_set_keepalive():
                 iface = line.split(":", 1)[1].strip()
                 break
 
-        # Try awg set, fall back to wg set
-        errors = []
-        for tool in ("awg", "wg"):
-            r = subprocess.run(
-                ["docker", "exec", CONTAINER,
-                 tool, "set", iface,
-                 "peer", pubkey, "persistent-keepalive", "25"],
-                capture_output=True, text=True, timeout=10
+        # 2. Trouver le fichier de config dans le container
+        conf_candidates = [
+            f"/etc/amnezia/amneziawg/{iface}.conf",
+            f"/etc/wireguard/{iface}.conf",
+            f"/etc/amnezia/{iface}.conf",
+        ]
+        conf_path = None
+        for path in conf_candidates:
+            rtest = subprocess.run(
+                ["docker", "exec", CONTAINER, "test", "-f", path],
+                capture_output=True, timeout=5
             )
-            if r.returncode == 0:
-                return jsonify({"ok": True})
-            errors.append(f"{tool}: {r.stderr.strip() or r.stdout.strip() or 'exit '+str(r.returncode)}")
+            if rtest.returncode == 0:
+                conf_path = path
+                break
+        if not conf_path:
+            return jsonify({"ok": False,
+                            "error": "Fichier de config introuvable — chemins testés : "
+                                     + ", ".join(conf_candidates)})
 
-        return jsonify({"ok": False, "error": " | ".join(errors)})
+        # 3. Lire la config actuelle
+        rcat = subprocess.run(
+            ["docker", "exec", CONTAINER, "cat", conf_path],
+            capture_output=True, text=True, timeout=10
+        )
+        if rcat.returncode != 0:
+            return jsonify({"ok": False,
+                            "error": f"Lecture config échouée : {rcat.stderr.strip()}"})
+
+        # 4. Modifier : ajouter/remplacer PersistentKeepalive=25 dans la bonne section [Peer]
+        new_conf = _patch_keepalive(rcat.stdout, pubkey, 25)
+        if new_conf is None:
+            return jsonify({"ok": False,
+                            "error": f"Peer {pubkey[:20]}… introuvable dans {conf_path}"})
+
+        # 5. Réécrire le fichier dans le container (via stdin + tee)
+        rwrite = subprocess.run(
+            ["docker", "exec", "-i", CONTAINER, "sh", "-c", f"cat > {conf_path}"],
+            input=new_conf, capture_output=True, text=True, timeout=10
+        )
+        if rwrite.returncode != 0:
+            return jsonify({"ok": False,
+                            "error": f"Écriture config échouée : {rwrite.stderr.strip()}"})
+
+        # 6. Appliquer avec awg syncconf (jamais wg set)
+        rsync = subprocess.run(
+            ["docker", "exec", CONTAINER, "awg", "syncconf", iface, conf_path],
+            capture_output=True, text=True, timeout=10
+        )
+        if rsync.returncode != 0:
+            return jsonify({"ok": False,
+                            "error": f"awg syncconf échoué : {rsync.stderr.strip()}"})
+
+        return jsonify({"ok": True})
+
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
 
