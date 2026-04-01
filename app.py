@@ -1255,49 +1255,73 @@ def admin_vpn_health():
     wg_data  = {}   # keyed by bare IP (no /32)
 
     try:
-        def _awg(subcmd):
-            r = subprocess.run(
-                ["docker", "exec", CONTAINER, "awg", "show", WG_INTERFACE, subcmd],
-                capture_output=True, text=True, timeout=10
-            )
-            if r.returncode != 0:
-                raise RuntimeError(r.stderr.strip() or f"awg show {subcmd} failed")
-            return r.stdout.strip()
+        import re as _re
 
-        # Map pubkey → bare IP
-        allowed = {}
-        for line in _awg("allowed-ips").splitlines():
-            parts = line.split("\t")
-            if len(parts) == 2:
-                pk, ip_cidr = parts
-                ip = ip_cidr.split("/")[0].split(",")[0].strip()
-                allowed[pk] = ip
-                wg_data[ip] = {"public_key": pk}
+        def _parse_hs_age(hs_str):
+            """'2 minutes, 30 seconds ago' → age in seconds (int)"""
+            total = 0
+            for val, unit in _re.findall(r'(\d+)\s+(second|minute|hour|day|week)s?', hs_str):
+                val = int(val)
+                if   'second' in unit: total += val
+                elif 'minute' in unit: total += val * 60
+                elif 'hour'   in unit: total += val * 3600
+                elif 'day'    in unit: total += val * 86400
+                elif 'week'   in unit: total += val * 604800
+            return total
 
-        for line in _awg("latest-handshakes").splitlines():
-            parts = line.split("\t")
-            if len(parts) == 2:
-                pk, ts = parts
-                ip = allowed.get(pk)
-                if ip:
-                    wg_data[ip]["handshake_ts"] = int(ts) if ts.isdigit() else 0
+        def _parse_size(s):
+            """'1.23 MiB' → bytes (int)"""
+            m = _re.match(r'([\d.]+)\s*(B|KiB|MiB|GiB)', s.strip())
+            if not m:
+                return 0
+            v    = float(m.group(1))
+            mult = {'B': 1, 'KiB': 1024, 'MiB': 1024**2, 'GiB': 1024**3}
+            return int(v * mult.get(m.group(2), 1))
 
-        for line in _awg("transfer").splitlines():
-            parts = line.split("\t")
-            if len(parts) == 3:
-                pk, rx, tx = parts
-                ip = allowed.get(pk)
-                if ip:
-                    wg_data[ip]["rx"] = int(rx) if rx.isdigit() else 0
-                    wg_data[ip]["tx"] = int(tx) if tx.isdigit() else 0
+        r = subprocess.run(
+            ["docker", "exec", CONTAINER, "awg", "show"],
+            capture_output=True, text=True, timeout=10
+        )
+        if r.returncode != 0:
+            raise RuntimeError(r.stderr.strip() or "docker exec awg show failed")
 
-        for line in _awg("persistent-keepalive").splitlines():
-            parts = line.split("\t")
-            if len(parts) == 2:
-                pk, ka = parts
-                ip = allowed.get(pk)
-                if ip:
-                    wg_data[ip]["keepalive"] = int(ka) if ka.isdigit() else 0
+        cur_peer = None
+        peer_map = {}   # pubkey → dict
+        for line in r.stdout.splitlines():
+            s = line.strip()
+            if s.startswith("peer:"):
+                cur_peer = s.split(":", 1)[1].strip()
+                peer_map[cur_peer] = {"public_key": cur_peer}
+            elif cur_peer:
+                if s.startswith("allowed ips:"):
+                    raw_ip = s.split(":", 1)[1].strip().split(",")[0].split("/")[0].strip()
+                    peer_map[cur_peer]["ip"] = raw_ip
+                elif s.startswith("latest handshake:"):
+                    hs_str = s.split(":", 1)[1].strip()
+                    age    = _parse_hs_age(hs_str)
+                    now_unix = int(datetime.utcnow().timestamp())
+                    peer_map[cur_peer]["handshake_ts"] = now_unix - age if age else 0
+                elif s.startswith("transfer:"):
+                    seg = s.split(":", 1)[1]
+                    rx = tx = 0
+                    for part in seg.split(","):
+                        part = part.strip()
+                        if "received" in part:
+                            rx = _parse_size(part.replace("received", "").strip())
+                        elif "sent" in part:
+                            tx = _parse_size(part.replace("sent", "").strip())
+                    peer_map[cur_peer]["rx"] = rx
+                    peer_map[cur_peer]["tx"] = tx
+                elif s.startswith("persistent keepalive:"):
+                    m = _re.search(r'every (\d+)', s)
+                    if m:
+                        peer_map[cur_peer]["keepalive"] = int(m.group(1))
+
+        # Re-key by bare IP
+        for d in peer_map.values():
+            ip = d.get("ip")
+            if ip:
+                wg_data[ip] = d
 
     except Exception as e:
         wg_error = str(e)
@@ -1328,7 +1352,7 @@ def admin_vpn_health():
     except Exception:
         pass
 
-    now_ts = int(datetime.utcnow().timestamp())
+    now_ts    = int(datetime.utcnow().timestamp())
     peers_out = []
     for p in db_peers:
         ip = p["ip_vpn"].split("/")[0]
