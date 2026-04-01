@@ -7,7 +7,12 @@
     <li class="breadcrumb-item active" aria-current="page">Admin</li>
   </ol>
 </nav>
-<h4 class="fw-bold mb-4">⚙️ Panel Administrateur</h4>
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+  <h4 class="fw-bold mb-0">⚙️ Panel Administrateur</h4>
+  <a href="{{ url_for('admin_vpn_health') }}" class="btn btn-sm btn-outline-info">
+    📡 Santé du tunnel VPN →
+  </a>
+</div>
 
 {# ── IPs orphelines ── #}
 {% if peers_orphelins %}

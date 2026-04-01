@@ -18,7 +18,7 @@ from email.mime.multipart import MIMEMultipart
 from datetime import date, datetime, timedelta
 from functools import wraps
 from flask import (Flask, render_template, request, redirect,
-                   url_for, session, flash, g, Response)
+                   url_for, session, flash, g, Response, jsonify)
 from werkzeug.security import generate_password_hash, check_password_hash as wz_check
 
 app = Flask(__name__)
@@ -1225,6 +1225,182 @@ def admin_broadcast():
         msg += f", ⚠ {failed_email} échec(s) (email invalide ou SMTP)"
     flash(msg, "success" if sent_email else "warning")
     return redirect(url_for("admin_panel"))
+
+# ─── VPN Health Dashboard ─────────────────────────────────────────────────────
+
+def _fmt_bytes(n):
+    if n is None:
+        return "—"
+    if n < 1024:
+        return f"{n} B"
+    if n < 1024 * 1024:
+        return f"{n // 1024} KB"
+    return f"{n // (1024 * 1024)} MB"
+
+
+@app.route("/admin/vpn-health")
+@login_required
+@admin_required
+def admin_vpn_health():
+    db = get_db()
+    db_peers = db.execute("""
+        SELECT p.id, p.label, p.ip_vpn, p.actif, p.vpn_type,
+               u.nom as user_nom
+        FROM peers p
+        JOIN users u ON u.id = p.user_id
+        ORDER BY u.nom, p.label
+    """).fetchall()
+
+    wg_error = None
+    wg_data  = {}   # keyed by bare IP (no /32)
+
+    try:
+        def _awg(subcmd):
+            r = subprocess.run(
+                ["docker", "exec", CONTAINER, "awg", "show", WG_INTERFACE, subcmd],
+                capture_output=True, text=True, timeout=10
+            )
+            if r.returncode != 0:
+                raise RuntimeError(r.stderr.strip() or f"awg show {subcmd} failed")
+            return r.stdout.strip()
+
+        # Map pubkey → bare IP
+        allowed = {}
+        for line in _awg("allowed-ips").splitlines():
+            parts = line.split("\t")
+            if len(parts) == 2:
+                pk, ip_cidr = parts
+                ip = ip_cidr.split("/")[0].split(",")[0].strip()
+                allowed[pk] = ip
+                wg_data[ip] = {"public_key": pk}
+
+        for line in _awg("latest-handshakes").splitlines():
+            parts = line.split("\t")
+            if len(parts) == 2:
+                pk, ts = parts
+                ip = allowed.get(pk)
+                if ip:
+                    wg_data[ip]["handshake_ts"] = int(ts) if ts.isdigit() else 0
+
+        for line in _awg("transfer").splitlines():
+            parts = line.split("\t")
+            if len(parts) == 3:
+                pk, rx, tx = parts
+                ip = allowed.get(pk)
+                if ip:
+                    wg_data[ip]["rx"] = int(rx) if rx.isdigit() else 0
+                    wg_data[ip]["tx"] = int(tx) if tx.isdigit() else 0
+
+        for line in _awg("persistent-keepalive").splitlines():
+            parts = line.split("\t")
+            if len(parts) == 2:
+                pk, ka = parts
+                ip = allowed.get(pk)
+                if ip:
+                    wg_data[ip]["keepalive"] = int(ka) if ka.isdigit() else 0
+
+    except Exception as e:
+        wg_error = str(e)
+
+    # Server health (host metrics)
+    server_health = {
+        "connected_count": 0, "total_peers": len(db_peers),
+        "cpu_pct": "N/A", "ram_pct": "N/A",
+        "ram_used": "N/A", "ram_total": "N/A", "wg0_errors": "N/A",
+    }
+    try:
+        import multiprocessing
+        load = float(open("/proc/loadavg").read().split()[0])
+        server_health["cpu_pct"] = round(load / multiprocessing.cpu_count() * 100, 1)
+    except Exception:
+        pass
+    try:
+        mem = {}
+        for line in open("/proc/meminfo"):
+            k, v = line.split(":")
+            mem[k.strip()] = int(v.strip().split()[0])
+        total = mem.get("MemTotal", 0)
+        avail = mem.get("MemAvailable", 0)
+        used  = total - avail
+        server_health["ram_pct"]   = round(used / total * 100, 1) if total else "N/A"
+        server_health["ram_used"]  = f"{used  // 1024} MB"
+        server_health["ram_total"] = f"{total // 1024} MB"
+    except Exception:
+        pass
+
+    now_ts = int(datetime.utcnow().timestamp())
+    peers_out = []
+    for p in db_peers:
+        ip = p["ip_vpn"].split("/")[0]
+        wd = wg_data.get(ip, {})
+
+        hs_ts = wd.get("handshake_ts", 0)
+        if hs_ts == 0:
+            hs_label, hs_color, status = "Jamais", "secondary", "jamais"
+        else:
+            age = now_ts - hs_ts
+            if age < 180:
+                hs_label = f"{age}s"
+                hs_color  = "success"
+                status    = "connecte"
+                server_health["connected_count"] += 1
+            elif age < 600:
+                hs_label = f"{age // 60}min"
+                hs_color  = "warning"
+                status    = "inactif"
+            else:
+                mins     = age // 60
+                hs_label = f"{mins}min" if mins < 120 else f"{mins // 60}h"
+                hs_color  = "danger"
+                status    = "inactif"
+
+        has_real_key = bool(wd.get("public_key"))
+        ka = wd.get("keepalive", 0)
+
+        peers_out.append({
+            "id":           p["id"],
+            "user_nom":     p["user_nom"],
+            "label":        p["label"],
+            "ip_vpn":       p["ip_vpn"],
+            "actif":        p["actif"],
+            "public_key":   wd.get("public_key", ""),
+            "has_real_key": has_real_key,
+            "hs_label":     hs_label,
+            "hs_color":     hs_color,
+            "transfer_rx":  _fmt_bytes(wd.get("rx")),
+            "transfer_tx":  _fmt_bytes(wd.get("tx")),
+            "status":       status,
+            "badge_color":  hs_color,
+            "warn_keepalive": has_real_key and ka != 25 and status != "jamais",
+            "keepalive":    ka,
+        })
+
+    return render_template("admin_vpn_health.html",
+                           peers=peers_out,
+                           server_health=server_health,
+                           wg_error=wg_error)
+
+
+@app.route("/admin/vpn-health/set-keepalive", methods=["POST"])
+@login_required
+@admin_required
+def admin_set_keepalive():
+    pubkey = request.form.get("pubkey", "").strip()
+    if not pubkey or len(pubkey) < 10:
+        return jsonify({"ok": False, "error": "Clé publique invalide"}), 400
+    try:
+        r = subprocess.run(
+            ["docker", "exec", CONTAINER,
+             "awg", "set", WG_INTERFACE,
+             "peer", pubkey, "persistent-keepalive", "25"],
+            capture_output=True, text=True, timeout=10
+        )
+        if r.returncode != 0:
+            return jsonify({"ok": False, "error": r.stderr.strip() or "Erreur awg set"})
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
 
 # ─── Run ──────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
