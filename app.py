@@ -165,6 +165,19 @@ def init_app_db():
         )
     """)
 
+    # Table métriques VPN (collectée par vpn_metrics.py toutes les 60s)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS peer_metrics (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            peer_ip    TEXT    NOT NULL,
+            ts         TEXT    NOT NULL,
+            rx_bytes   INTEGER NOT NULL DEFAULT 0,
+            tx_bytes   INTEGER NOT NULL DEFAULT 0,
+            handshake_age_s INTEGER
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_pm_ip_ts ON peer_metrics(peer_ip, ts)")
+
     conn.commit()
     conn.close()
 
@@ -1421,17 +1434,82 @@ def admin_set_keepalive():
     if not pubkey or len(pubkey) < 10:
         return jsonify({"ok": False, "error": "Clé publique invalide"}), 400
     try:
-        r = subprocess.run(
-            ["docker", "exec", CONTAINER,
-             "awg", "set", WG_INTERFACE,
-             "peer", pubkey, "persistent-keepalive", "25"],
+        # Detect active interface name first
+        ri = subprocess.run(
+            ["docker", "exec", CONTAINER, "sh", "-c",
+             "awg show 2>/dev/null || wg show 2>/dev/null"],
             capture_output=True, text=True, timeout=10
         )
-        if r.returncode != 0:
-            return jsonify({"ok": False, "error": r.stderr.strip() or "Erreur awg set"})
-        return jsonify({"ok": True})
+        iface = WG_INTERFACE
+        for line in ri.stdout.splitlines():
+            if line.startswith("interface:"):
+                iface = line.split(":", 1)[1].strip()
+                break
+
+        # Try awg set, fall back to wg set
+        errors = []
+        for tool in ("awg", "wg"):
+            r = subprocess.run(
+                ["docker", "exec", CONTAINER,
+                 tool, "set", iface,
+                 "peer", pubkey, "persistent-keepalive", "25"],
+                capture_output=True, text=True, timeout=10
+            )
+            if r.returncode == 0:
+                return jsonify({"ok": True})
+            errors.append(f"{tool}: {r.stderr.strip() or r.stdout.strip() or 'exit '+str(r.returncode)}")
+
+        return jsonify({"ok": False, "error": " | ".join(errors)})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
+
+
+@app.route("/admin/vpn-health/api/metrics")
+@login_required
+@admin_required
+def admin_metrics_api():
+    """Retourne les 2 dernières heures de métriques agrégées par peer (JSON)."""
+    db = get_db()
+    cutoff = (datetime.utcnow() - timedelta(hours=2)).strftime("%Y-%m-%d %H:%M:%S")
+    rows = db.execute("""
+        SELECT pm.peer_ip, pm.ts, pm.rx_bytes, pm.tx_bytes,
+               p.label, u.nom as user_nom
+        FROM peer_metrics pm
+        LEFT JOIN peers p ON p.ip_vpn LIKE pm.peer_ip || '%'
+        LEFT JOIN users u ON u.id = p.user_id
+        WHERE pm.ts >= ?
+        ORDER BY pm.peer_ip, pm.ts
+    """, (cutoff,)).fetchall()
+
+    # Group by peer_ip
+    from collections import defaultdict
+    by_peer = defaultdict(list)
+    meta    = {}
+    for r in rows:
+        ip = r["peer_ip"]
+        by_peer[ip].append({"ts": r["ts"], "rx": r["rx_bytes"], "tx": r["tx_bytes"]})
+        if ip not in meta:
+            meta[ip] = {
+                "label":    r["label"]    or ip,
+                "user_nom": r["user_nom"] or "—",
+            }
+
+    result = []
+    for ip, points in by_peer.items():
+        # Compute deltas (bytes transferred per interval)
+        deltas = []
+        for i in range(1, len(points)):
+            drx = max(0, points[i]["rx"] - points[i-1]["rx"])
+            dtx = max(0, points[i]["tx"] - points[i-1]["tx"])
+            deltas.append({"ts": points[i]["ts"], "rx": drx, "tx": dtx})
+        result.append({
+            "ip":       ip,
+            "label":    meta[ip]["label"],
+            "user_nom": meta[ip]["user_nom"],
+            "points":   deltas,
+        })
+
+    return jsonify(result)
 
 
 # ─── Run ──────────────────────────────────────────────────────────────────────

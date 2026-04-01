@@ -152,6 +152,20 @@
 {# Conteneur pour les notifications keepalive #}
 <div id="ka-alerts" class="mt-3"></div>
 
+{# ── Graphes bande passante ── #}
+<div class="card mt-4">
+  <div class="card-header bg-dark text-white py-2 d-flex justify-content-between align-items-center">
+    <span class="fw-semibold">📊 Bande passante (2 dernières heures)</span>
+    <span class="text-muted small" id="chart-status">Chargement…</span>
+  </div>
+  <div class="card-body">
+    <div id="charts-container" class="row g-3"></div>
+    <p id="charts-empty" class="text-muted text-center py-3" style="display:none;">
+      Aucune métrique disponible — lancez <code>bash setup_metrics_timer.sh</code> sur le serveur.
+    </p>
+  </div>
+</div>
+
 <script>
 // ── Boutons PersistentKeepalive ─────────────────────────────────────────────
 document.querySelectorAll('.btn-keepalive').forEach(btn => {
@@ -214,5 +228,69 @@ const tick = setInterval(() => {
     countEl.textContent = `Rafraîchissement dans ${remaining}s`;
   }
 }, 1000);
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+// ── Graphes bande passante ──────────────────────────────────────────────────
+(async function() {
+  const statusEl  = document.getElementById('chart-status');
+  const container = document.getElementById('charts-container');
+  const emptyEl   = document.getElementById('charts-empty');
+
+  let data;
+  try {
+    const resp = await fetch('/admin/vpn-health/api/metrics');
+    data = await resp.json();
+  } catch(e) {
+    statusEl.textContent = '⚠ Erreur chargement métriques';
+    return;
+  }
+
+  const active = data.filter(p => p.points && p.points.length >= 2);
+  if (active.length === 0) {
+    statusEl.textContent = '';
+    emptyEl.style.display = '';
+    return;
+  }
+  statusEl.textContent = `${active.length} peer(s) avec données`;
+
+  active.forEach(peer => {
+    const labels = peer.points.map(pt => pt.ts.slice(11, 16));
+    const rxKB   = peer.points.map(pt => +(pt.rx / 1024).toFixed(1));
+    const txKB   = peer.points.map(pt => +(pt.tx / 1024).toFixed(1));
+
+    const col = document.createElement('div');
+    col.className = 'col-md-6';
+    col.innerHTML = `
+      <div class="card p-2">
+        <div class="small fw-semibold mb-1 text-truncate">
+          ${peer.user_nom} <span class="text-muted fw-normal">/ ${peer.label}</span>
+          <code class="ms-1" style="font-size:.7rem">${peer.ip}</code>
+        </div>
+        <canvas id="chart-${peer.ip.replace(/\./g,'-')}" height="90"></canvas>
+      </div>`;
+    container.appendChild(col);
+
+    new Chart(document.getElementById(`chart-${peer.ip.replace(/\./g,'-')}`), {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          { label: '↓ Reçu (KB)',   data: rxKB, borderColor: '#0d6efd', backgroundColor: 'rgba(13,110,253,.1)', tension: .3, fill: true, pointRadius: 2 },
+          { label: '↑ Envoyé (KB)', data: txKB, borderColor: '#198754', backgroundColor: 'rgba(25,135,84,.1)',  tension: .3, fill: true, pointRadius: 2 },
+        ]
+      },
+      options: {
+        animation: false,
+        plugins: { legend: { labels: { boxWidth: 12, font: { size: 11 } } } },
+        scales: {
+          x: { ticks: { font: { size: 10 }, maxTicksLimit: 8 } },
+          y: { ticks: { font: { size: 10 } }, title: { display: true, text: 'KB', font: { size: 10 } } }
+        }
+      }
+    });
+  });
+})();
 </script>
 {% endblock %}
