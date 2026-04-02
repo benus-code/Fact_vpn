@@ -189,7 +189,8 @@ document.querySelectorAll('.btn-keepalive').forEach(btn => {
         this.textContent = '✅ KA=25';
         container.insertAdjacentHTML('beforeend',
           `<div class="alert alert-success alert-dismissible fade show" role="alert">
-            ✅ <strong>${label}</strong> — PersistentKeepalive=25 appliqué.
+            ✅ <strong>${label}</strong> — PersistentKeepalive=25 enregistré dans la config.
+            <br><small class="text-muted">Actif après : <code>docker restart amnezia-awg</code> (sans couper les autres clients)</small>
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
           </div>`
         );

@@ -1309,7 +1309,10 @@ def _apply_keepalive_to_peer(peer_ip, interval=25):
 
     new_config = "\n".join(new_lines)
 
-    # 4. Réécrire le fichier complet dans le container (persistance)
+    # 4. Réécrire le fichier dans le container — UNIQUEMENT le fichier, pas de syncconf
+    #    wg syncconf / awg syncconf réinitialise les params d'obfuscation AmneziaWG
+    #    (Jc, Jmin, Jmax, H1-H4) et coupe toutes les connexions.
+    #    Le keepalive sera actif au prochain redémarrage du container (docker restart amnezia-awg).
     rwrite = subprocess.run(
         ["docker", "exec", "-i", CONTAINER,
          "sh", "-c", f"cat > {AWG_CONF}"],
@@ -1319,53 +1322,9 @@ def _apply_keepalive_to_peer(peer_ip, interval=25):
         return {"success": False,
                 "message": f"Impossible d'écrire la config : {rwrite.stderr.strip()}"}
 
-    # 5. Extraire uniquement les sections [Peer] pour syncconf
-    #    (awg syncconf rejette [Interface] sur Alpine)
-    peers_only    = []
-    in_peer       = False
-    for line in new_config.split("\n"):
-        if line.strip() == "[Peer]":
-            in_peer = True
-            peers_only.append(line)
-        elif line.strip() == "[Interface]":
-            in_peer = False
-        elif in_peer:
-            peers_only.append(line)
-
-    peers_config = "\n".join(peers_only)
-
-    # 6. Écrire le fichier [Peer]-only dans le container
-    rwtmp = subprocess.run(
-        ["docker", "exec", "-i", CONTAINER,
-         "sh", "-c", f"cat > {TMP_CONF}"],
-        input=peers_config, capture_output=True, text=True, timeout=10
-    )
-    if rwtmp.returncode != 0:
-        return {"success": False,
-                "message": f"Impossible d'écrire {TMP_CONF} : {rwtmp.stderr.strip()}"}
-
-    # 7. syncconf avec [Peer]-only (jamais [Interface] — contient les params AmneziaWG)
-    #    awg absent du container → wg syncconf sur l'interface AmneziaWG
-    rsync = subprocess.run(
-        ["docker", "exec", CONTAINER,
-         "wg", "syncconf", WG_INTERFACE, TMP_CONF],
-        capture_output=True, text=True, timeout=15
-    )
-
-    # 8. Supprimer le fichier temporaire dans tous les cas
-    subprocess.run(
-        ["docker", "exec", CONTAINER, "rm", "-f", TMP_CONF],
-        capture_output=True, timeout=5
-    )
-
-    if rsync.returncode != 0:
-        detail = (rsync.stderr.strip() or rsync.stdout.strip()
-                  or f"exit code {rsync.returncode}")
-        return {"success": False,
-                "message": f"wg syncconf échoué : {detail}"}
-
     return {"success": True,
-            "message": f"PersistentKeepalive = {interval}s appliqué au peer {bare_ip}"}
+            "message": (f"PersistentKeepalive = {interval}s enregistré pour {bare_ip}. "
+                        f"Actif au prochain redémarrage : docker restart {CONTAINER}")}
 
 
 @app.route("/admin/vpn-health")
