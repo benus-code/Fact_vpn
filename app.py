@@ -1505,16 +1505,14 @@ def admin_set_keepalive():
                 break
 
         # 2. Trouver le fichier .conf contenant cette IP
-        # D'abord lister tous les .conf du container (hors /proc /sys)
-        rfind = subprocess.run(
-            ["docker", "exec", CONTAINER, "sh", "-c",
-             "find / -name '*.conf' -not -path '*/proc/*' -not -path '*/sys/*' 2>/dev/null"],
-            capture_output=True, text=True, timeout=15
-        )
-        all_confs = [f.strip() for f in rfind.stdout.splitlines() if f.strip()]
-        # Grep l'IP dans chacun
+        # Chemin connu pour AmneziaWG + fallbacks
+        conf_candidates = [
+            f"/opt/amnezia/awg/{iface}.conf",
+            f"/etc/amnezia/amneziawg/{iface}.conf",
+            f"/etc/wireguard/{iface}.conf",
+        ]
         conf_path = None
-        for cpath in all_confs:
+        for cpath in conf_candidates:
             rgrep = subprocess.run(
                 ["docker", "exec", CONTAINER, "grep", "-q", bare_ip, cpath],
                 capture_output=True, timeout=5
@@ -1523,12 +1521,10 @@ def admin_set_keepalive():
                 conf_path = cpath
                 break
         if not conf_path:
-            # Retourner la liste des .conf trouvés pour aider au debug
-            found_list = ", ".join(all_confs[:10]) or "aucun"
             return jsonify({"ok": False,
-                            "error": f"IP {bare_ip} absente de tous les .conf. "
-                                     f"Fichiers trouvés : {found_list}"})
-        conf_path = conf_files[0]
+                            "error": f"IP {bare_ip} introuvable dans les fichiers de config "
+                                     f"({', '.join(conf_candidates)}). "
+                                     f"Vérifiez avec : docker exec {CONTAINER} find / -name '*.conf' 2>/dev/null"})
 
         # 3. Lire la config
         rcat = subprocess.run(
