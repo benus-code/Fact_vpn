@@ -62,7 +62,14 @@
     📋 Copier
   </button>
   {% if user.referred_by %}
-    <span class="text-muted">| Parrainé par : <code>{{ user.referred_by }}</code></span>
+    <span class="text-muted">| Parrainé par :
+      {% if parrain %}
+        <a href="{{ url_for('admin_user_detail', uid=parrain.id) }}" class="fw-semibold">{{ parrain.nom }}</a>
+        <code class="text-muted" style="font-size:.8em">({{ user.referred_by }})</code>
+      {% else %}
+        <code>{{ user.referred_by }}</code>
+      {% endif %}
+    </span>
   {% endif %}
   {% if user.status and user.status != 'active' %}
     <span class="badge bg-warning text-dark">⏳ {{ user.status }}</span>

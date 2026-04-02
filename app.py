@@ -214,7 +214,9 @@ def notify_telegram(message):
     """Envoie un message via bot Telegram. Silencieux si non configuré."""
     s = get_settings()
     token   = s.get("telegram_bot_token", "").strip()
-    chat_id = s.get("telegram_chat_id", "").strip()
+    # Priorité : telegram_chat_id → admin_telegram_id (fallback si seul l'un est rempli)
+    chat_id = (s.get("telegram_chat_id", "").strip()
+               or s.get("admin_telegram_id", "").strip())
     if not token or not chat_id:
         return
     try:
@@ -502,6 +504,25 @@ def demander_acces():
             f"Pour valider : /valider_{uid}\n"
             f"Pour refuser : /refuser_{uid}"
         )
+
+        # Email au parrain pour l'informer que son code a été utilisé
+        if parrain_valide:
+            parrain_row = db.execute(
+                "SELECT nom, email FROM users WHERE referral_code = ?",
+                (parrain_valide,)
+            ).fetchone()
+            if parrain_row and parrain_row["email"] and "@" in parrain_row["email"]:
+                html_parrain = (
+                    f"<div style='font-family:sans-serif;max-width:520px;margin:0 auto'>"
+                    f"<h2 style='color:#2980b9'>🎟 Quelqu'un a utilisé ton code !</h2>"
+                    f"<p>Bonjour <strong>{parrain_row['nom']}</strong>,</p>"
+                    f"<p><strong>{prenom}</strong> vient de s'inscrire avec ton code de parrainage "
+                    f"<code>{parrain_valide}</code>.</p>"
+                    f"<p>Dès son premier renouvellement validé, tu recevras automatiquement "
+                    f"<strong>25% de réduction</strong> sur ton prochain mois. 🎉</p>"
+                    f"<hr><small style='color:#888'>— SP Network</small></div>"
+                )
+                send_email(parrain_row["email"], "🎟 Ton code de parrainage a été utilisé !", html_parrain)
         flash("✅ Demande envoyée. Vous serez contacté sur Telegram.", "success")
         return redirect(url_for("login"))
     return render_template("demander_acces.html")
@@ -842,8 +863,16 @@ def admin_user_detail(uid):
         "SELECT * FROM paiements WHERE user_id = ? ORDER BY date_paiement DESC",
         (uid,)
     ).fetchall()
+    # Résoudre le nom du parrain depuis le code referred_by
+    parrain = None
+    if user and user["referred_by"]:
+        parrain = db.execute(
+            "SELECT id, nom FROM users WHERE referral_code = ?",
+            (user["referred_by"],)
+        ).fetchone()
     return render_template("admin_user.html",
-        user=user, abo=abo, peers=peers, histo=histo, today=date.today()
+        user=user, abo=abo, peers=peers, histo=histo,
+        today=date.today(), parrain=parrain
     )
 
 # ─── Gestion des peers ────────────────────────────────────────────────────────
