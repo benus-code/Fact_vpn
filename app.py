@@ -1344,22 +1344,41 @@ def _apply_keepalive_to_peer(peer_ip, interval=25):
         return {"success": False,
                 "message": f"Impossible d'écrire {TMP_CONF} : {rwtmp.stderr.strip()}"}
 
-    # 7. awg syncconf avec le fichier [Peer]-only
+    # 7. awg syncconf — essai 1 : [Peer]-only
     rsync = subprocess.run(
         ["docker", "exec", CONTAINER,
          "awg", "syncconf", WG_INTERFACE, TMP_CONF],
         capture_output=True, text=True, timeout=15
     )
 
-    # 8. Supprimer le fichier temporaire dans tous les cas
+    # Si [Peer]-only échoue, essai 2 : config complète (certaines versions AmneziaWG l'acceptent)
+    if rsync.returncode != 0:
+        TMP_FULL = "/tmp/awg_full.conf"
+        subprocess.run(
+            ["docker", "exec", "-i", CONTAINER, "sh", "-c", f"cat > {TMP_FULL}"],
+            input=new_config, capture_output=True, text=True, timeout=10
+        )
+        rsync2 = subprocess.run(
+            ["docker", "exec", CONTAINER,
+             "awg", "syncconf", WG_INTERFACE, TMP_FULL],
+            capture_output=True, text=True, timeout=15
+        )
+        subprocess.run(["docker", "exec", CONTAINER, "rm", "-f", TMP_FULL],
+                       capture_output=True, timeout=5)
+        if rsync2.returncode == 0:
+            rsync = rsync2   # succès avec config complète
+
+    # 8. Supprimer le fichier [Peer]-only dans tous les cas
     subprocess.run(
         ["docker", "exec", CONTAINER, "rm", "-f", TMP_CONF],
         capture_output=True, timeout=5
     )
 
     if rsync.returncode != 0:
+        detail = (rsync.stderr.strip() or rsync.stdout.strip()
+                  or f"exit code {rsync.returncode}")
         return {"success": False,
-                "message": f"awg syncconf échoué : {rsync.stderr.strip()}"}
+                "message": f"awg syncconf échoué : {detail}"}
 
     return {"success": True,
             "message": f"PersistentKeepalive = {interval}s appliqué au peer {bare_ip}"}
