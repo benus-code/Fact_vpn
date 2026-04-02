@@ -1504,17 +1504,30 @@ def admin_set_keepalive():
                 iface = line.split(":", 1)[1].strip()
                 break
 
-        # 2. Trouver le fichier .conf contenant cette IP (grep dans /etc/)
+        # 2. Trouver le fichier .conf contenant cette IP
+        # D'abord lister tous les .conf du container (hors /proc /sys)
         rfind = subprocess.run(
-            ["docker", "exec", CONTAINER,
-             "grep", "-rl", bare_ip, "/etc/"],
-            capture_output=True, text=True, timeout=10
+            ["docker", "exec", CONTAINER, "sh", "-c",
+             "find / -name '*.conf' -not -path '*/proc/*' -not -path '*/sys/*' 2>/dev/null"],
+            capture_output=True, text=True, timeout=15
         )
-        conf_files = [f.strip() for f in rfind.stdout.splitlines()
-                      if f.strip().endswith(".conf")]
-        if not conf_files:
+        all_confs = [f.strip() for f in rfind.stdout.splitlines() if f.strip()]
+        # Grep l'IP dans chacun
+        conf_path = None
+        for cpath in all_confs:
+            rgrep = subprocess.run(
+                ["docker", "exec", CONTAINER, "grep", "-q", bare_ip, cpath],
+                capture_output=True, timeout=5
+            )
+            if rgrep.returncode == 0:
+                conf_path = cpath
+                break
+        if not conf_path:
+            # Retourner la liste des .conf trouvés pour aider au debug
+            found_list = ", ".join(all_confs[:10]) or "aucun"
             return jsonify({"ok": False,
-                            "error": f"Aucun fichier .conf trouvé contenant {bare_ip} dans /etc/"})
+                            "error": f"IP {bare_ip} absente de tous les .conf. "
+                                     f"Fichiers trouvés : {found_list}"})
         conf_path = conf_files[0]
 
         # 3. Lire la config
