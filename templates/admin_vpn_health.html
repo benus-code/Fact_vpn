@@ -129,7 +129,7 @@
             <td>
               {% if p.has_real_key %}
               <button class="btn btn-outline-primary btn-sm btn-keepalive"
-                      data-pubkey="{{ p.public_key }}"
+                      data-ip="{{ p.ip_vpn }}"
                       data-label="{{ p.user_nom }} / {{ p.label }}"
                       {% if p.keepalive == 25 %}disabled title="Déjà configuré"{% endif %}>
                 {% if p.keepalive == 25 %}✅ KA=25{% else %}⚙ KA=25{% endif %}
@@ -170,13 +170,13 @@
 // ── Boutons PersistentKeepalive ─────────────────────────────────────────────
 document.querySelectorAll('.btn-keepalive').forEach(btn => {
   btn.addEventListener('click', async function() {
-    const pubkey = this.dataset.pubkey;
-    const label  = this.dataset.label;
+    const ip    = this.dataset.ip;
+    const label = this.dataset.label;
     this.disabled = true;
     this.textContent = '⏳…';
 
     const fd = new FormData();
-    fd.append('pubkey', pubkey);
+    fd.append('peer_ip', ip);
 
     try {
       const resp = await fetch('/admin/vpn-health/set-keepalive', {
