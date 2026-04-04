@@ -272,29 +272,93 @@ def admin_required(f):
     return decorated
 
 # ─── Telegram notifications ───────────────────────────────────────────────────
-def notify_telegram(message):
-    """Envoie un message via bot Telegram. Silencieux si non configuré."""
-    s = get_settings()
+def _send_telegram_raw(token, chat_id, text, parse_mode="HTML", timeout=10):
+    """
+    Envoie un message Telegram. Retourne (True, None) ou (False, erreur).
+    N'attrape PAS les exceptions — à appeler dans un try/except.
+    """
+    data = json.dumps({
+        "chat_id":    chat_id,
+        "text":       text,
+        "parse_mode": parse_mode,
+    }).encode()
+    req = urllib.request.Request(
+        f"https://api.telegram.org/bot{token}/sendMessage",
+        data=data,
+        headers={"Content-Type": "application/json"},
+    )
+    urllib.request.urlopen(req, timeout=timeout)
+
+
+def notify_telegram(message, retries=3, retry_delay=2):
+    """
+    Envoie un message Telegram vers TOUS les chat_ids configurés.
+    - Retente jusqu'à `retries` fois par destinataire (délai exponentiel)
+    - Fallback HTML → texte brut si Telegram refuse le format
+    - Enregistre les échecs définitifs dans la table `alertes`
+
+    Service critique : ne jamais lever d'exception vers l'appelant.
+    """
+    import time
+
+    s       = get_settings()
     token   = s.get("telegram_bot_token", "").strip()
-    # Priorité : telegram_chat_id → admin_telegram_id (fallback si seul l'un est rempli)
-    chat_id = (s.get("telegram_chat_id", "").strip()
-               or s.get("admin_telegram_id", "").strip())
-    if not token or not chat_id:
-        return
-    try:
-        data = json.dumps({
-            "chat_id": chat_id,
-            "text":    message,
-            "parse_mode": "HTML"
-        }).encode()
-        req = urllib.request.Request(
-            f"https://api.telegram.org/bot{token}/sendMessage",
-            data=data,
-            headers={"Content-Type": "application/json"}
-        )
-        urllib.request.urlopen(req, timeout=5)
-    except Exception as e:
-        app.logger.warning(f"Telegram notify failed: {e}")
+    if not token:
+        return  # Bot non configuré — silence attendu
+
+    # Collecter TOUS les destinataires uniques non vides
+    chat_ids = list(dict.fromkeys(filter(None, [
+        s.get("telegram_chat_id",  "").strip(),
+        s.get("admin_telegram_id", "").strip(),
+    ])))
+    if not chat_ids:
+        return  # Aucun destinataire configuré
+
+    for chat_id in chat_ids:
+        sent = False
+
+        # Essayer jusqu'à `retries` fois
+        for attempt in range(1, retries + 1):
+            try:
+                _send_telegram_raw(token, chat_id, message, parse_mode="HTML")
+                sent = True
+                break
+            except Exception as e:
+                err = str(e)
+
+                # Si Telegram rejette le HTML (400) → réessayer en texte brut
+                if "400" in err and attempt == 1:
+                    try:
+                        import re
+                        plain = re.sub(r'<[^>]+>', '', message)
+                        _send_telegram_raw(token, chat_id, plain, parse_mode="")
+                        sent = True
+                        break
+                    except Exception:
+                        pass
+
+                if attempt < retries:
+                    time.sleep(retry_delay * attempt)  # 2s, 4s, 6s…
+                else:
+                    app.logger.error(
+                        f"[Telegram] Échec définitif → chat_id={chat_id} : {err}"
+                    )
+                    # Enregistrer l'échec en base pour alerte admin
+                    try:
+                        db = get_db()
+                        db.execute("""
+                            INSERT INTO alertes (type, message, lu)
+                            VALUES ('telegram_fail', ?, 0)
+                        """, (f"Notif Telegram non envoyée à {chat_id} : {err[:200]}",))
+                        db.commit()
+                    except Exception:
+                        pass
+
+        if not sent:
+            app.logger.warning(
+                f"[Telegram] Notification perdue pour chat_id={chat_id}"
+            )
+
 
 def send_email(to_email, subject, body_html):
     """Envoie un email via l'API Brevo (HTTP) ou SMTP en fallback.
@@ -910,6 +974,36 @@ def admin_test_email():
     else:
         flash(f"❌ Échec de l'envoi : {err}", "danger")
     return redirect(url_for("admin_panel"))
+
+@app.route("/admin/test-telegram", methods=["POST"])
+@login_required
+@admin_required
+def admin_test_telegram():
+    """Envoie un message de test Telegram pour vérifier la configuration."""
+    s     = get_settings()
+    token = s.get("telegram_bot_token", "").strip()
+    ids   = list(dict.fromkeys(filter(None, [
+        s.get("telegram_chat_id",  "").strip(),
+        s.get("admin_telegram_id", "").strip(),
+    ])))
+    if not token:
+        flash("❌ Token du bot Telegram non configuré dans les paramètres.", "danger")
+        return redirect(url_for("admin_panel"))
+    if not ids:
+        flash("❌ Aucun Chat ID configuré (telegram_chat_id ou admin_telegram_id).", "danger")
+        return redirect(url_for("admin_panel"))
+
+    from datetime import datetime
+    msg = (
+        f"✅ <b>Test Telegram — VPN Admin</b>\n\n"
+        f"🕐 {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n"
+        f"📡 Destinataires : {', '.join(ids)}\n\n"
+        f"Configuration OK — les notifications demandes d'accès fonctionnent."
+    )
+    notify_telegram(msg)
+    flash(f"✅ Message de test envoyé à : {', '.join(ids)}", "success")
+    return redirect(url_for("admin_panel"))
+
 
 @app.route("/admin/user/<int:uid>")
 @login_required

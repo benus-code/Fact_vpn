@@ -264,6 +264,9 @@
     <form method="POST" action="{{ url_for('admin_test_email') }}">
       <button class="btn btn-sm btn-outline-secondary">🔧 Tester l'envoi d'email</button>
     </form>
+    <form method="POST" action="{{ url_for('admin_test_telegram') }}">
+      <button class="btn btn-sm btn-outline-primary">📲 Tester Telegram</button>
+    </form>
     <form method="POST" action="{{ url_for('admin_run_cron') }}">
       <button class="btn btn-sm btn-outline-info">▶ Lancer rappels J-3 maintenant</button>
     </form>
