@@ -176,6 +176,13 @@
               {% endif %}
             </td>
             <td><code>{{ p.ip_vpn }}</code></td>
+            <td>
+              {% if p.container == 'amnezia-awg2' %}
+                <span class="badge" style="background:#6d28d9;color:#fff">AWG 2.0</span>
+              {% else %}
+                <span class="badge bg-danger">AWG 1.x</span>
+              {% endif %}
+            </td>
             <td class="text-muted small">{{ p.date_ajout or '—' }}</td>
             <td>
               <span class="peer-badge {% if p.actif %}peer-on{% else %}peer-off{% endif %}">
@@ -197,6 +204,15 @@
               <form method="POST" action="{{ url_for('admin_envoyer_config_email', peer_id=p.id) }}">
                 <button class="btn btn-outline-primary btn-sm py-0 px-2" title="Envoyer config par email"
                   {% if not p.config_data %}disabled title="Aucune config sauvegardée"{% endif %}>📧</button>
+              </form>
+              <!-- Corriger le container assigné -->
+              <form method="POST" action="{{ url_for('admin_set_peer_container', peer_id=p.id) }}"
+                    style="display:inline-flex;gap:3px;align-items:center">
+                <select name="container" class="form-select form-select-sm py-0" style="height:24px;font-size:.72rem;width:auto">
+                  <option value="amnezia-awg"  {% if p.container != 'amnezia-awg2' %}selected{% endif %}>AWG 1.x</option>
+                  <option value="amnezia-awg2" {% if p.container == 'amnezia-awg2' %}selected{% endif %}>AWG 2.0</option>
+                </select>
+                <button class="btn btn-outline-secondary btn-sm py-0 px-1" title="Changer serveur" style="height:24px;font-size:.72rem">↻</button>
               </form>
               <form method="POST" action="{{ url_for('admin_supprimer_peer', peer_id=p.id) }}"
                     onsubmit="return confirm('Supprimer {{ p.label }} ({{ p.ip_vpn }}) définitivement ?')">
@@ -258,10 +274,17 @@
                  title="Format attendu : 10.8.1.X">
         </div>
         <div class="col-md-2">
-          <label class="form-label small">Type VPN</label>
+          <label class="form-label small">Serveur (container)</label>
+          <select name="container" class="form-select form-select-sm">
+            <option value="amnezia-awg">AWG 1.x (wg0 · 10.8.1.x)</option>
+            <option value="amnezia-awg2">AWG 2.0 (awg0 · 10.8.2.x)</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small">Type appareil</label>
           <select name="vpn_type" class="form-select form-select-sm">
-            <option value="amnezia">📱 Amnezia (mobile)</option>
-            <option value="pivpn">💻 PiVPN (PC)</option>
+            <option value="amnezia">📱 Mobile (Amnezia)</option>
+            <option value="pivpn">💻 PC (PiVPN)</option>
           </select>
         </div>
         <div class="col-md-2">

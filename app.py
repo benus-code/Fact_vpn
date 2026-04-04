@@ -1025,19 +1025,34 @@ def admin_ajouter_peer():
     ip_vpn     = request.form["ip_vpn"].strip()
     date_ajout = request.form.get("date_ajout") or date.today().isoformat()
     vpn_type   = request.form.get("vpn_type", "amnezia")
+    container  = request.form.get("container", "amnezia-awg")
+    # Mapping container → interface WireGuard
+    wg_iface_map = {"amnezia-awg": "wg0", "amnezia-awg2": "awg0"}
+    wg_interface = wg_iface_map.get(container, "wg0")
+
     db = get_db()
-    if db.execute("SELECT id FROM peers WHERE ip_vpn = ?", (ip_vpn,)).fetchone():
-        flash(f"L'IP {ip_vpn} est déjà attribuée à un autre appareil.", "danger")
+    # Vérifier conflit d'IP dans le MÊME container uniquement
+    # (les deux containers peuvent avoir des IPs identiques si subnets différents)
+    if db.execute(
+        "SELECT id FROM peers WHERE ip_vpn = ? AND container = ?",
+        (ip_vpn, container)
+    ).fetchone():
+        flash(f"L'IP {ip_vpn} est déjà attribuée dans {container}.", "danger")
         return redirect(url_for("admin_user_detail", uid=uid))
+
     public_key = f"MANUAL_{ip_vpn}"
     db.execute(
-        "INSERT INTO peers (user_id, label, public_key, ip_vpn, actif, date_ajout, vpn_type) VALUES (?, ?, ?, ?, 1, ?, ?)",
-        (uid, label, public_key, ip_vpn, date_ajout, vpn_type)
+        """INSERT INTO peers
+               (user_id, label, public_key, ip_vpn, actif, date_ajout, vpn_type,
+                container, wg_interface)
+           VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?)""",
+        (uid, label, public_key, ip_vpn, date_ajout, vpn_type, container, wg_interface)
     )
     db.commit()
-    user = db.execute("SELECT nom FROM users WHERE id = ?", (uid,)).fetchone()
-    type_label = "PiVPN (PC)" if vpn_type == "pivpn" else "Amnezia (mobile)"
-    flash(f"✅ Appareil « {label} » ({ip_vpn}) [{type_label}] ajouté pour {user['nom']}.", "success")
+    user         = db.execute("SELECT nom FROM users WHERE id = ?", (uid,)).fetchone()
+    type_label   = "PiVPN (PC)" if vpn_type == "pivpn" else "Amnezia (mobile)"
+    server_label = "AWG 2.0" if container == "amnezia-awg2" else "AWG 1.x"
+    flash(f"✅ Appareil « {label} » ({ip_vpn}) [{type_label} — {server_label}] ajouté pour {user['nom']}.", "success")
     return redirect(url_for("admin_user_detail", uid=uid))
 
 @app.route("/admin/peer/liberer/<int:peer_id>", methods=["POST"])
@@ -1092,6 +1107,27 @@ def admin_reactiver_peer(peer_id):
         db.execute("UPDATE peers SET actif = 1 WHERE id = ?", (peer_id,))
         db.commit()
         flash(f"Peer {peer['label']} ({peer['ip_vpn']}) réactivé {'✅' if ok else '⚠ (erreur iptables)'}.", "success")
+    return redirect(request.referrer or url_for("admin_panel"))
+
+
+@app.route("/admin/peer/set-container/<int:peer_id>", methods=["POST"])
+@login_required
+@admin_required
+def admin_set_peer_container(peer_id):
+    """Corrige le container assigné à un peer existant."""
+    db        = get_db()
+    container = request.form.get("container", "amnezia-awg")
+    iface_map = {"amnezia-awg": "wg0", "amnezia-awg2": "awg0"}
+    iface     = iface_map.get(container, "wg0")
+    peer      = db.execute("SELECT * FROM peers WHERE id = ?", (peer_id,)).fetchone()
+    if peer:
+        db.execute(
+            "UPDATE peers SET container = ?, wg_interface = ? WHERE id = ?",
+            (container, iface, peer_id)
+        )
+        db.commit()
+        label = "AWG 2.0" if container == "amnezia-awg2" else "AWG 1.x"
+        flash(f"✅ Peer {peer['label']} ({peer['ip_vpn']}) → {label} ({container}).", "success")
     return redirect(request.referrer or url_for("admin_panel"))
 
 @app.route("/admin/user/suspendre_tout/<int:uid>", methods=["POST"])
