@@ -723,33 +723,58 @@ def settings():
 
 def _send_message_bg(user_dict, subject, message, channel, s):
     """Envoi email + telegram en arrière-plan (thread). Loggue les erreurs en DB."""
-    import json, urllib.request, smtplib, sqlite3
-    from email.mime.multipart import MIMEMultipart
-    from email.mime.text       import MIMEText
+    import json, urllib.request, sqlite3
 
     errors = []
 
     if channel in ('email', 'both') and user_dict.get('email'):
-        try:
-            mime = MIMEMultipart('alternative')
-            mime['Subject'] = subject
-            mime['From']    = s.get('smtp_email', '')
-            mime['To']      = user_dict['email']
-            html = (
-                f"<div style='font-family:sans-serif;max-width:520px;margin:0 auto'>"
-                f"<p>Bonjour <strong>{user_dict['nom']}</strong>,</p>"
-                f"<p>{message.replace(chr(10), '<br>')}</p>"
-                f"<hr><small style='color:#888'>VPN Privé</small></div>"
-            )
-            mime.attach(MIMEText(html, 'html'))
-            smtp_host = s.get('smtp_host', 'smtp.gmail.com')
-            smtp_port = int(s.get('smtp_port') or 587)
-            with smtplib.SMTP(smtp_host, smtp_port, timeout=20) as srv:
-                srv.ehlo(); srv.starttls(); srv.ehlo()
-                srv.login(s.get('smtp_username', ''), s.get('smtp_password', ''))
-                srv.sendmail(mime['From'], [user_dict['email']], mime.as_string())
-        except Exception as e:
-            errors.append(f"email: {e}")
+        from_addr = s.get('smtp_email', '').strip()
+        api_key   = s.get('brevo_api_key', '').strip()
+        html = (
+            f"<div style='font-family:sans-serif;max-width:520px;margin:0 auto'>"
+            f"<p>Bonjour <strong>{user_dict['nom']}</strong>,</p>"
+            f"<p>{message.replace(chr(10), '<br>')}</p>"
+            f"<hr><small style='color:#888'>VPN Privé</small></div>"
+        )
+
+        # Voie 1 : API HTTP Brevo (port 443 — toujours ouvert)
+        if api_key and from_addr:
+            try:
+                payload = json.dumps({
+                    "sender":      {"name": "SP Network", "email": from_addr},
+                    "to":          [{"email": user_dict['email']}],
+                    "subject":     subject,
+                    "htmlContent": html,
+                }).encode()
+                req = urllib.request.Request(
+                    "https://api.brevo.com/v3/smtp/email",
+                    data=payload,
+                    headers={"api-key": api_key, "Content-Type": "application/json"},
+                )
+                urllib.request.urlopen(req, timeout=15)
+            except Exception as e:
+                errors.append(f"brevo: {e}")
+        elif from_addr:
+            # Voie 2 : SMTP fallback
+            import smtplib
+            from email.mime.multipart import MIMEMultipart
+            from email.mime.text import MIMEText
+            try:
+                mime = MIMEMultipart('alternative')
+                mime['Subject'] = subject
+                mime['From']    = f"SP Network <{from_addr}>"
+                mime['To']      = user_dict['email']
+                mime.attach(MIMEText(html, 'html'))
+                host  = s.get('smtp_host', 'smtp-relay.brevo.com').strip() or 'smtp-relay.brevo.com'
+                port  = int(s.get('smtp_port') or 587)
+                login = s.get('smtp_username', '').strip() or from_addr
+                pwd   = s.get('smtp_password', '').strip()
+                with smtplib.SMTP(host, port, timeout=20) as srv:
+                    srv.ehlo(); srv.starttls(); srv.ehlo()
+                    srv.login(login, pwd)
+                    srv.sendmail(from_addr, [user_dict['email']], mime.as_string())
+            except Exception as e:
+                errors.append(f"smtp: {e}")
 
     if channel in ('telegram', 'both'):
         token    = s.get('telegram_bot_token', '')
