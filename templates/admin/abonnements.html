@@ -1,6 +1,6 @@
 {% extends "admin/base_admin.html" %}
 {% block title %}Abonnements{% endblock %}
-{% block page_title %}💳 Abonnements{% endblock %}
+{% block page_title %}Abonnements{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
@@ -11,12 +11,12 @@
     <button class="pill" data-filter="soon">Expire dans 7j</button>
     <button class="pill" data-filter="suspendu">Suspendus</button>
   </div>
-  <input class="search-bar" id="search-input" placeholder="🔍  Rechercher…" oninput="filterTable()" style="max-width:220px">
+  <input class="search-bar" id="search-input" placeholder="Rechercher…" oninput="filterTable()" style="max-width:220px">
 </div>
 
 <div class="card-dark">
   <div class="table-wrap">
-    <table class="table-dark-custom table mb-0">
+    <table class="table-dark-custom mb-0">
       <thead>
         <tr>
           <th>#Abo</th><th>#Client</th><th>Nom</th>
@@ -27,34 +27,34 @@
       <tbody id="abo-body">
       {% for a in abos %}
       <tr data-filter="{{ a.filter_key }}" data-search="{{ a.user_id }} {{ a.nom|lower }}">
-        <td style="color:var(--muted);font-size:.78rem">#{{ a.id }}</td>
-        <td><a href="{{ url_for('admin_bp.client_detail', uid=a.user_id) }}" style="color:var(--muted);font-size:.8rem">#{{ a.user_id }}</a></td>
-        <td><a href="{{ url_for('admin_bp.client_detail', uid=a.user_id) }}" style="color:var(--text);text-decoration:none;font-weight:600">{{ a.nom }}</a></td>
-        <td style="font-size:.82rem;color:var(--muted)">{{ a.date_debut or '—' }}</td>
+        <td style="font-family:var(--font-mono);color:var(--text-muted);font-size:.74rem">#{{ a.id }}</td>
+        <td><a href="{{ url_for('admin_bp.client_detail', uid=a.user_id) }}" style="font-family:var(--font-mono);color:var(--text-muted);font-size:.76rem">#{{ a.user_id }}</a></td>
+        <td><a href="{{ url_for('admin_bp.client_detail', uid=a.user_id) }}" style="color:var(--text);text-decoration:none;font-weight:500">{{ a.nom }}</a></td>
+        <td style="font-family:var(--font-mono);font-size:.8rem;color:var(--text-secondary)">{{ a.date_debut or '—' }}</td>
         <td style="font-size:.82rem">
           {% if a.date_fin %}
-            <span style="color:{{ 'var(--red)' if a.jours is not none and a.jours <= 3 else 'var(--text)' }}">
+            <span style="color:{{ 'var(--red)' if a.jours is not none and a.jours <= 3 else 'var(--text-secondary)' }};font-family:var(--font-mono)">
               {{ a.date_fin }}
             </span>
             {% if a.jours is not none and a.jours >= 0 %}
-            <span style="font-size:.72rem;color:var(--muted)"> (J-{{ a.jours }})</span>
+            <span style="font-size:.71rem;color:var(--text-muted)"> J-{{ a.jours }}</span>
             {% endif %}
           {% else %}—{% endif %}
         </td>
-        <td style="font-weight:600;color:var(--green)">{{ a.montant or '—' }} ₽</td>
+        <td style="font-weight:600;color:var(--green);font-family:var(--font-mono)">{{ a.montant or '—' }} ₽</td>
         <td>
           {% if a.statut == 'actif' %}<span class="badge-status green"><span class="dot green"></span>Actif</span>
           {% elif a.statut == 'suspendu' %}<span class="badge-status amber"><span class="dot amber"></span>Suspendu</span>
           {% elif a.statut == 'expire' %}<span class="badge-status red"><span class="dot red"></span>Expiré</span>
           {% else %}<span class="badge-status gray"><span class="dot gray"></span>{{ a.statut }}</span>{% endif %}
         </td>
-        <td style="text-align:center">{{ '✅' if a.reminded_j3 else '⬜' }}</td>
-        <td style="text-align:center">{{ '✅' if a.reminded_j1 else '⬜' }}</td>
+        <td style="text-align:center;color:{{ 'var(--green)' if a.reminded_j3 else 'var(--text-muted)' }}">{{ '✓' if a.reminded_j3 else '·' }}</td>
+        <td style="text-align:center;color:{{ 'var(--green)' if a.reminded_j1 else 'var(--text-muted)' }}">{{ '✓' if a.reminded_j1 else '·' }}</td>
         <td>
-          <div style="display:flex;gap:4px">
-            <a href="{{ url_for('admin_bp.client_detail', uid=a.user_id) }}" class="btn-icon" title="Voir">👁️</a>
-            <button class="btn-icon" title="Prolonger +1 mois"
-                    onclick="prolonger({{ a.user_id }}, {{ a.montant or 0 }})">📅+</button>
+          <div style="display:flex;gap:3px">
+            <a href="{{ url_for('admin_bp.client_detail', uid=a.user_id) }}" class="btn-icon" title="Voir">👁</a>
+            <button class="btn-icon" title="Prolonger +1 mois" style="color:var(--accent)"
+                    onclick="prolonger({{ a.user_id }}, {{ a.montant or 0 }})">+1m</button>
           </div>
         </td>
       </tr>
@@ -65,9 +65,9 @@
 </div>
 
 <!-- Modal prolongement rapide -->
-<div id="modal-prolong" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:500;align-items:center;justify-content:center;">
-  <div class="card-dark" style="width:100%;max-width:360px;padding:24px;border-radius:12px;">
-    <h6 style="font-family:var(--font-title);margin-bottom:16px">📅 Prolonger +1 mois</h6>
+<div id="modal-prolong" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:500;align-items:center;justify-content:center;backdrop-filter:blur(3px)">
+  <div class="card-dark" style="width:100%;max-width:340px;padding:22px;margin:16px;border-radius:var(--radius-lg)">
+    <div style="font-family:var(--font-title);font-weight:600;margin-bottom:16px;font-size:.9rem">📅 Prolonger +1 mois</div>
     <form method="POST" action="{{ url_for('admin_ajouter_paiement') }}" class="row g-2">
       <input type="hidden" name="user_id" id="prolong-uid">
       <input type="hidden" name="mois" value="1">
@@ -76,7 +76,7 @@
       </div>
       <div class="col-12"><input type="text" name="note" class="search-bar" placeholder="Note (optionnel)"></div>
       <div class="col-6"><button type="button" class="btn-ghost w-100" onclick="document.getElementById('modal-prolong').style.display='none'">Annuler</button></div>
-      <div class="col-6"><button class="btn-accent w-100">Confirmer</button></div>
+      <div class="col-6"><button class="btn-accent w-100" style="justify-content:center">Confirmer</button></div>
     </form>
   </div>
 </div>

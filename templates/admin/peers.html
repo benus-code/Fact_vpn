@@ -1,6 +1,6 @@
 {% extends "admin/base_admin.html" %}
 {% block title %}Peers{% endblock %}
-{% block page_title %}🖥️ Peers & Connexions{% endblock %}
+{% block page_title %}Peers VPN{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
@@ -13,32 +13,22 @@
     <button class="pill" data-filter="awg2">AWG 2.0</button>
     <button class="pill" data-filter="no-ka">⚠ Sans KA</button>
   </div>
-  <div style="font-size:.82rem;color:var(--muted)">
-    🟢 <strong style="color:var(--green)">{{ connected }}</strong> connectés
-    / {{ peers|length }} total
+  <div style="font-size:.82rem;color:var(--text-secondary)">
+    <span style="color:var(--green);font-weight:600">{{ connected }}</span> connectés / {{ peers|length }} total
   </div>
 </div>
 
 <div class="mb-3">
-  <input class="search-bar" id="search-input" placeholder="🔍  Rechercher par client, IP, label…" oninput="filterPeers()">
+  <input class="search-bar" id="search-input" placeholder="Rechercher par client, IP, label…" oninput="filterPeers()">
 </div>
 
 <div class="card-dark">
   <div class="table-wrap">
-    <table class="table-dark-custom table mb-0" id="peers-table">
+    <table class="table-dark-custom mb-0" id="peers-table">
       <thead>
         <tr>
-          <th>#ID</th>
-          <th>Client</th>
-          <th>Label</th>
-          <th>IP VPN</th>
-          <th>Proto</th>
-          <th>Statut</th>
-          <th>Handshake</th>
-          <th>↓ Reçu</th>
-          <th>↑ Envoyé</th>
-          <th>KA</th>
-          <th>Actions</th>
+          <th>#</th><th>Client</th><th>Label</th><th>IP VPN</th><th>Proto</th>
+          <th>Statut</th><th>Handshake</th><th>↓ Reçu</th><th>↑ Envoyé</th><th>KA</th><th>Actions</th>
         </tr>
       </thead>
       <tbody id="peers-body">
@@ -47,15 +37,13 @@
           data-search="{{ p.id }} {{ p.user_nom|lower }} {{ p.ip_vpn }} {{ p.label|lower }}"
           data-ka="{{ 'no-ka' if p.warn_ka else 'ok' }}"
           data-proto="{{ 'awg2' if p.container == 'amnezia-awg2' else 'awg1' }}">
-        <td style="color:var(--muted);font-size:.78rem">#{{ p.id }}</td>
+        <td style="font-family:var(--font-mono);color:var(--text-muted);font-size:.74rem">#{{ p.id }}</td>
         <td>
-          <a href="{{ url_for('admin_bp.client_detail', uid=p.user_id) }}" style="color:var(--text);text-decoration:none;font-weight:600">
-            {{ p.user_nom }}
-          </a>
-          <div style="color:var(--muted);font-size:.7rem">#{{ p.user_id }}</div>
+          <a href="{{ url_for('admin_bp.client_detail', uid=p.user_id) }}" style="color:var(--text);text-decoration:none;font-weight:500">{{ p.user_nom }}</a>
+          <div style="color:var(--text-muted);font-family:var(--font-mono);font-size:.68rem">#{{ p.user_id }}</div>
         </td>
-        <td style="font-size:.83rem">{{ p.label }}</td>
-        <td><code style="color:var(--muted);font-size:.78rem">{{ p.ip_vpn }}</code></td>
+        <td style="font-size:.83rem;color:var(--text-secondary)">{{ p.label }}</td>
+        <td><code style="font-family:var(--font-mono);color:var(--text-secondary);font-size:.77rem">{{ p.ip_vpn }}</code></td>
         <td><span class="badge-proto {{ 'awg2' if p.container == 'amnezia-awg2' else 'awg1' }}">{{ 'AWG 2.0' if p.container == 'amnezia-awg2' else 'AWG 1.x' }}</span></td>
         <td>
           {% if not p.actif %}
@@ -68,28 +56,28 @@
             <span class="badge-status gray"><span class="dot gray"></span>Jamais</span>
           {% endif %}
         </td>
-        <td style="font-size:.8rem;color:var(--muted)">{{ p.hs_label }}</td>
-        <td style="font-size:.8rem;color:var(--muted)">{{ p.transfer_rx }}</td>
-        <td style="font-size:.8rem;color:var(--muted)">{{ p.transfer_tx }}</td>
+        <td style="font-family:var(--font-mono);font-size:.79rem;color:var(--text-secondary)">{{ p.hs_label }}</td>
+        <td style="font-size:.8rem;color:var(--text-secondary)">{{ p.transfer_rx }}</td>
+        <td style="font-size:.8rem;color:var(--text-secondary)">{{ p.transfer_tx }}</td>
         <td>
           {% if p.keepalive == 25 %}
-            <span style="color:var(--green);font-size:.8rem">✅ 25s</span>
+            <span style="color:var(--green);font-family:var(--font-mono);font-size:.77rem;font-weight:600">✓ 25s</span>
           {% elif p.warn_ka %}
-            <span style="color:var(--red);font-size:.8rem">⚠ OFF</span>
+            <span style="color:var(--red);font-size:.78rem;font-weight:600">⚠ OFF</span>
           {% else %}
-            <span style="color:var(--muted);font-size:.8rem">—</span>
+            <span style="color:var(--text-muted);font-size:.78rem">—</span>
           {% endif %}
         </td>
         <td>
           <div style="display:flex;gap:3px">
-            <a href="{{ url_for('admin_bp.client_detail', uid=p.user_id) }}" class="btn-icon" title="Voir client">👁️</a>
+            <a href="{{ url_for('admin_bp.client_detail', uid=p.user_id) }}" class="btn-icon" title="Voir client">👁</a>
             {% if p.actif %}
             <form method="POST" action="{{ url_for('admin_suspendre_peer', peer_id=p.id) }}">
-              <button class="btn-icon" title="Suspendre">⏸️</button>
+              <button class="btn-icon" title="Suspendre">⏸</button>
             </form>
             {% else %}
             <form method="POST" action="{{ url_for('admin_reactiver_peer', peer_id=p.id) }}">
-              <button class="btn-icon" title="Réactiver">▶️</button>
+              <button class="btn-icon" title="Réactiver" style="color:var(--green)">▶</button>
             </form>
             {% endif %}
           </div>

@@ -1,6 +1,6 @@
 {% extends "admin/base_admin.html" %}
 {% block title %}#{{ user.id }} {{ user.nom }}{% endblock %}
-{% block page_title %}👤 #{{ user.id }} — {{ user.nom }}{% endblock %}
+{% block page_title %}#{{ user.id }} — {{ user.nom }}{% endblock %}
 
 {% block content %}
 <div class="mb-3">
@@ -12,26 +12,26 @@
   <!-- Infos client -->
   <div class="col-md-6">
     <div class="card-dark" style="padding:20px">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px">
         <div>
-          <div style="font-family:var(--font-title);font-size:1.1rem;font-weight:700">{{ user.nom }}</div>
-          <div style="color:var(--muted);font-size:.82rem">{{ user.email }}</div>
+          <div style="font-family:var(--font-title);font-size:1.05rem;font-weight:700;color:var(--text)">{{ user.nom }}</div>
+          <div style="color:var(--text-muted);font-size:.81rem;margin-top:2px">{{ user.email }}</div>
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           {% if user.whatsapp %}
           {% set wa = user.whatsapp|replace('+','')|replace(' ','')|replace('-','') %}
-          <a href="https://wa.me/{{ wa }}" target="_blank" class="btn-ghost">💬 WA</a>
+          <a href="https://wa.me/{{ wa }}" target="_blank" class="btn-ghost" style="font-size:.78rem;padding:4px 10px">💬 WA</a>
           {% endif %}
           {% if user.telegram %}
-          <a href="https://t.me/{{ user.telegram|replace('@','') }}" target="_blank" class="btn-ghost">✈️ TG</a>
+          <a href="https://t.me/{{ user.telegram|replace('@','') }}" target="_blank" class="btn-ghost" style="font-size:.78rem;padding:4px 10px">✈️ TG</a>
           {% endif %}
         </div>
       </div>
       <table style="width:100%;font-size:.83rem;border-collapse:collapse">
         {% macro row(label, val) %}
         <tr>
-          <td style="color:var(--muted);padding:5px 0;width:40%">{{ label }}</td>
-          <td style="padding:5px 0">{{ val }}</td>
+          <td style="color:var(--text-muted);padding:5px 0;width:40%;font-size:.78rem;font-weight:500;text-transform:uppercase;letter-spacing:.5px">{{ label }}</td>
+          <td style="padding:5px 0;color:var(--text-secondary)">{{ val }}</td>
         </tr>
         {% endmacro %}
         {{ row("ID", "#" ~ user.id) }}
@@ -41,12 +41,12 @@
         {{ row("Code parrainage", user.referral_code or '—') }}
         {% if user.referred_by %}
         <tr>
-          <td style="color:var(--muted);padding:5px 0">Parrainé par</td>
+          <td style="color:var(--text-muted);padding:5px 0;font-size:.78rem;font-weight:500;text-transform:uppercase;letter-spacing:.5px">Parrainé par</td>
           <td style="padding:5px 0">
             {% if parrain %}
-            <a href="{{ url_for('admin_bp.client_detail', uid=parrain.id) }}" style="color:var(--accent)">#{{ parrain.id }} {{ parrain.nom }}</a>
-            <span style="color:var(--muted);font-size:.75rem">({{ user.referred_by }})</span>
-            {% else %}<code style="font-size:.8rem">{{ user.referred_by }}</code>{% endif %}
+            <a href="{{ url_for('admin_bp.client_detail', uid=parrain.id) }}" style="color:var(--accent);text-decoration:none">#{{ parrain.id }} {{ parrain.nom }}</a>
+            <span style="color:var(--text-muted);font-size:.74rem"> ({{ user.referred_by }})</span>
+            {% else %}<code style="font-size:.79rem;color:var(--text-secondary)">{{ user.referred_by }}</code>{% endif %}
           </td>
         </tr>
         {% endif %}
@@ -54,7 +54,7 @@
         {{ row("Réduction prochaine", "–" ~ (user.discount_next * 100)|int ~ "%") }}
         {% endif %}
         <tr>
-          <td style="color:var(--muted);padding:5px 0">Statut</td>
+          <td style="color:var(--text-muted);padding:5px 0;font-size:.78rem;font-weight:500;text-transform:uppercase;letter-spacing:.5px">Statut</td>
           <td style="padding:5px 0">
             {% if user.is_banned %}<span class="badge-status red"><span class="dot red"></span>Banni</span>
             {% elif user.status == 'pending' %}<span class="badge-status gray"><span class="dot gray"></span>En attente</span>
@@ -62,7 +62,7 @@
           </td>
         </tr>
       </table>
-      <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
+      <div style="display:flex;gap:7px;margin-top:16px;flex-wrap:wrap">
         {% if user.is_banned %}
         <form method="POST" action="{{ url_for('admin_debannir_user', uid=user.id) }}">
           <button class="btn-ghost">✅ Débannir</button>
@@ -70,7 +70,7 @@
         {% else %}
         <form method="POST" action="{{ url_for('admin_bannir_user', uid=user.id) }}"
               onsubmit="return confirm('Bannir {{ user.nom }} ?')">
-          <button class="btn-ghost" style="border-color:var(--red);color:var(--red)">🚫 Bannir</button>
+          <button class="btn-ghost danger">🚫 Bannir</button>
         </form>
         {% endif %}
         <form method="POST" action="{{ url_for('admin_reset_password', uid=user.id) }}"
@@ -84,10 +84,13 @@
   <!-- Abonnement -->
   <div class="col-md-6">
     <div class="card-dark" style="padding:20px">
-      <div style="font-weight:600;margin-bottom:14px">📅 Abonnement</div>
+      <div style="font-family:var(--font-title);font-weight:600;margin-bottom:14px;font-size:.9rem">📅 Abonnement</div>
       {% if abo %}
       <table style="width:100%;font-size:.83rem;border-collapse:collapse">
-        {% macro row(label, val) %}<tr><td style="color:var(--muted);padding:5px 0;width:40%">{{ label }}</td><td>{{ val }}</td></tr>{% endmacro %}
+        {% macro row(label, val) %}<tr>
+          <td style="color:var(--text-muted);padding:5px 0;width:40%;font-size:.78rem;font-weight:500;text-transform:uppercase;letter-spacing:.5px">{{ label }}</td>
+          <td style="padding:5px 0;color:var(--text-secondary)">{{ val }}</td>
+        </tr>{% endmacro %}
         {{ row("Statut", abo.statut) }}
         {{ row("Début", abo.date_debut or '—') }}
         {{ row("Fin", abo.date_fin or '—') }}
@@ -95,13 +98,15 @@
         {{ row("Rappel J-3", "✅" if abo.reminded_j3 else "⬜") }}
         {{ row("Rappel J-1", "✅" if abo.reminded_j1 else "⬜") }}
       </table>
-      {% else %}<p style="color:var(--muted);font-size:.85rem">Aucun abonnement.</p>{% endif %}
-      <hr style="border-color:var(--border);margin:16px 0">
+      {% else %}
+      <p style="color:var(--text-muted);font-size:.84rem">Aucun abonnement enregistré.</p>
+      {% endif %}
+      <hr style="border-color:var(--border-muted);margin:16px 0">
       <form method="POST" action="{{ url_for('admin_ajouter_paiement') }}" class="row g-2">
         <input type="hidden" name="user_id" value="{{ user.id }}">
         <div class="col-4"><input type="number" name="montant" class="search-bar" placeholder="Montant ₽" required min="1"></div>
-        <div class="col-4"><input type="number" name="mois" class="search-bar" placeholder="Mois" value="1" required min="1"></div>
-        <div class="col-4"><button class="btn-accent w-100">+1 Mois</button></div>
+        <div class="col-4"><input type="number" name="mois"    class="search-bar" placeholder="Mois" value="1" required min="1"></div>
+        <div class="col-4"><button class="btn-accent w-100" style="justify-content:center">+1 Mois</button></div>
         <div class="col-12"><input type="text" name="note" class="search-bar" placeholder="Note (optionnel)"></div>
       </form>
     </div>
@@ -112,12 +117,15 @@
     <div class="card-dark">
       <div class="card-header d-flex justify-content-between align-items-center">
         <span>🖥️ Peers ({{ peers|length }})</span>
-        <button class="btn-ghost" onclick="document.getElementById('form-add-peer').style.display=document.getElementById('form-add-peer').style.display==='none'?'block':'none'">➕ Ajouter peer</button>
+        <button class="btn-ghost" style="font-size:.78rem;padding:4px 11px"
+                onclick="document.getElementById('form-add-peer').style.display=document.getElementById('form-add-peer').style.display==='none'?'block':'none'">
+          ➕ Ajouter peer
+        </button>
       </div>
-      <div id="form-add-peer" style="display:none;padding:14px;border-bottom:1px solid var(--border)">
+      <div id="form-add-peer" style="display:none;padding:14px;border-bottom:1px solid var(--border-muted)">
         <form method="POST" action="{{ url_for('admin_ajouter_peer') }}" class="row g-2">
           <input type="hidden" name="user_id" value="{{ user.id }}">
-          <div class="col-md-3"><input type="text" name="label" class="search-bar" placeholder="Label (ex: jean_phone)" required></div>
+          <div class="col-md-3"><input type="text" name="label"  class="search-bar" placeholder="Label (ex: jean_phone)" required></div>
           <div class="col-md-3"><input type="text" name="ip_vpn" class="search-bar" placeholder="IP VPN (ex: 10.8.1.X)"></div>
           <div class="col-md-3">
             <select name="vpn_type" class="search-bar">
@@ -125,12 +133,14 @@
               <option value="amnezia2">AWG 2.0</option>
             </select>
           </div>
-          <div class="col-md-3"><button class="btn-accent w-100">Créer</button></div>
+          <div class="col-md-3"><button class="btn-accent w-100" style="justify-content:center">Créer</button></div>
         </form>
       </div>
       <div class="table-wrap">
-        <table class="table-dark-custom table mb-0">
-          <thead><tr><th>#ID</th><th>Label</th><th>IP VPN</th><th>Proto</th><th>Statut live</th><th>Handshake</th><th>↓ Reçu</th><th>↑ Envoyé</th><th>KA</th><th>Actions</th></tr></thead>
+        <table class="table-dark-custom mb-0">
+          <thead>
+            <tr><th>#</th><th>Label</th><th>IP VPN</th><th>Proto</th><th>Statut</th><th>Handshake</th><th>↓ Reçu</th><th>↑ Envoyé</th><th>KA</th><th>Actions</th></tr>
+          </thead>
           <tbody>
           {% for p in peers %}
           {% set bare_ip = p.ip_vpn.split('/')[0] %}
@@ -138,9 +148,9 @@
           {% set hs_ts = live.get('handshake_ts', 0) %}
           {% set status = peer_status(hs_ts) %}
           <tr>
-            <td style="color:var(--muted);font-size:.78rem">#{{ p.id }}</td>
-            <td style="font-weight:600">{{ p.label }}</td>
-            <td><code style="color:var(--muted);font-size:.8rem">{{ p.ip_vpn }}</code></td>
+            <td style="font-family:var(--font-mono);color:var(--text-muted);font-size:.74rem">#{{ p.id }}</td>
+            <td style="font-weight:500;color:var(--text)">{{ p.label }}</td>
+            <td><code style="font-family:var(--font-mono);color:var(--text-secondary);font-size:.78rem">{{ p.ip_vpn }}</code></td>
             <td><span class="badge-proto {{ 'awg2' if p.container == 'amnezia-awg2' else 'awg1' }}">{{ 'AWG 2.0' if p.container == 'amnezia-awg2' else 'AWG 1.x' }}</span></td>
             <td>
               {% if not p.actif %}<span class="badge-status gray"><span class="dot gray"></span>Suspendu</span>
@@ -149,30 +159,30 @@
                 <span class="dot {{ status.dot }}"></span>{{ status.label }}
               </span>{% endif %}
             </td>
-            <td style="font-size:.8rem;color:var(--muted)">{{ format_age(live.get('handshake_age_s')) }}</td>
-            <td style="font-size:.8rem;color:var(--muted)">{{ format_bytes(live.get('rx')) }}</td>
-            <td style="font-size:.8rem;color:var(--muted)">{{ format_bytes(live.get('tx')) }}</td>
+            <td style="font-family:var(--font-mono);font-size:.79rem;color:var(--text-secondary)">{{ format_age(live.get('handshake_age_s')) }}</td>
+            <td style="font-size:.8rem;color:var(--text-secondary)">{{ format_bytes(live.get('rx')) }}</td>
+            <td style="font-size:.8rem;color:var(--text-secondary)">{{ format_bytes(live.get('tx')) }}</td>
             <td>
               {% set ka = live.get('keepalive', 0) %}
-              {% if ka == 25 %}<span style="color:var(--green);font-size:.8rem">✅ 25s</span>
-              {% elif ka > 0 %}<span style="color:var(--amber);font-size:.8rem">⚠ {{ ka }}s</span>
-              {% elif p.actif and status.dot != 'gray' %}<span style="color:var(--red);font-size:.8rem">⚠ OFF</span>
-              {% else %}<span style="color:var(--muted);font-size:.8rem">—</span>{% endif %}
+              {% if ka == 25 %}<span style="color:var(--green);font-size:.78rem;font-weight:600">✓ 25s</span>
+              {% elif ka > 0 %}<span style="color:var(--amber);font-family:var(--font-mono);font-size:.78rem">{{ ka }}s</span>
+              {% elif p.actif and status.dot != 'gray' %}<span style="color:var(--red);font-size:.78rem">⚠ OFF</span>
+              {% else %}<span style="color:var(--text-muted);font-size:.78rem">—</span>{% endif %}
             </td>
             <td>
-              <div style="display:flex;gap:4px">
+              <div style="display:flex;gap:3px">
                 {% if p.actif %}
                 <form method="POST" action="{{ url_for('admin_suspendre_peer', peer_id=p.id) }}">
-                  <button class="btn-icon" title="Suspendre">⏸️</button>
+                  <button class="btn-icon" title="Suspendre">⏸</button>
                 </form>
                 {% else %}
                 <form method="POST" action="{{ url_for('admin_reactiver_peer', peer_id=p.id) }}">
-                  <button class="btn-icon" title="Réactiver">▶️</button>
+                  <button class="btn-icon" title="Réactiver" style="color:var(--green)">▶</button>
                 </form>
                 {% endif %}
                 <form method="POST" action="{{ url_for('admin_supprimer_peer', peer_id=p.id) }}"
                       onsubmit="return confirm('Supprimer ce peer ?')">
-                  <button class="btn-icon" title="Supprimer" style="color:var(--red)">🗑️</button>
+                  <button class="btn-icon" title="Supprimer" style="color:var(--red)">✕</button>
                 </form>
               </div>
             </td>
@@ -189,18 +199,18 @@
     <div class="card-dark">
       <div class="card-header">💳 Historique paiements</div>
       <div class="table-wrap">
-        <table class="table-dark-custom table mb-0">
+        <table class="table-dark-custom mb-0">
           <thead><tr><th>Date</th><th>Montant</th><th>Mois</th><th>Note</th></tr></thead>
           <tbody>
           {% for h in histo %}
           <tr>
-            <td style="font-size:.8rem">{{ h.date_paiement[:10] }}</td>
-            <td style="color:var(--green);font-weight:600">{{ h.montant }} ₽</td>
-            <td style="color:var(--muted);font-size:.8rem">+{{ h.mois_prolonges }}m</td>
-            <td style="color:var(--muted);font-size:.78rem">{{ h.note or '—' }}</td>
+            <td style="font-family:var(--font-mono);font-size:.79rem;color:var(--text-secondary)">{{ h.date_paiement[:10] }}</td>
+            <td style="color:var(--green);font-weight:600;font-family:var(--font-mono)">{{ h.montant }} ₽</td>
+            <td style="color:var(--text-muted);font-size:.8rem">+{{ h.mois_prolonges }}m</td>
+            <td style="color:var(--text-muted);font-size:.78rem">{{ h.note or '—' }}</td>
           </tr>
           {% else %}
-          <tr><td colspan="4" style="color:var(--muted);text-align:center;padding:16px">Aucun paiement</td></tr>
+          <tr><td colspan="4" style="color:var(--text-muted);text-align:center;padding:16px">Aucun paiement</td></tr>
           {% endfor %}
           </tbody>
         </table>
@@ -214,7 +224,9 @@
       <div class="card-header">📊 Bande passante (24h)</div>
       <div style="padding:16px">
         <canvas id="bw-chart" height="110"></canvas>
-        <p id="bw-empty" style="color:var(--muted);text-align:center;font-size:.82rem;display:none">Aucune donnée — lancez <code>bash setup_metrics_timer.sh</code></p>
+        <p id="bw-empty" style="color:var(--text-muted);text-align:center;font-size:.82rem;display:none">
+          Aucune donnée — lancez <code>bash setup_metrics_timer.sh</code>
+        </p>
       </div>
     </div>
   </div>
@@ -226,19 +238,12 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
 (async () => {
-  {% for p in peers %}
-  const ips_{{ loop.index }} = '{{ p.ip_vpn.split("/")[0] }}';
-  {% endfor %}
-  // Charger les métriques du premier peer
   {% if peers %}
   const resp = await fetch('/admin/vpn-health/api/metrics');
   const all  = await resp.json();
   const myIps = [{% for p in peers %}'{{ p.ip_vpn.split("/")[0] }}'{% if not loop.last %},{% endif %}{% endfor %}];
   const data = all.filter(p => myIps.includes(p.ip));
-  if (!data.length) {
-    document.getElementById('bw-empty').style.display = 'block';
-    return;
-  }
+  if (!data.length) { document.getElementById('bw-empty').style.display = 'block'; return; }
   const pts    = data[0].points || [];
   const labels = pts.map(p => p.ts.slice(11,16));
   const rxKB   = pts.map(p => +(p.rx/1024).toFixed(1));
@@ -247,15 +252,15 @@
   new Chart(document.getElementById('bw-chart'), {
     type: 'line',
     data: { labels, datasets: [
-      { label:'↓ Reçu (KB)',   data: rxKB, borderColor:'#e94560', backgroundColor:'rgba(233,69,96,.1)', tension:.3, fill:true, pointRadius:2 },
-      { label:'↑ Envoyé (KB)', data: txKB, borderColor:'#22c55e', backgroundColor:'rgba(34,197,94,.1)',  tension:.3, fill:true, pointRadius:2 },
+      { label:'↓ Reçu (KB)',   data: rxKB, borderColor:'#58a6ff', backgroundColor:'rgba(88,166,255,.1)',  tension:.3, fill:true, pointRadius:2 },
+      { label:'↑ Envoyé (KB)', data: txKB, borderColor:'#3fb950', backgroundColor:'rgba(63,185,80,.1)',   tension:.3, fill:true, pointRadius:2 },
     ]},
     options: {
       animation: false,
-      plugins: { legend: { labels: { color:'#8892b0', boxWidth:12, font:{size:11} } } },
+      plugins: { legend: { labels: { color:'#8b949e', boxWidth:11, font:{size:11} } } },
       scales: {
-        x: { ticks:{color:'#8892b0',font:{size:10},maxTicksLimit:8}, grid:{color:'#2a2a3e'} },
-        y: { ticks:{color:'#8892b0',font:{size:10}}, grid:{color:'#2a2a3e'} }
+        x: { ticks:{color:'#6e7681',font:{size:10},maxTicksLimit:8}, grid:{color:'#21262d'} },
+        y: { ticks:{color:'#6e7681',font:{size:10}}, grid:{color:'#21262d'} }
       }
     }
   });
