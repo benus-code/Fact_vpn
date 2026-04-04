@@ -24,6 +24,10 @@ from werkzeug.security import generate_password_hash, check_password_hash as wz_
 app = Flask(__name__)
 app.secret_key = os.environ.get("VPN_SECRET_KEY", "CHANGE_CE_SECRET_EN_PROD_SVP")
 
+# ─── Blueprint admin (nouveau dashboard) ──────────────────────────────────────
+from routes_admin import admin_bp
+app.register_blueprint(admin_bp)
+
 DB_PATH       = "/opt/vpn-billing/vpn_billing.db"
 CONTAINER     = "amnezia-awg"
 WG_INTERFACE  = "wg0"

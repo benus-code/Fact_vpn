@@ -1,0 +1,506 @@
+#!/usr/bin/env python3
+"""
+routes_admin.py — Blueprint admin (nouveau dashboard sombre)
+Toutes les routes /admin/* du nouveau dashboard sont ici.
+Les anciennes routes admin dans app.py restent actives pendant la transition.
+"""
+
+import sqlite3
+from datetime import datetime, date, timedelta
+from calendar import monthrange
+from flask import (Blueprint, render_template, request, redirect,
+                   url_for, session, flash, g, jsonify, current_app)
+from functools import wraps
+from vpn_utils import (
+    get_all_peers_status, get_peers_status, container_is_running,
+    format_bytes, format_age, peer_status_label, get_kpis,
+    apply_keepalive, log_admin_action, CONTAINERS, get_keepalive_alerts,
+)
+
+admin_bp = Blueprint('admin_bp', __name__, url_prefix='/admin/v2')
+
+DB_PATH = "/opt/vpn-billing/vpn_billing.db"
+
+
+# ─── Helpers ──────────────────────────────────────────────────────────────────
+
+def get_db():
+    if 'db' not in g:
+        g.db = sqlite3.connect(DB_PATH)
+        g.db.row_factory = sqlite3.Row
+    return g.db
+
+
+def admin_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get('is_admin'):
+            flash('Accès réservé à l\'administrateur.', 'danger')
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated
+
+
+def _unread_alerts():
+    db = get_db()
+    try:
+        row = db.execute("SELECT COUNT(*) FROM alertes WHERE lu = 0").fetchone()
+        return row[0] if row else 0
+    except Exception:
+        return 0
+
+
+def _container_summaries():
+    """Résumé running/total/connected pour chaque container — injecté dans base."""
+    all_live = get_all_peers_status()
+    now_ts = int(datetime.utcnow().timestamp())
+    result = []
+    db = get_db()
+
+    for cname, cfg in CONTAINERS.items():
+        running = container_is_running(cname)
+        live = get_peers_status(cname) if running else {}
+        total = db.execute(
+            "SELECT COUNT(*) FROM peers WHERE container = ? AND actif = 1",
+            (cname,)
+        ).fetchone()[0]
+        connected = sum(
+            1 for d in live.values()
+            if d.get('handshake_ts') and (now_ts - d['handshake_ts']) < 180
+        )
+        result.append({
+            'container': cname,
+            'label':     cfg['label'],
+            'interface': cfg['interface'],
+            'port':      cfg['port'],
+            'running':   running,
+            'total':     total,
+            'connected': connected,
+        })
+    return result
+
+
+# Injecteur de contexte global pour toutes les vues du blueprint
+@admin_bp.context_processor
+def inject_admin_globals():
+    return {
+        'unread_alerts': _unread_alerts(),
+        'containers':    _container_summaries(),
+    }
+
+
+# ─── Helpers enrichissement peers ─────────────────────────────────────────────
+
+def _enrich_peers(peers, all_live=None):
+    """
+    Enrichit une liste de rows peers avec les données live + formatées.
+    Retourne une liste de dicts.
+    """
+    if all_live is None:
+        all_live = get_all_peers_status()
+    now_ts = int(datetime.utcnow().timestamp())
+    result = []
+
+    for p in peers:
+        bare_ip = (p['ip_vpn'] or '').split('/')[0]
+        live    = all_live.get(bare_ip, {})
+        hs_ts   = live.get('handshake_ts', 0)
+        hs_age  = live.get('handshake_age_s')
+        ka      = live.get('keepalive', 0)
+
+        status_info = peer_status_label(hs_ts)
+        warn_ka = (p['actif'] and ka != 25 and hs_ts and (now_ts - hs_ts) < 600)
+
+        item = dict(p)
+        item.update({
+            'status':      status_info['dot'],     # 'green'|'amber'|'red'|'gray'
+            'status_label': status_info['label'],
+            'filter_key':  ('suspendu' if not p['actif']
+                            else status_info['dot'] if status_info['dot'] in ('green',)
+                            else 'inactif' if status_info['dot'] == 'amber'
+                            else 'inactif'),
+            'hs_label':    format_age(hs_age),
+            'transfer_rx': format_bytes(live.get('rx')),
+            'transfer_tx': format_bytes(live.get('tx')),
+            'keepalive':   ka,
+            'warn_ka':     warn_ka,
+        })
+        if status_info['dot'] == 'green':
+            item['filter_key'] = 'connecte'
+        elif not p['actif']:
+            item['filter_key'] = 'suspendu'
+        else:
+            item['filter_key'] = 'inactif'
+
+        result.append(item)
+    return result
+
+
+# ─── Vue d'ensemble ───────────────────────────────────────────────────────────
+
+@admin_bp.route('/')
+@admin_bp.route('/overview')
+@admin_required
+def overview():
+    db   = get_db()
+    kpis = get_kpis(DB_PATH)
+
+    # Expirations prochaines 7 jours
+    expiring = db.execute("""
+        SELECT u.id, u.nom, a.date_fin,
+               CAST(julianday(a.date_fin) - julianday('now') AS INTEGER) AS jours
+        FROM abonnements a
+        JOIN users u ON u.id = a.user_id
+        WHERE a.statut = 'actif'
+          AND a.date_fin BETWEEN date('now') AND date('now', '+7 days')
+        ORDER BY a.date_fin ASC
+    """).fetchall()
+
+    # Activité récente (paiements + inscriptions)
+    activite_pay = db.execute("""
+        SELECT p.date_paiement AS date, 'paiement' AS type,
+               u.id AS user_id, u.nom,
+               (p.montant || ' ₽ — +' || p.mois_prolonges || ' mois') AS detail
+        FROM paiements p
+        JOIN users u ON u.id = p.user_id
+        ORDER BY p.date_paiement DESC
+        LIMIT 15
+    """).fetchall()
+
+    activite_ins = db.execute("""
+        SELECT created_at AS date, 'inscription' AS type,
+               id AS user_id, nom, email AS detail
+        FROM users
+        WHERE is_admin = 0
+        ORDER BY created_at DESC
+        LIMIT 5
+    """).fetchall()
+
+    activite = sorted(
+        [dict(r) for r in activite_pay] + [dict(r) for r in activite_ins],
+        key=lambda x: x['date'],
+        reverse=True
+    )[:20]
+
+    return render_template('admin/overview.html',
+                           kpis=kpis,
+                           expiring=expiring,
+                           activite=activite)
+
+
+# ─── Clients ──────────────────────────────────────────────────────────────────
+
+@admin_bp.route('/clients')
+@admin_required
+def clients():
+    db = get_db()
+    rows = db.execute("""
+        SELECT u.id, u.nom, u.email, u.whatsapp, u.telegram,
+               u.is_banned, u.referred_by,
+               a.statut, a.date_fin, a.montant,
+               CAST(julianday(a.date_fin) - julianday('now') AS INTEGER) AS jours_restants,
+               (SELECT COUNT(*) FROM peers WHERE user_id = u.id) AS nb_peers,
+               (SELECT COUNT(*) FROM peers WHERE user_id = u.id AND actif = 1) AS peers_actifs
+        FROM users u
+        LEFT JOIN abonnements a ON a.user_id = u.id
+        WHERE u.is_admin = 0
+        ORDER BY u.id DESC
+    """).fetchall()
+
+    users = []
+    for r in rows:
+        d = dict(r)
+        # Déterminer filtre
+        if r['is_banned']:
+            d['statut'] = 'banni'
+        elif r['statut'] is None:
+            d['statut'] = 'en_attente'
+        elif r['statut'] == 'actif' and r['date_fin']:
+            today = date.today().isoformat()
+            if r['date_fin'] < today:
+                d['statut'] = 'expire'
+        users.append(d)
+
+    return render_template('admin/clients.html', users=users)
+
+
+# ─── Détail client ────────────────────────────────────────────────────────────
+
+@admin_bp.route('/clients/<int:uid>')
+@admin_required
+def client_detail(uid):
+    db = get_db()
+
+    user = db.execute("SELECT * FROM users WHERE id = ?", (uid,)).fetchone()
+    if not user:
+        flash('Client introuvable.', 'danger')
+        return redirect(url_for('admin_bp.clients'))
+
+    abo = db.execute(
+        "SELECT * FROM abonnements WHERE user_id = ? ORDER BY id DESC LIMIT 1",
+        (uid,)
+    ).fetchone()
+
+    peers_rows = db.execute(
+        "SELECT * FROM peers WHERE user_id = ? ORDER BY id DESC",
+        (uid,)
+    ).fetchall()
+
+    histo = db.execute(
+        "SELECT * FROM paiements WHERE user_id = ? ORDER BY date_paiement DESC",
+        (uid,)
+    ).fetchall()
+
+    # Parrain
+    parrain = None
+    if user['referred_by']:
+        parrain = db.execute(
+            "SELECT id, nom FROM users WHERE referral_code = ?",
+            (user['referred_by'],)
+        ).fetchone()
+
+    # Peers live
+    all_live  = get_all_peers_status()
+    peers     = _enrich_peers(peers_rows, all_live)
+    peers_live = {
+        p['ip_vpn'].split('/')[0]: all_live.get(p['ip_vpn'].split('/')[0], {})
+        for p in peers_rows
+    }
+
+    return render_template('admin/client_detail.html',
+                           user=user,
+                           abo=abo,
+                           peers=peers,
+                           peers_live=peers_live,
+                           histo=histo,
+                           parrain=parrain,
+                           peer_status=peer_status_label,
+                           format_age=format_age,
+                           format_bytes=format_bytes)
+
+
+# ─── Peers ────────────────────────────────────────────────────────────────────
+
+@admin_bp.route('/peers')
+@admin_required
+def peers():
+    db = get_db()
+    rows = db.execute("""
+        SELECT p.*, u.nom AS user_nom
+        FROM peers p
+        JOIN users u ON u.id = p.user_id
+        ORDER BY p.id DESC
+    """).fetchall()
+
+    all_live  = get_all_peers_status()
+    now_ts    = int(datetime.utcnow().timestamp())
+    connected = sum(
+        1 for d in all_live.values()
+        if d.get('handshake_ts') and (now_ts - d['handshake_ts']) < 180
+    )
+
+    peers = _enrich_peers(rows, all_live)
+    return render_template('admin/peers.html',
+                           peers=peers,
+                           connected=connected)
+
+
+# ─── Abonnements ──────────────────────────────────────────────────────────────
+
+@admin_bp.route('/abonnements')
+@admin_required
+def abonnements():
+    db   = get_db()
+    rows = db.execute("""
+        SELECT a.id, a.user_id, a.statut, a.date_debut, a.date_fin,
+               a.montant, a.reminded_j3, a.reminded_j1,
+               u.nom,
+               CAST(julianday(a.date_fin) - julianday('now') AS INTEGER) AS jours
+        FROM abonnements a
+        JOIN users u ON u.id = a.user_id
+        ORDER BY a.id DESC
+    """).fetchall()
+
+    today = date.today().isoformat()
+    in7   = (date.today() + timedelta(days=7)).isoformat()
+
+    abos = []
+    for r in rows:
+        d = dict(r)
+        # filter_key pour les pills
+        if r['statut'] == 'suspendu':
+            d['filter_key'] = 'suspendu'
+        elif r['statut'] == 'actif' and r['date_fin'] and r['date_fin'] < today:
+            d['filter_key'] = 'expire'
+            d['statut']     = 'expire'
+        elif r['statut'] == 'actif' and r['date_fin'] and r['date_fin'] <= in7:
+            d['filter_key'] = 'soon'
+        elif r['statut'] == 'actif':
+            d['filter_key'] = 'actif'
+        else:
+            d['filter_key'] = r['statut'] or 'expire'
+        abos.append(d)
+
+    return render_template('admin/abonnements.html', abos=abos)
+
+
+# ─── Paiements ────────────────────────────────────────────────────────────────
+
+@admin_bp.route('/paiements')
+@admin_required
+def paiements():
+    db   = get_db()
+    rows = db.execute("""
+        SELECT p.id, p.user_id, p.date_paiement, p.montant,
+               p.mois_prolonges, p.note,
+               u.nom
+        FROM paiements p
+        JOIN users u ON u.id = p.user_id
+        ORDER BY p.date_paiement DESC
+    """).fetchall()
+
+    now        = datetime.utcnow()
+    first_day  = now.replace(day=1).date().isoformat()
+    last_month = (now.replace(day=1) - timedelta(days=1))
+    lm_first   = last_month.replace(day=1).date().isoformat()
+    lm_last    = last_month.date().isoformat()
+
+    total_enc  = sum(r['montant'] or 0 for r in rows)
+    ce_mois    = sum(
+        r['montant'] or 0 for r in rows
+        if (r['date_paiement'] or '')[:10] >= first_day
+    )
+    nb         = len(rows)
+    panier_moy = int(total_enc / nb) if nb else 0
+
+    paiements_list = []
+    for r in rows:
+        d = dict(r)
+        dp = (r['date_paiement'] or '')[:10]
+        if dp >= first_day:
+            d['filter_key'] = 'ce_mois'
+        elif lm_first <= dp <= lm_last:
+            d['filter_key'] = 'mois_precedent'
+        else:
+            d['filter_key'] = 'ancien'
+        paiements_list.append(d)
+
+    stats = {
+        'total_encaisse': int(total_enc),
+        'ce_mois':        int(ce_mois),
+        'nb_paiements':   nb,
+        'panier_moyen':   panier_moy,
+    }
+
+    return render_template('admin/paiements.html',
+                           paiements=paiements_list,
+                           stats=stats)
+
+
+# ─── Monitoring ───────────────────────────────────────────────────────────────
+
+@admin_bp.route('/monitoring')
+@admin_required
+def monitoring():
+    db       = get_db()
+    all_live = get_all_peers_status()
+    now_ts   = int(datetime.utcnow().timestamp())
+
+    # Résumé containers
+    containers_info = _container_summaries()
+
+    # Alertes KA
+    ka_alerts_raw = get_keepalive_alerts(DB_PATH)
+    # Enrichir avec user_nom depuis DB
+    ka_alerts = []
+    for a in ka_alerts_raw:
+        row = db.execute(
+            "SELECT p.id, p.ip_vpn, p.label, p.container, p.actif, u.nom AS user_nom, u.id AS user_id "
+            "FROM peers p JOIN users u ON u.id = p.user_id "
+            "WHERE p.ip_vpn LIKE ? AND p.actif = 1",
+            (a['peer_ip'] + '%',)
+        ).fetchone()
+        if row:
+            d = dict(row)
+            d['keepalive'] = all_live.get(a['peer_ip'], {}).get('keepalive', 0)
+            ka_alerts.append(d)
+
+    # Tous les peers enrichis
+    rows = db.execute("""
+        SELECT p.*, u.nom AS user_nom
+        FROM peers p
+        JOIN users u ON u.id = p.user_id
+        ORDER BY p.id
+    """).fetchall()
+    peers_all = _enrich_peers(rows, all_live)
+
+    # Top peers par trafic reçu
+    top_peers = sorted(
+        [p for p in peers_all if all_live.get(p['ip_vpn'].split('/')[0], {}).get('rx', 0) > 0],
+        key=lambda p: all_live.get(p['ip_vpn'].split('/')[0], {}).get('rx', 0),
+        reverse=True
+    )[:10]
+
+    return render_template('admin/monitoring.html',
+                           containers=containers_info,
+                           ka_alerts=ka_alerts,
+                           peers_all=peers_all,
+                           top_peers=top_peers)
+
+
+# ─── Logs & Alertes ───────────────────────────────────────────────────────────
+
+@admin_bp.route('/logs')
+@admin_required
+def logs_page():
+    db = get_db()
+
+    alertes = db.execute(
+        "SELECT * FROM alertes ORDER BY created_at DESC LIMIT 200"
+    ).fetchall()
+
+    logs_raw = db.execute(
+        "SELECT * FROM logs_admin ORDER BY created_at DESC LIMIT 500"
+    ).fetchall()
+
+    # Catégoriser les logs pour les pills
+    logs = []
+    for l in logs_raw:
+        d = dict(l)
+        a = (l['action'] or '').lower()
+        if 'paiement' in a or 'montant' in a or 'prolonge' in a:
+            d['category'] = 'paiement'
+        elif 'peer' in a:
+            d['category'] = 'peer'
+        elif 'user' in a or 'banni' in a or 'client' in a or 'mdp' in a:
+            d['category'] = 'user'
+        else:
+            d['category'] = 'autre'
+        logs.append(d)
+
+    return render_template('admin/logs.html',
+                           alertes=alertes,
+                           logs=logs)
+
+
+@admin_bp.route('/logs/mark-read', methods=['POST'])
+@admin_required
+def mark_alerts_read():
+    db = get_db()
+    db.execute("UPDATE alertes SET lu = 1")
+    db.commit()
+    return redirect(url_for('admin_bp.logs_page'))
+
+
+# ─── API JSON ─────────────────────────────────────────────────────────────────
+
+@admin_bp.route('/api/peers/status')
+@admin_required
+def api_peers_status():
+    return jsonify(get_all_peers_status())
+
+
+@admin_bp.route('/api/kpis')
+@admin_required
+def api_kpis():
+    return jsonify(get_kpis(DB_PATH))

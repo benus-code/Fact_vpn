@@ -1,0 +1,130 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Peers{% endblock %}
+{% block page_title %}🖥️ Peers & Connexions{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <div class="filter-pills">
+    <button class="pill active" data-filter="all">Tous ({{ peers|length }})</button>
+    <button class="pill" data-filter="connecte">Connectés</button>
+    <button class="pill" data-filter="inactif">Inactifs</button>
+    <button class="pill" data-filter="suspendu">Suspendus</button>
+    <button class="pill" data-filter="awg1">AWG 1.x</button>
+    <button class="pill" data-filter="awg2">AWG 2.0</button>
+    <button class="pill" data-filter="no-ka">⚠ Sans KA</button>
+  </div>
+  <div style="font-size:.82rem;color:var(--muted)">
+    🟢 <strong style="color:var(--green)">{{ connected }}</strong> connectés
+    / {{ peers|length }} total
+  </div>
+</div>
+
+<div class="mb-3">
+  <input class="search-bar" id="search-input" placeholder="🔍  Rechercher par client, IP, label…" oninput="filterPeers()">
+</div>
+
+<div class="card-dark">
+  <div class="table-wrap">
+    <table class="table-dark-custom table mb-0" id="peers-table">
+      <thead>
+        <tr>
+          <th>#ID</th>
+          <th>Client</th>
+          <th>Label</th>
+          <th>IP VPN</th>
+          <th>Proto</th>
+          <th>Statut</th>
+          <th>Handshake</th>
+          <th>↓ Reçu</th>
+          <th>↑ Envoyé</th>
+          <th>KA</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="peers-body">
+      {% for p in peers %}
+      <tr data-filter="{{ p.filter_key }}"
+          data-search="{{ p.id }} {{ p.user_nom|lower }} {{ p.ip_vpn }} {{ p.label|lower }}"
+          data-ka="{{ 'no-ka' if p.warn_ka else 'ok' }}"
+          data-proto="{{ 'awg2' if p.container == 'amnezia-awg2' else 'awg1' }}">
+        <td style="color:var(--muted);font-size:.78rem">#{{ p.id }}</td>
+        <td>
+          <a href="{{ url_for('admin_bp.client_detail', uid=p.user_id) }}" style="color:var(--text);text-decoration:none;font-weight:600">
+            {{ p.user_nom }}
+          </a>
+          <div style="color:var(--muted);font-size:.7rem">#{{ p.user_id }}</div>
+        </td>
+        <td style="font-size:.83rem">{{ p.label }}</td>
+        <td><code style="color:var(--muted);font-size:.78rem">{{ p.ip_vpn }}</code></td>
+        <td><span class="badge-proto {{ 'awg2' if p.container == 'amnezia-awg2' else 'awg1' }}">{{ 'AWG 2.0' if p.container == 'amnezia-awg2' else 'AWG 1.x' }}</span></td>
+        <td>
+          {% if not p.actif %}
+            <span class="badge-status gray"><span class="dot gray"></span>Suspendu</span>
+          {% elif p.status == 'connecte' %}
+            <span class="badge-status green"><span class="dot green"></span>Connecté</span>
+          {% elif p.status == 'inactif' %}
+            <span class="badge-status amber"><span class="dot amber"></span>Inactif</span>
+          {% else %}
+            <span class="badge-status gray"><span class="dot gray"></span>Jamais</span>
+          {% endif %}
+        </td>
+        <td style="font-size:.8rem;color:var(--muted)">{{ p.hs_label }}</td>
+        <td style="font-size:.8rem;color:var(--muted)">{{ p.transfer_rx }}</td>
+        <td style="font-size:.8rem;color:var(--muted)">{{ p.transfer_tx }}</td>
+        <td>
+          {% if p.keepalive == 25 %}
+            <span style="color:var(--green);font-size:.8rem">✅ 25s</span>
+          {% elif p.warn_ka %}
+            <span style="color:var(--red);font-size:.8rem">⚠ OFF</span>
+          {% else %}
+            <span style="color:var(--muted);font-size:.8rem">—</span>
+          {% endif %}
+        </td>
+        <td>
+          <div style="display:flex;gap:3px">
+            <a href="{{ url_for('admin_bp.client_detail', uid=p.user_id) }}" class="btn-icon" title="Voir client">👁️</a>
+            {% if p.actif %}
+            <form method="POST" action="{{ url_for('admin_suspendre_peer', peer_id=p.id) }}">
+              <button class="btn-icon" title="Suspendre">⏸️</button>
+            </form>
+            {% else %}
+            <form method="POST" action="{{ url_for('admin_reactiver_peer', peer_id=p.id) }}">
+              <button class="btn-icon" title="Réactiver">▶️</button>
+            </form>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentFilter = 'all';
+document.querySelectorAll('.pill').forEach(pill => {
+  pill.addEventListener('click', function() {
+    document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+    this.classList.add('active');
+    currentFilter = this.dataset.filter;
+    filterPeers();
+  });
+});
+
+function filterPeers() {
+  const q = document.getElementById('search-input').value.toLowerCase();
+  document.querySelectorAll('#peers-body tr').forEach(row => {
+    let show = true;
+    if (currentFilter === 'no-ka')  show = row.dataset.ka    === 'no-ka';
+    else if (currentFilter === 'awg1') show = row.dataset.proto === 'awg1';
+    else if (currentFilter === 'awg2') show = row.dataset.proto === 'awg2';
+    else if (currentFilter !== 'all') show = row.dataset.filter === currentFilter;
+    if (q) show = show && row.dataset.search.includes(q);
+    row.style.display = show ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,131 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Logs{% endblock %}
+{% block page_title %}📋 Logs & Alertes{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+
+  <!-- Alertes non lues -->
+  <div class="col-12">
+    <div class="card-dark">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>🔔 Alertes
+          {% if unread_alerts > 0 %}
+          <span class="badge" style="background:var(--red);color:#fff;margin-left:6px;padding:2px 8px;border-radius:10px;font-size:.75rem">{{ unread_alerts }}</span>
+          {% endif %}
+        </span>
+        {% if alertes %}
+        <form method="POST" action="{{ url_for('admin_bp.mark_alerts_read') }}">
+          <button class="btn-ghost" style="font-size:.78rem;padding:4px 12px">✅ Tout marquer lu</button>
+        </form>
+        {% endif %}
+      </div>
+      <div class="table-wrap">
+        <table class="table-dark-custom table mb-0">
+          <thead>
+            <tr><th>Date</th><th>Type</th><th>Message</th><th>Lu</th></tr>
+          </thead>
+          <tbody>
+          {% for a in alertes %}
+          <tr style="{{ '' if a.lu else 'background:rgba(233,69,96,.04)' }}">
+            <td style="color:var(--muted);font-size:.78rem;white-space:nowrap">{{ a.created_at[:16] }}</td>
+            <td>
+              {% if a.type == 'ka_missing' %}
+                <span style="color:var(--amber);font-size:.78rem">⚠ KA manquant</span>
+              {% elif a.type == 'expiration' %}
+                <span style="color:var(--red);font-size:.78rem">📅 Expiration</span>
+              {% elif a.type == 'connexion' %}
+                <span style="color:#63b3ed;font-size:.78rem">🔌 Connexion</span>
+              {% else %}
+                <span style="color:var(--muted);font-size:.78rem">{{ a.type }}</span>
+              {% endif %}
+            </td>
+            <td style="font-size:.83rem">{{ a.message }}</td>
+            <td style="text-align:center">{{ '✅' if a.lu else '🔴' }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" style="color:var(--muted);text-align:center;padding:24px">Aucune alerte</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Logs admin -->
+  <div class="col-12">
+    <div class="card-dark">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>🕐 Journal d'actions admin</span>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input class="search-bar" id="search-logs" placeholder="🔍  Filtrer…" oninput="filterLogs()" style="max-width:220px">
+          <div class="filter-pills" style="margin:0">
+            <button class="pill active" data-filter="all">Tous</button>
+            <button class="pill" data-filter="paiement">Paiements</button>
+            <button class="pill" data-filter="peer">Peers</button>
+            <button class="pill" data-filter="user">Clients</button>
+          </div>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="table-dark-custom table mb-0">
+          <thead>
+            <tr><th>Date</th><th>Action</th><th>#Client</th><th>Détail</th><th>IP Admin</th></tr>
+          </thead>
+          <tbody id="logs-body">
+          {% for l in logs %}
+          <tr data-filter="{{ l.category or 'autre' }}"
+              data-search="{{ l.action|lower }} {{ l.detail|lower }} {{ l.user_id or '' }}">
+            <td style="color:var(--muted);font-size:.78rem;white-space:nowrap">{{ l.created_at[:16] }}</td>
+            <td>
+              {% if l.category == 'paiement' %}
+                <span style="color:var(--green);font-size:.8rem">💳 {{ l.action }}</span>
+              {% elif l.category == 'peer' %}
+                <span style="color:#63b3ed;font-size:.8rem">🖥️ {{ l.action }}</span>
+              {% elif l.category == 'user' %}
+                <span style="color:var(--amber);font-size:.8rem">👤 {{ l.action }}</span>
+              {% else %}
+                <span style="color:var(--muted);font-size:.8rem">{{ l.action }}</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if l.user_id %}
+              <a href="{{ url_for('admin_bp.client_detail', uid=l.user_id) }}" style="color:var(--muted);font-size:.8rem">#{{ l.user_id }}</a>
+              {% else %}—{% endif %}
+            </td>
+            <td style="font-size:.82rem;color:var(--muted)">{{ l.detail or '—' }}</td>
+            <td style="font-size:.75rem;color:var(--muted)"><code>{{ l.ip_admin or '—' }}</code></td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5" style="color:var(--muted);text-align:center;padding:24px">Aucun log enregistré</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentFilter = 'all';
+document.querySelectorAll('.pill').forEach(pill => {
+  pill.addEventListener('click', function() {
+    document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+    this.classList.add('active');
+    currentFilter = this.dataset.filter;
+    filterLogs();
+  });
+});
+function filterLogs() {
+  const q = document.getElementById('search-logs').value.toLowerCase();
+  document.querySelectorAll('#logs-body tr').forEach(row => {
+    const matchFilter = currentFilter === 'all' || row.dataset.filter === currentFilter;
+    const matchSearch = !q || (row.dataset.search || '').includes(q);
+    row.style.display = (matchFilter && matchSearch) ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,98 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Paiements{% endblock %}
+{% block page_title %}💳 Paiements{% endblock %}
+
+{% block content %}
+<!-- KPIs -->
+<div class="kpi-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:24px">
+  <div class="kpi-card">
+    <div class="kpi-icon">💰</div>
+    <div class="kpi-value">{{ "{:,}".format(stats.total_encaisse)|replace(",","&nbsp;")|safe }} ₽</div>
+    <div class="kpi-label">Total encaissé</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon">📅</div>
+    <div class="kpi-value">{{ "{:,}".format(stats.ce_mois)|replace(",","&nbsp;")|safe }} ₽</div>
+    <div class="kpi-label">Ce mois-ci</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon">🔢</div>
+    <div class="kpi-value">{{ stats.nb_paiements }}</div>
+    <div class="kpi-label">Nb paiements</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon">📊</div>
+    <div class="kpi-value">{{ "{:,}".format(stats.panier_moyen)|replace(",","&nbsp;")|safe }} ₽</div>
+    <div class="kpi-label">Panier moyen</div>
+  </div>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <div class="filter-pills">
+    <button class="pill active" data-filter="all">Tous ({{ paiements|length }})</button>
+    <button class="pill" data-filter="ce_mois">Ce mois</button>
+    <button class="pill" data-filter="mois_precedent">Mois précédent</button>
+  </div>
+  <input class="search-bar" id="search-input" placeholder="🔍  Rechercher par nom, note…" oninput="filterTable()" style="max-width:240px">
+</div>
+
+<div class="card-dark">
+  <div class="table-wrap">
+    <table class="table-dark-custom table mb-0">
+      <thead>
+        <tr>
+          <th>#ID</th>
+          <th>#Client</th>
+          <th>Nom</th>
+          <th>Date</th>
+          <th>Montant</th>
+          <th>Mois +</th>
+          <th>Note</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="pay-body">
+      {% for p in paiements %}
+      <tr data-filter="{{ p.filter_key }}"
+          data-search="{{ p.user_id }} {{ p.nom|lower }} {{ (p.note or '')|lower }}">
+        <td style="color:var(--muted);font-size:.78rem">#{{ p.id }}</td>
+        <td><a href="{{ url_for('admin_bp.client_detail', uid=p.user_id) }}" style="color:var(--muted);font-size:.8rem">#{{ p.user_id }}</a></td>
+        <td><a href="{{ url_for('admin_bp.client_detail', uid=p.user_id) }}" style="color:var(--text);text-decoration:none;font-weight:600">{{ p.nom }}</a></td>
+        <td style="font-size:.82rem;color:var(--muted);white-space:nowrap">{{ p.date_paiement[:16] }}</td>
+        <td style="font-weight:700;color:var(--green)">{{ p.montant }} ₽</td>
+        <td><span class="badge-status green"><span class="dot green"></span>+{{ p.mois_prolonges }}m</span></td>
+        <td style="font-size:.8rem;color:var(--muted)">{{ p.note or '—' }}</td>
+        <td>
+          <a href="{{ url_for('admin_bp.client_detail', uid=p.user_id) }}" class="btn-icon" title="Voir client">👁️</a>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" style="color:var(--muted);text-align:center;padding:24px">Aucun paiement enregistré</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentFilter = 'all';
+document.querySelectorAll('.pill').forEach(pill => {
+  pill.addEventListener('click', function() {
+    document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+    this.classList.add('active');
+    currentFilter = this.dataset.filter;
+    filterTable();
+  });
+});
+function filterTable() {
+  const q = document.getElementById('search-input').value.toLowerCase();
+  document.querySelectorAll('#pay-body tr').forEach(row => {
+    const matchFilter = currentFilter === 'all' || row.dataset.filter === currentFilter;
+    const matchSearch = !q || (row.dataset.search || '').includes(q);
+    row.style.display = (matchFilter && matchSearch) ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

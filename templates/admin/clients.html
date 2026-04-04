@@ -1,0 +1,162 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Clients{% endblock %}
+{% block page_title %}👥 Clients{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <div class="filter-pills">
+    <button class="pill active" data-filter="all">Tous ({{ users|length }})</button>
+    <button class="pill" data-filter="actif">Actifs</button>
+    <button class="pill" data-filter="suspendu">Suspendus</button>
+    <button class="pill" data-filter="expire">Expirés</button>
+    <button class="pill" data-filter="banni">Bannis</button>
+    <button class="pill" data-filter="en_attente">En attente</button>
+  </div>
+  <button class="btn-accent" onclick="document.getElementById('modal-creer').style.display='flex'">➕ Nouveau client</button>
+</div>
+
+<div class="mb-3">
+  <input class="search-bar" id="search-input" placeholder="🔍  Rechercher par nom, email, ID…" oninput="filterTable()">
+</div>
+
+<div class="card-dark">
+  <div class="table-wrap">
+    <table class="table-dark-custom table mb-0" id="clients-table">
+      <thead>
+        <tr>
+          <th style="cursor:pointer" onclick="sortTable(0)">#ID ↕</th>
+          <th>Nom</th>
+          <th>Email</th>
+          <th>Statut</th>
+          <th>Abonnement</th>
+          <th>Peers</th>
+          <th>Parrain</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="clients-body">
+      {% for u in users %}
+      <tr data-filter="{{ u.statut or 'inconnu' }}" data-search="{{ u.id }} {{ u.nom|lower }} {{ u.email|lower }}">
+        <td style="color:var(--muted);font-size:.8rem">#{{ u.id }}</td>
+        <td>
+          <a href="{{ url_for('admin_bp.client_detail', uid=u.id) }}" style="color:var(--text);text-decoration:none;font-weight:600">{{ u.nom }}</a>
+          {% if u.telegram %}<div style="color:var(--muted);font-size:.72rem">{{ u.telegram }}</div>{% endif %}
+        </td>
+        <td style="font-size:.82rem;color:var(--muted)">{{ u.email }}</td>
+        <td>
+          {% if u.is_banned %}
+            <span class="badge-status red"><span class="dot red"></span>Banni</span>
+          {% elif u.statut == 'actif' %}
+            <span class="badge-status green"><span class="dot green"></span>Actif</span>
+          {% elif u.statut == 'suspendu' %}
+            <span class="badge-status amber"><span class="dot amber"></span>Suspendu</span>
+          {% elif u.statut == 'expire' %}
+            <span class="badge-status red"><span class="dot red"></span>Expiré</span>
+          {% elif u.statut == 'en_attente' %}
+            <span class="badge-status gray"><span class="dot gray"></span>En attente</span>
+          {% else %}
+            <span class="badge-status gray"><span class="dot gray"></span>{{ u.statut or '—' }}</span>
+          {% endif %}
+        </td>
+        <td style="font-size:.8rem">
+          {% if u.date_fin %}
+            <span style="color:{{ 'var(--red)' if u.jours_restants is not none and u.jours_restants <= 3 else 'var(--text)' }}">
+              {{ u.date_fin }}
+            </span>
+            {% if u.jours_restants is not none %}
+              <div style="color:var(--muted);font-size:.72rem">
+                {% if u.jours_restants < 0 %}expiré{% elif u.jours_restants == 0 %}aujourd'hui{% else %}J-{{ u.jours_restants }}{% endif %}
+              </div>
+            {% endif %}
+          {% else %}—{% endif %}
+        </td>
+        <td>
+          <span style="color:var(--green);font-weight:700">{{ u.peers_actifs }}</span>
+          <span style="color:var(--muted)">/{{ u.nb_peers }}</span>
+        </td>
+        <td style="font-size:.78rem;color:var(--muted)">
+          {% if u.referred_by %}{{ u.referred_by }}{% else %}—{% endif %}
+        </td>
+        <td>
+          <div style="display:flex;gap:4px;flex-wrap:wrap">
+            <a href="{{ url_for('admin_bp.client_detail', uid=u.id) }}" class="btn-icon" title="Voir">👁️</a>
+            {% if u.whatsapp %}
+            {% set wa = u.whatsapp|replace('+','')|replace(' ','')|replace('-','') %}
+            <a href="https://wa.me/{{ wa }}" target="_blank" class="btn-icon" title="WhatsApp">💬</a>
+            {% endif %}
+            {% if u.is_banned %}
+            <form method="POST" action="{{ url_for('admin_debannir_user', uid=u.id) }}" style="display:inline">
+              <button class="btn-icon" title="Débannir">✅</button>
+            </form>
+            {% else %}
+            <form method="POST" action="{{ url_for('admin_bannir_user', uid=u.id) }}" style="display:inline"
+                  onsubmit="return confirm('Bannir {{ u.nom }} ?')">
+              <button class="btn-icon" title="Bannir">🚫</button>
+            </form>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal créer client -->
+<div id="modal-creer" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:500;align-items:center;justify-content:center;">
+  <div class="card-dark" style="width:100%;max-width:480px;padding:24px;border-radius:12px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+      <h6 style="font-family:var(--font-title);margin:0">➕ Créer un client</h6>
+      <button onclick="document.getElementById('modal-creer').style.display='none'" style="background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer">✕</button>
+    </div>
+    <form method="POST" action="{{ url_for('admin_creer_user') }}" class="row g-2">
+      <div class="col-12"><input type="text" name="nom" class="search-bar" placeholder="Nom complet" required></div>
+      <div class="col-12"><input type="email" name="email" class="search-bar" placeholder="Email" required></div>
+      <div class="col-6"><input type="text" name="password" class="search-bar" placeholder="Mot de passe" required></div>
+      <div class="col-6"><input type="text" name="whatsapp" class="search-bar" placeholder="WhatsApp"></div>
+      <div class="col-12"><input type="text" name="telegram" class="search-bar" placeholder="Telegram @pseudo"></div>
+      <div class="col-12 mt-2"><button class="btn-accent w-100">Créer</button></div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Filtre par statut
+document.querySelectorAll('.pill').forEach(pill => {
+  pill.addEventListener('click', function() {
+    document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+    this.classList.add('active');
+    currentFilter = this.dataset.filter;
+    filterTable();
+  });
+});
+
+let currentFilter = 'all';
+
+function filterTable() {
+  const q = document.getElementById('search-input').value.toLowerCase();
+  document.querySelectorAll('#clients-body tr').forEach(row => {
+    const matchFilter = currentFilter === 'all' || row.dataset.filter === currentFilter;
+    const matchSearch = !q || row.dataset.search.includes(q);
+    row.style.display = (matchFilter && matchSearch) ? '' : 'none';
+  });
+}
+
+// Tri par colonne #ID
+let sortDir = 1;
+function sortTable(col) {
+  const tbody = document.getElementById('clients-body');
+  const rows  = Array.from(tbody.querySelectorAll('tr'));
+  rows.sort((a, b) => {
+    const va = parseInt(a.cells[col].textContent.replace('#','')) || 0;
+    const vb = parseInt(b.cells[col].textContent.replace('#','')) || 0;
+    return (va - vb) * sortDir;
+  });
+  sortDir *= -1;
+  rows.forEach(r => tbody.appendChild(r));
+}
+</script>
+{% endblock %}

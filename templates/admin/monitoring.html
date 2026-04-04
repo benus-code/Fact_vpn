@@ -1,0 +1,239 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Monitoring{% endblock %}
+{% block page_title %}📡 Monitoring VPN{% endblock %}
+
+{% block content %}
+<!-- Statut containers -->
+<div class="kpi-grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));margin-bottom:24px">
+  {% for c in containers %}
+  <div class="kpi-card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start">
+      <div>
+        <div class="kpi-value" style="font-size:1rem">{{ c.label }}</div>
+        <div class="kpi-label">{{ c.container }}</div>
+      </div>
+      {% if c.running %}
+      <span class="badge-status green"><span class="dot green"></span>Up</span>
+      {% else %}
+      <span class="badge-status red"><span class="dot red"></span>Down</span>
+      {% endif %}
+    </div>
+    <div style="margin-top:12px;font-size:.8rem;color:var(--muted)">
+      <div>Interface : <code>{{ c.interface }}</code></div>
+      <div>Port : <code>{{ c.port }}</code></div>
+      <div style="margin-top:6px">
+        🟢 <strong style="color:var(--green)">{{ c.connected }}</strong> connectés /
+        {{ c.total }} peers
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+
+  <!-- Alertes KA -->
+  <div class="kpi-card">
+    <div class="kpi-icon">⚠️</div>
+    <div class="kpi-value" style="color:{{ 'var(--red)' if ka_alerts else 'var(--green)' }}">{{ ka_alerts|length }}</div>
+    <div class="kpi-label">Peers sans KA=25</div>
+    {% if ka_alerts %}
+    <div class="kpi-trend down">{{ ka_alerts|length }} peer(s) concerné(s)</div>
+    {% else %}
+    <div class="kpi-trend" style="color:var(--green)">Tout est OK</div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-4">
+
+  <!-- Bande passante globale -->
+  <div class="col-lg-8">
+    <div class="card-dark">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>📊 Trafic global (24h)</span>
+        <span style="font-size:.8rem;color:var(--muted)">Tous peers confondus</span>
+      </div>
+      <div style="padding:16px">
+        <canvas id="bw-global-chart" height="100"></canvas>
+        <p id="bw-empty" style="color:var(--muted);text-align:center;font-size:.82rem;display:none">
+          Aucune donnée — lancez <code>bash setup_metrics_timer.sh</code>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Top peers actifs -->
+  <div class="col-lg-4">
+    <div class="card-dark" style="height:100%">
+      <div class="card-header">🏆 Top peers (trafic)</div>
+      <div class="table-wrap">
+        <table class="table-dark-custom table mb-0">
+          <thead><tr><th>Client</th><th>↓ Reçu</th><th>↑ Envoyé</th></tr></thead>
+          <tbody>
+          {% for p in top_peers %}
+          <tr>
+            <td>
+              <a href="{{ url_for('admin_bp.client_detail', uid=p.user_id) }}" style="color:var(--text);text-decoration:none;font-size:.83rem">{{ p.user_nom }}</a>
+              <div style="color:var(--muted);font-size:.7rem">{{ p.label }}</div>
+            </td>
+            <td style="font-size:.8rem;color:var(--muted)">{{ p.transfer_rx }}</td>
+            <td style="font-size:.8rem;color:var(--muted)">{{ p.transfer_tx }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="3" style="color:var(--muted);text-align:center;padding:16px">Aucune donnée</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Alertes KA détail -->
+  {% if ka_alerts %}
+  <div class="col-12">
+    <div class="card-dark">
+      <div class="card-header" style="color:var(--red)">⚠️ Peers sans PersistentKeepalive=25</div>
+      <div class="table-wrap">
+        <table class="table-dark-custom table mb-0">
+          <thead><tr><th>#ID</th><th>Client</th><th>Label</th><th>IP VPN</th><th>Proto</th><th>KA actuel</th><th>Action</th></tr></thead>
+          <tbody>
+          {% for p in ka_alerts %}
+          <tr>
+            <td style="color:var(--muted);font-size:.78rem">#{{ p.id }}</td>
+            <td>
+              <a href="{{ url_for('admin_bp.client_detail', uid=p.user_id) }}" style="color:var(--text);text-decoration:none;font-weight:600">{{ p.user_nom }}</a>
+            </td>
+            <td style="font-size:.83rem">{{ p.label }}</td>
+            <td><code style="color:var(--muted);font-size:.78rem">{{ p.ip_vpn }}</code></td>
+            <td><span class="badge-proto {{ 'awg2' if p.container == 'amnezia-awg2' else 'awg1' }}">{{ 'AWG 2.0' if p.container == 'amnezia-awg2' else 'AWG 1.x' }}</span></td>
+            <td style="color:var(--red);font-size:.8rem">⚠ {{ p.keepalive or 'OFF' }}</td>
+            <td>
+              <form method="POST" action="{{ url_for('admin_set_keepalive') }}">
+                <input type="hidden" name="peer_ip" value="{{ p.ip_vpn.split('/')[0] }}">
+                <input type="hidden" name="container" value="{{ p.container }}">
+                <button class="btn-ghost" style="font-size:.78rem;padding:3px 10px">🔧 Appliquer KA=25</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Tous les peers live -->
+  <div class="col-12">
+    <div class="card-dark">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>🖥️ État live de tous les peers</span>
+        <button class="btn-ghost" onclick="location.reload()" style="font-size:.78rem;padding:4px 12px">🔄 Rafraîchir</button>
+      </div>
+      <div class="mb-2" style="padding:12px 16px 0">
+        <input class="search-bar" id="search-live" placeholder="🔍  Filtrer…" oninput="filterLive()" style="max-width:280px">
+      </div>
+      <div class="table-wrap">
+        <table class="table-dark-custom table mb-0">
+          <thead>
+            <tr>
+              <th>Client</th><th>Label</th><th>IP VPN</th><th>Proto</th>
+              <th>Statut</th><th>Handshake</th><th>↓ Reçu</th><th>↑ Envoyé</th><th>KA</th>
+            </tr>
+          </thead>
+          <tbody id="live-body">
+          {% for p in peers_all %}
+          <tr data-search="{{ p.user_nom|lower }} {{ p.label|lower }} {{ p.ip_vpn }}">
+            <td>
+              <a href="{{ url_for('admin_bp.client_detail', uid=p.user_id) }}" style="color:var(--text);text-decoration:none;font-weight:600;font-size:.85rem">{{ p.user_nom }}</a>
+              <div style="color:var(--muted);font-size:.7rem">#{{ p.user_id }}</div>
+            </td>
+            <td style="font-size:.83rem">{{ p.label }}</td>
+            <td><code style="color:var(--muted);font-size:.78rem">{{ p.ip_vpn }}</code></td>
+            <td><span class="badge-proto {{ 'awg2' if p.container == 'amnezia-awg2' else 'awg1' }}">{{ 'AWG 2.0' if p.container == 'amnezia-awg2' else 'AWG 1.x' }}</span></td>
+            <td>
+              {% if not p.actif %}
+                <span class="badge-status gray"><span class="dot gray"></span>Suspendu</span>
+              {% elif p.status == 'connecte' %}
+                <span class="badge-status green"><span class="dot green"></span>Connecté</span>
+              {% elif p.status == 'inactif' %}
+                <span class="badge-status amber"><span class="dot amber"></span>Inactif</span>
+              {% else %}
+                <span class="badge-status gray"><span class="dot gray"></span>Jamais</span>
+              {% endif %}
+            </td>
+            <td style="font-size:.8rem;color:var(--muted)">{{ p.hs_label }}</td>
+            <td style="font-size:.8rem;color:var(--muted)">{{ p.transfer_rx }}</td>
+            <td style="font-size:.8rem;color:var(--muted)">{{ p.transfer_tx }}</td>
+            <td>
+              {% if p.keepalive == 25 %}
+                <span style="color:var(--green);font-size:.8rem">✅ 25s</span>
+              {% elif p.warn_ka %}
+                <span style="color:var(--red);font-size:.8rem">⚠ OFF</span>
+              {% else %}
+                <span style="color:var(--muted);font-size:.8rem">—</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+function filterLive() {
+  const q = document.getElementById('search-live').value.toLowerCase();
+  document.querySelectorAll('#live-body tr').forEach(row => {
+    row.style.display = (!q || row.dataset.search.includes(q)) ? '' : 'none';
+  });
+}
+
+(async () => {
+  try {
+    const resp = await fetch('/admin/vpn-health/api/metrics');
+    if (!resp.ok) throw new Error('no data');
+    const all = await resp.json();
+    if (!all.length) { document.getElementById('bw-empty').style.display='block'; return; }
+
+    // Aggregate all peers by timestamp
+    const byTs = {};
+    all.forEach(peer => {
+      (peer.points || []).forEach(pt => {
+        if (!byTs[pt.ts]) byTs[pt.ts] = { rx: 0, tx: 0 };
+        byTs[pt.ts].rx += pt.rx || 0;
+        byTs[pt.ts].tx += pt.tx || 0;
+      });
+    });
+    const sorted = Object.keys(byTs).sort();
+    if (!sorted.length) { document.getElementById('bw-empty').style.display='block'; return; }
+
+    const labels = sorted.map(ts => ts.slice(11,16));
+    const rxKB   = sorted.map(ts => +(byTs[ts].rx / 1024).toFixed(1));
+    const txKB   = sorted.map(ts => +(byTs[ts].tx / 1024).toFixed(1));
+
+    new Chart(document.getElementById('bw-global-chart'), {
+      type: 'line',
+      data: { labels, datasets: [
+        { label:'↓ Reçu (KB)',   data: rxKB, borderColor:'#e94560', backgroundColor:'rgba(233,69,96,.1)', tension:.3, fill:true, pointRadius:2 },
+        { label:'↑ Envoyé (KB)', data: txKB, borderColor:'#22c55e', backgroundColor:'rgba(34,197,94,.1)',  tension:.3, fill:true, pointRadius:2 },
+      ]},
+      options: {
+        animation: false,
+        plugins: { legend: { labels: { color:'#8892b0', boxWidth:12, font:{size:11} } } },
+        scales: {
+          x: { ticks:{color:'#8892b0',font:{size:10},maxTicksLimit:8}, grid:{color:'#2a2a3e'} },
+          y: { ticks:{color:'#8892b0',font:{size:10}}, grid:{color:'#2a2a3e'} }
+        }
+      }
+    });
+  } catch(e) {
+    document.getElementById('bw-empty').style.display = 'block';
+  }
+})();
+</script>
+{% endblock %}
