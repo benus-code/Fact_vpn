@@ -231,6 +231,31 @@
     </div>
   </div>
 
+  <!-- Zone dangereuse -->
+  <div class="col-12">
+    <div class="card-dark" style="border-color:rgba(248,81,73,.25)">
+      <div class="card-header" style="background:rgba(248,81,73,.04);border-color:rgba(248,81,73,.2)">
+        <span style="color:var(--red)">⚠️ Zone dangereuse</span>
+      </div>
+      <div style="padding:16px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+        <p style="color:var(--text-secondary);font-size:.84rem;margin:0;flex:1;min-width:200px">
+          Efface définitivement cet utilisateur, tous ses peers, abonnements et paiements.
+          <strong style="color:var(--red)">Action irréversible.</strong>
+        </p>
+        <form method="POST"
+              action="{{ url_for('admin_bp.supprimer_user', uid=user.id) }}"
+              onsubmit="return confirm('⚠️ Supprimer définitivement #{{ user.id }} ({{ user.nom }}) ?\n\nTous ses peers, abonnements et paiements seront effacés.\nCette action est IRRÉVERSIBLE.')">
+          <button type="submit"
+                  style="background:var(--red-bg);border:1px solid rgba(248,81,73,.35);color:var(--red);border-radius:var(--radius-md);padding:7px 16px;font-size:.82rem;font-weight:600;cursor:pointer;white-space:nowrap;transition:all .14s"
+                  onmouseover="this.style.background='rgba(248,81,73,.2)'"
+                  onmouseout="this.style.background='var(--red-bg)'">
+            🗑 Supprimer définitivement
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
 </div>
 {% endblock %}
 

@@ -24,7 +24,10 @@
     <table class="table-dark-custom mb-0" id="clients-table">
       <thead>
         <tr>
-          <th style="cursor:pointer" onclick="sortTable(0)">#ID ↕</th>
+          <th style="width:32px;padding:9px 10px">
+            <input type="checkbox" id="select-all" style="accent-color:var(--accent);cursor:pointer">
+          </th>
+          <th style="cursor:pointer" onclick="sortTable(1)">#ID ↕</th>
           <th>Nom</th>
           <th>Email</th>
           <th>Statut</th>
@@ -37,9 +40,13 @@
       <tbody id="clients-body">
       {% for u in users %}
       <tr data-filter="{{ u.statut or 'inconnu' }}" data-search="{{ u.id }} {{ u.nom|lower }} {{ u.email|lower }}">
+        <td style="padding:9px 10px">
+          <input type="checkbox" name="selected_ids" value="{{ u.id }}" class="row-check"
+                 style="accent-color:var(--accent);cursor:pointer">
+        </td>
         <td style="font-family:var(--font-mono);color:var(--text-muted);font-size:.76rem">#{{ u.id }}</td>
         <td>
-          <a href="{{ url_for('admin_bp.client_detail', uid=u.id) }}" style="color:var(--text);text-decoration:none;font-weight:500">{{ u.nom }}</a>
+          <a href="{{ url_for('admin_bp.client_detail', uid=u.id) }}" class="user-name" style="color:var(--text);text-decoration:none;font-weight:500">{{ u.nom }}</a>
           {% if u.telegram %}<div style="color:var(--text-muted);font-size:.71rem">{{ u.telegram }}</div>{% endif %}
         </td>
         <td style="font-size:.81rem;color:var(--text-secondary)">{{ u.email }}</td>
@@ -94,6 +101,16 @@
               <button class="btn-icon" title="Bannir" style="color:var(--red)">🚫</button>
             </form>
             {% endif %}
+            <!-- Suppression définitive -->
+            <form method="POST"
+                  action="{{ url_for('admin_bp.supprimer_user', uid=u.id) }}"
+                  style="display:inline"
+                  onsubmit="return confirm('⚠️ Supprimer définitivement #{{ u.id }} ({{ u.nom }}) ?\n\nTous ses peers, abonnements et paiements seront effacés.\nCette action est IRRÉVERSIBLE.')">
+              <button type="submit" class="btn-icon" title="Supprimer définitivement"
+                      style="color:var(--red);opacity:.6" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.6">
+                🗑
+              </button>
+            </form>
           </div>
         </td>
       </tr>
@@ -101,6 +118,24 @@
       </tbody>
     </table>
   </div>
+
+  <!-- Barre de suppression en masse -->
+  <form method="POST" action="{{ url_for('admin_bp.supprimer_users_masse') }}" id="form-masse">
+    <div id="masse-actions" style="display:none;padding:12px 16px;border-top:1px solid var(--border-muted);gap:10px;align-items:center;background:rgba(248,81,73,.04)">
+      <span id="count-selected" style="font-size:.82rem;color:var(--text-secondary)"></span>
+      <button type="submit"
+              style="background:var(--red-bg);border:1px solid rgba(248,81,73,.35);color:var(--red);border-radius:var(--radius-md);padding:5px 14px;font-size:.8rem;font-weight:600;cursor:pointer;transition:all .14s"
+              onmouseover="this.style.background='rgba(248,81,73,.2)'"
+              onmouseout="this.style.background='var(--red-bg)'">
+        🗑 Supprimer la sélection
+      </button>
+      <button type="button"
+              onclick="deselectAll()"
+              style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius-md);padding:5px 12px;font-size:.8rem;cursor:pointer">
+        Annuler
+      </button>
+    </div>
+  </form>
 </div>
 
 <!-- Modal créer client -->
@@ -112,11 +147,11 @@
               style="background:none;border:none;color:var(--text-muted);font-size:1.2rem;cursor:pointer;line-height:1">✕</button>
     </div>
     <form method="POST" action="{{ url_for('admin_creer_user') }}" class="row g-2">
-      <div class="col-12"><input type="text"  name="nom"       class="search-bar" placeholder="Nom complet" required></div>
-      <div class="col-12"><input type="email" name="email"     class="search-bar" placeholder="Email" required></div>
-      <div class="col-6"> <input type="text"  name="password"  class="search-bar" placeholder="Mot de passe" required></div>
-      <div class="col-6"> <input type="text"  name="whatsapp"  class="search-bar" placeholder="WhatsApp"></div>
-      <div class="col-12"><input type="text"  name="telegram"  class="search-bar" placeholder="Telegram @pseudo"></div>
+      <div class="col-12"><input type="text"  name="nom"      class="search-bar" placeholder="Nom complet" required></div>
+      <div class="col-12"><input type="email" name="email"    class="search-bar" placeholder="Email" required></div>
+      <div class="col-6"> <input type="text"  name="password" class="search-bar" placeholder="Mot de passe" required></div>
+      <div class="col-6"> <input type="text"  name="whatsapp" class="search-bar" placeholder="WhatsApp"></div>
+      <div class="col-12"><input type="text"  name="telegram" class="search-bar" placeholder="Telegram @pseudo"></div>
       <div class="col-12 mt-2"><button class="btn-accent w-100" style="justify-content:center">Créer le client</button></div>
     </form>
   </div>
@@ -125,6 +160,7 @@
 
 {% block extra_js %}
 <script>
+// ── Filtre par statut ──────────────────────────────────────
 document.querySelectorAll('.pill').forEach(pill => {
   pill.addEventListener('click', function() {
     document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
@@ -145,6 +181,7 @@ function filterTable() {
   });
 }
 
+// ── Tri par #ID ────────────────────────────────────────────
 let sortDir = 1;
 function sortTable(col) {
   const tbody = document.getElementById('clients-body');
@@ -157,5 +194,66 @@ function sortTable(col) {
   sortDir *= -1;
   rows.forEach(r => tbody.appendChild(r));
 }
+
+// ── Sélection multiple ─────────────────────────────────────
+const selectAll   = document.getElementById('select-all');
+const masseBar    = document.getElementById('masse-actions');
+const formMasse   = document.getElementById('form-masse');
+const countSpan   = document.getElementById('count-selected');
+
+function getChecked() {
+  return document.querySelectorAll('.row-check:checked');
+}
+
+function updateMasse() {
+  const checked = getChecked();
+  if (checked.length > 0) {
+    masseBar.style.display = 'flex';
+    countSpan.textContent  = `${checked.length} utilisateur(s) sélectionné(s)`;
+    // Mettre à jour les champs hidden dans le formulaire
+    formMasse.querySelectorAll('input[name="ids"]').forEach(e => e.remove());
+    checked.forEach(cb => {
+      const inp   = document.createElement('input');
+      inp.type    = 'hidden';
+      inp.name    = 'ids';
+      inp.value   = cb.value;
+      formMasse.appendChild(inp);
+    });
+  } else {
+    masseBar.style.display = 'none';
+  }
+}
+
+function deselectAll() {
+  document.querySelectorAll('.row-check').forEach(cb => cb.checked = false);
+  if (selectAll) selectAll.checked = false;
+  updateMasse();
+}
+
+selectAll?.addEventListener('change', () => {
+  // Sélectionner uniquement les lignes visibles
+  document.querySelectorAll('#clients-body tr:not([style*="none"]) .row-check')
+    .forEach(cb => cb.checked = selectAll.checked);
+  updateMasse();
+});
+
+document.querySelectorAll('.row-check').forEach(cb => cb.addEventListener('change', () => {
+  selectAll.checked = getChecked().length === document.querySelectorAll('.row-check').length;
+  updateMasse();
+}));
+
+// Confirmation suppression en masse
+formMasse.addEventListener('submit', function(e) {
+  const checked = getChecked();
+  const noms = Array.from(checked).map(cb => {
+    const row = cb.closest('tr');
+    return row?.querySelector('.user-name')?.textContent?.trim() || '?';
+  }).join(', ');
+  if (!confirm(
+    `⚠️ Supprimer définitivement ${checked.length} utilisateur(s) ?\n\n${noms}\n\nTous leurs peers, abonnements et paiements seront effacés.\nCette action est IRRÉVERSIBLE.`
+  )) {
+    e.preventDefault();
+  }
+});
 </script>
 {% endblock %}

@@ -492,6 +492,144 @@ def mark_alerts_read():
     return redirect(url_for('admin_bp.logs_page'))
 
 
+# ─── Suppression utilisateur ─────────────────────────────────────────────────
+
+def _supprimer_user_data(conn, uid):
+    """
+    Supprime toutes les données d'un utilisateur (hors vérifications).
+    À appeler dans un bloc try/except avec commit/rollback externe.
+    Retourne le nom de l'utilisateur supprimé.
+    """
+    # Récupérer les IPs de ses peers pour supprimer les métriques
+    peers = conn.execute(
+        "SELECT ip_vpn FROM peers WHERE user_id = ?", (uid,)
+    ).fetchall()
+    for (ip,) in peers:
+        if ip:
+            conn.execute("DELETE FROM peer_metrics WHERE peer_ip = ?", (ip,))
+
+    conn.execute("DELETE FROM peers        WHERE user_id = ?", (uid,))
+    conn.execute("DELETE FROM abonnements  WHERE user_id = ?", (uid,))
+    conn.execute("DELETE FROM paiements    WHERE user_id = ?", (uid,))
+    conn.execute("DELETE FROM password_resets WHERE user_id = ?", (uid,))
+
+    for table in ('logs_admin', 'alertes'):
+        try:
+            col = 'target_user_id' if table == 'logs_admin' else 'user_id'
+            conn.execute(f"DELETE FROM {table} WHERE {col} = ?", (uid,))
+        except Exception:
+            pass
+
+    conn.execute("DELETE FROM users WHERE id = ?", (uid,))
+
+
+@admin_bp.route('/clients/<int:uid>/supprimer', methods=['POST'])
+@admin_required
+def supprimer_user(uid):
+    """Supprime complètement un utilisateur et toutes ses données liées."""
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        user = conn.execute(
+            "SELECT id, nom, is_admin FROM users WHERE id = ?", (uid,)
+        ).fetchone()
+
+        if not user:
+            flash("Utilisateur introuvable.", "danger")
+            return redirect(url_for('admin_bp.clients'))
+
+        if user[2] == 1:
+            flash("Impossible de supprimer un administrateur.", "danger")
+            return redirect(url_for('admin_bp.clients'))
+
+        nom = user[1]
+        _supprimer_user_data(conn, uid)
+        conn.commit()
+
+        # Log de l'action (après commit — table logs_admin vidée pour cet uid)
+        try:
+            conn.execute("""
+                INSERT INTO logs_admin (action, detail, admin_id, ip_source)
+                VALUES (?, ?, ?, ?)
+            """, (
+                'Suppression utilisateur',
+                f'User #{uid} ({nom}) supprimé définitivement',
+                session.get('user_id'),
+                request.remote_addr
+            ))
+            conn.commit()
+        except Exception:
+            pass
+
+        flash(f"✅ Utilisateur #{uid} ({nom}) supprimé définitivement.", "success")
+
+    except Exception as e:
+        conn.rollback()
+        flash(f"❌ Erreur lors de la suppression : {str(e)}", "danger")
+    finally:
+        conn.close()
+
+    return redirect(url_for('admin_bp.clients'))
+
+
+@admin_bp.route('/clients/supprimer-masse', methods=['POST'])
+@admin_required
+def supprimer_users_masse():
+    """Supprime plusieurs utilisateurs en une seule opération."""
+    ids = request.form.getlist('ids')
+    if not ids:
+        flash("Aucun utilisateur sélectionné.", "warning")
+        return redirect(url_for('admin_bp.clients'))
+
+    conn = sqlite3.connect(DB_PATH)
+    supprimes = 0
+    skipped   = 0
+    try:
+        for raw_id in ids:
+            try:
+                uid  = int(raw_id)
+                user = conn.execute(
+                    "SELECT is_admin, nom FROM users WHERE id = ?", (uid,)
+                ).fetchone()
+                if not user or user[0] == 1:   # inexistant ou admin → skip
+                    skipped += 1
+                    continue
+                nom = user[1]
+                _supprimer_user_data(conn, uid)
+                supprimes += 1
+            except Exception:
+                skipped += 1
+                continue
+
+        conn.commit()
+
+        try:
+            conn.execute("""
+                INSERT INTO logs_admin (action, detail, admin_id, ip_source)
+                VALUES (?, ?, ?, ?)
+            """, (
+                'Suppression en masse',
+                f'{supprimes} user(s) supprimés (IDs: {", ".join(ids)})',
+                session.get('user_id'),
+                request.remote_addr
+            ))
+            conn.commit()
+        except Exception:
+            pass
+
+        msg = f"✅ {supprimes} utilisateur(s) supprimé(s) définitivement."
+        if skipped:
+            msg += f" ({skipped} ignoré(s) — admin ou introuvable)"
+        flash(msg, "success")
+
+    except Exception as e:
+        conn.rollback()
+        flash(f"❌ Erreur : {str(e)}", "danger")
+    finally:
+        conn.close()
+
+    return redirect(url_for('admin_bp.clients'))
+
+
 # ─── API JSON ─────────────────────────────────────────────────────────────────
 
 @admin_bp.route('/api/peers/status')
