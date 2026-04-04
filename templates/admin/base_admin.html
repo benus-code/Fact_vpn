@@ -526,7 +526,10 @@
 
     <div class="nav-sep"></div>
 
-    <a href="{{ url_for('admin_panel') }}"      class="nav-item"><span class="nav-icon">⚙</span> Paramètres</a>
+    <a href="{{ url_for('admin_bp.settings') }}"
+       class="nav-item {% if request.endpoint == 'admin_bp.settings' %}active{% endif %}">
+      <span class="nav-icon">⚙</span> Paramètres
+    </a>
     <a href="{{ url_for('admin_vpn_health') }}" class="nav-item"><span class="nav-icon">◌</span> Santé VPN</a>
   </div>
 

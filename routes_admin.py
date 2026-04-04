@@ -182,10 +182,38 @@ def overview():
         reverse=True
     )[:20]
 
+    # Demandes en attente: clients sans abonnement ou en_attente
+    pending_users = db.execute("""
+        SELECT u.id, u.nom, u.email, u.whatsapp, u.telegram,
+               u.created_at,
+               COALESCE(a.statut, 'sans_abo') as abo_statut
+        FROM users u
+        LEFT JOIN abonnements a ON a.user_id = u.id
+        WHERE u.is_admin = 0 AND u.is_banned = 0
+          AND (a.id IS NULL OR a.statut IN ('en_attente', 'suspendu'))
+        ORDER BY u.created_at DESC
+        LIMIT 20
+    """).fetchall()
+
+    # IPs orphelines: peers live sans entrée DB
+    all_live = get_all_peers_status()
+    db_ips   = set(
+        r[0].split('/')[0]
+        for r in db.execute("SELECT ip_vpn FROM peers WHERE actif = 1").fetchall()
+        if r[0]
+    )
+    orphan_ips = [
+        {'ip': ip, **data}
+        for ip, data in all_live.items()
+        if ip not in db_ips
+    ]
+
     return render_template('admin/overview.html',
                            kpis=kpis,
                            expiring=expiring,
-                           activite=activite)
+                           activite=activite,
+                           pending_users=pending_users,
+                           orphan_ips=orphan_ips)
 
 
 # ─── Clients ──────────────────────────────────────────────────────────────────
@@ -642,3 +670,132 @@ def api_peers_status():
 @admin_required
 def api_kpis():
     return jsonify(get_kpis(DB_PATH))
+
+
+# ─── Recherche IP ─────────────────────────────────────────────────────────────
+
+@admin_bp.route('/ip/rechercher')
+@admin_required
+def rechercher_ip():
+    ip = request.args.get('ip', '').strip()
+    if not ip:
+        flash('Entrez une adresse IP à rechercher.', 'warning')
+        return redirect(url_for('admin_bp.peers'))
+    db = get_db()
+    bare = ip.split('/')[0]
+    peer = db.execute("""
+        SELECT p.id, p.ip_vpn, p.label, p.actif, p.container,
+               u.id as uid, u.nom,
+               COALESCE(a.statut, 'inconnu') as abo_statut
+        FROM peers p
+        LEFT JOIN users u ON u.id = p.user_id
+        LEFT JOIN abonnements a ON a.user_id = p.user_id
+        WHERE p.ip_vpn = ? OR p.ip_vpn = ? OR p.ip_vpn LIKE ?
+        LIMIT 1
+    """, (ip, bare, bare + '/%')).fetchone()
+    if peer and peer['uid']:
+        flash(
+            f"IP {peer['ip_vpn']} → «{peer['label']}» "
+            f"({'Actif' if peer['actif'] else 'Suspendu'}) "
+            f"— {peer['nom']} ({peer['abo_statut']})",
+            'info'
+        )
+        return redirect(url_for('admin_bp.client_detail', uid=peer['uid']))
+    flash(f'Aucun peer trouvé pour l\'IP {ip}.', 'danger')
+    return redirect(url_for('admin_bp.peers'))
+
+
+# ─── Paramètres ───────────────────────────────────────────────────────────────
+
+def _get_settings():
+    db = get_db()
+    rows = db.execute("SELECT key, value FROM settings").fetchall()
+    return {r['key']: (r['value'] or '') for r in rows}
+
+
+@admin_bp.route('/settings')
+@admin_required
+def settings():
+    return render_template('admin/settings.html', s=_get_settings())
+
+
+# ─── Message individuel ───────────────────────────────────────────────────────
+
+@admin_bp.route('/clients/<int:uid>/message', methods=['POST'])
+@admin_required
+def envoyer_message(uid):
+    import json
+    import urllib.request
+    import smtplib
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.text import MIMEText
+
+    subject = request.form.get('subject', '').strip() or 'Information VPN'
+    message = request.form.get('message', '').strip()
+    channel = request.form.get('channel', 'telegram')
+
+    if not message:
+        flash('Message vide.', 'danger')
+        return redirect(url_for('admin_bp.client_detail', uid=uid))
+
+    db   = get_db()
+    user = db.execute("SELECT * FROM users WHERE id = ?", (uid,)).fetchone()
+    if not user:
+        flash('Utilisateur introuvable.', 'danger')
+        return redirect(url_for('admin_bp.clients'))
+
+    s = _get_settings()
+
+    if channel in ('email', 'both') and user['email']:
+        try:
+            msg = MIMEMultipart('alternative')
+            msg['Subject'] = subject
+            msg['From']    = s.get('smtp_email', '')
+            msg['To']      = user['email']
+            html = (
+                f"<div style='font-family:sans-serif;max-width:520px;margin:0 auto'>"
+                f"<p>Bonjour <strong>{user['nom']}</strong>,</p>"
+                f"<p>{message.replace(chr(10), '<br>')}</p>"
+                f"<hr><small style='color:#888'>VPN Privé</small></div>"
+            )
+            msg.attach(MIMEText(html, 'html'))
+            smtp_host = s.get('smtp_host', 'smtp.gmail.com')
+            smtp_port = int(s.get('smtp_port') or 587)
+            with smtplib.SMTP(smtp_host, smtp_port) as srv:
+                srv.ehlo(); srv.starttls(); srv.ehlo()
+                srv.login(s.get('smtp_username', ''), s.get('smtp_password', ''))
+                srv.sendmail(msg['From'], [user['email']], msg.as_string())
+            flash(f"✅ Email envoyé à {user['email']}.", 'success')
+        except Exception as e:
+            flash(f"❌ Erreur email : {e}", 'danger')
+
+    if channel in ('telegram', 'both'):
+        token    = s.get('telegram_bot_token', '')
+        chat_ids = list(dict.fromkeys(filter(None, [
+            s.get('telegram_chat_id', ''),
+            s.get('admin_telegram_id', ''),
+        ])))
+        if token and chat_ids:
+            text = f"📩 <b>Message → {user['nom']}</b>\n{message}"
+            ok   = False
+            for cid in chat_ids:
+                try:
+                    data = json.dumps({
+                        'chat_id': cid, 'text': text, 'parse_mode': 'HTML'
+                    }).encode()
+                    req = urllib.request.Request(
+                        f"https://api.telegram.org/bot{token}/sendMessage",
+                        data=data, headers={'Content-Type': 'application/json'}
+                    )
+                    urllib.request.urlopen(req, timeout=10)
+                    ok = True
+                except Exception:
+                    pass
+            if ok:
+                flash('✅ Message Telegram envoyé au canal admin.', 'success')
+            else:
+                flash('❌ Échec envoi Telegram.', 'danger')
+        else:
+            flash('⚠️ Telegram non configuré.', 'warning')
+
+    return redirect(url_for('admin_bp.client_detail', uid=uid))

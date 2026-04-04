@@ -102,12 +102,47 @@
       <p style="color:var(--text-muted);font-size:.84rem">Aucun abonnement enregistré.</p>
       {% endif %}
       <hr style="border-color:var(--border-muted);margin:16px 0">
+      <!-- Ajouter paiement -->
+      <div style="font-size:.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Enregistrer un paiement</div>
       <form method="POST" action="{{ url_for('admin_ajouter_paiement') }}" class="row g-2">
         <input type="hidden" name="user_id" value="{{ user.id }}">
         <div class="col-4"><input type="number" name="montant" class="search-bar" placeholder="Montant ₽" required min="1"></div>
         <div class="col-4"><input type="number" name="mois"    class="search-bar" placeholder="Mois" value="1" required min="1"></div>
         <div class="col-4"><button class="btn-accent w-100" style="justify-content:center">+1 Mois</button></div>
         <div class="col-12"><input type="text" name="note" class="search-bar" placeholder="Note (optionnel)"></div>
+      </form>
+
+      <hr style="border-color:var(--border-muted);margin:16px 0">
+      <!-- Modifier abonnement directement -->
+      <div style="font-size:.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Modifier l'abonnement</div>
+      <form method="POST" action="{{ url_for('admin_modifier_abo') }}" class="row g-2">
+        <input type="hidden" name="user_id" value="{{ user.id }}">
+        <div class="col-md-5">
+          <label style="font-size:.7rem;color:var(--text-muted);display:block;margin-bottom:3px">Date de fin</label>
+          <input type="date" name="date_fin" class="search-bar"
+                 value="{{ abo.date_fin if abo and abo.date_fin else '' }}" required>
+        </div>
+        <div class="col-md-4">
+          <label style="font-size:.7rem;color:var(--text-muted);display:block;margin-bottom:3px">Montant (₽)</label>
+          <input type="number" name="montant" class="search-bar"
+                 value="{{ abo.montant if abo and abo.montant else '' }}" placeholder="350" required min="0">
+        </div>
+        <div class="col-md-3 d-flex align-items-end">
+          <button class="btn-ghost w-100" style="justify-content:center">Modifier</button>
+        </div>
+      </form>
+
+      <hr style="border-color:var(--border-muted);margin:16px 0">
+      <!-- Essai gratuit 2 jours -->
+      <div style="font-size:.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Essai gratuit</div>
+      <form method="POST" action="{{ url_for('admin_activer_essai') }}"
+            onsubmit="return confirm('Activer 2 jours d\'essai gratuit pour {{ user.nom }} ?')"
+            style="display:inline">
+        <input type="hidden" name="user_id" value="{{ user.id }}">
+        <button class="btn-ghost" type="submit"
+                style="font-size:.8rem;border-color:rgba(88,166,255,.3);color:var(--accent)">
+          🎁 Activer essai 2 jours
+        </button>
       </form>
     </div>
   </div>
@@ -227,6 +262,36 @@
         <p id="bw-empty" style="color:var(--text-muted);text-align:center;font-size:.82rem;display:none">
           Aucune donnée — lancez <code>bash setup_metrics_timer.sh</code>
         </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Message individuel -->
+  <div class="col-md-6">
+    <div class="card-dark">
+      <div class="card-header">📩 Envoyer un message</div>
+      <div style="padding:18px 20px">
+        <form method="POST" action="{{ url_for('admin_bp.envoyer_message', uid=user.id) }}" class="row g-2">
+          <div class="col-12">
+            <select name="channel" class="search-bar">
+              <option value="telegram">✈️ Telegram (canal admin)</option>
+              <option value="email">📧 Email</option>
+              <option value="both">✈️ + 📧 Les deux</option>
+            </select>
+          </div>
+          <div class="col-12">
+            <input type="text" name="subject" class="search-bar"
+                   placeholder="Sujet (pour email)" value="Information VPN">
+          </div>
+          <div class="col-12">
+            <textarea name="message" class="search-bar" rows="4"
+                      placeholder="Votre message…"
+                      style="resize:vertical;min-height:90px;font-family:var(--font-body)" required></textarea>
+          </div>
+          <div class="col-12">
+            <button class="btn-accent" style="width:100%;justify-content:center">Envoyer</button>
+          </div>
+        </form>
       </div>
     </div>
   </div>

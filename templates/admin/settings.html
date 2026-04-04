@@ -1,0 +1,192 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Paramètres{% endblock %}
+{% block page_title %}Paramètres{% endblock %}
+
+{% block content %}
+<form method="POST" action="{{ url_for('admin_update_settings') }}">
+
+<div class="row g-4">
+
+  <!-- Section 1 — Informations de paiement -->
+  <div class="col-lg-6">
+    <div class="card-dark">
+      <div class="card-header">💳 Informations de paiement</div>
+      <div style="padding:20px;display:flex;flex-direction:column;gap:12px">
+        <div>
+          <label style="font-size:.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px">Bénéficiaire</label>
+          <input type="text" name="beneficiaire" class="search-bar" value="{{ s.beneficiaire or '' }}" placeholder="Nom du bénéficiaire">
+        </div>
+        <div>
+          <label style="font-size:.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px">Téléphone</label>
+          <input type="text" name="telephone" class="search-bar" value="{{ s.telephone or '' }}" placeholder="+7 XXX XXX XX XX">
+        </div>
+        <div>
+          <label style="font-size:.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px">Banque / Opérateur</label>
+          <input type="text" name="banque" class="search-bar" value="{{ s.banque or '' }}" placeholder="ex: Sberbank, Tinkoff…">
+        </div>
+        <div>
+          <label style="font-size:.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px">Montant mensuel (₽)</label>
+          <input type="number" name="montant" class="search-bar" value="{{ s.montant or '' }}" placeholder="350">
+        </div>
+        <div>
+          <label style="font-size:.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px">Référence paiement</label>
+          <input type="text" name="reference" class="search-bar" value="{{ s.reference or '' }}" placeholder="ex: VPN">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 2 — Configuration Telegram -->
+  <div class="col-lg-6">
+    <div class="card-dark">
+      <div class="card-header">✈️ Configuration Telegram</div>
+      <div style="padding:20px;display:flex;flex-direction:column;gap:12px">
+        <div>
+          <label style="font-size:.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px">Bot Token</label>
+          <input type="text" name="telegram_bot_token" class="search-bar"
+                 value="{{ s.telegram_bot_token or '' }}"
+                 placeholder="123456789:ABCdef…"
+                 autocomplete="off">
+          <div style="font-size:.7rem;color:var(--text-muted);margin-top:4px">Depuis @BotFather → /mybot → API Token</div>
+        </div>
+        <div>
+          <label style="font-size:.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px">Chat ID principal (notifications)</label>
+          <input type="text" name="telegram_chat_id" class="search-bar"
+                 value="{{ s.telegram_chat_id or '' }}"
+                 placeholder="-100XXXXXXXXXX ou @moncanal">
+        </div>
+        <div>
+          <label style="font-size:.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px">Canal secondaire</label>
+          <input type="text" name="telegram_channel_id" class="search-bar"
+                 value="{{ s.telegram_channel_id or '' }}"
+                 placeholder="@vpn_channel (optionnel)">
+        </div>
+        <div>
+          <label style="font-size:.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px">Chat ID admin (alertes critiques)</label>
+          <input type="text" name="admin_telegram_id" class="search-bar"
+                 value="{{ s.admin_telegram_id or '' }}"
+                 placeholder="Votre chat_id personnel">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 3 — Liens de support -->
+  <div class="col-lg-6">
+    <div class="card-dark">
+      <div class="card-header">🤝 Liens de support</div>
+      <div style="padding:20px;display:flex;flex-direction:column;gap:12px">
+        <div>
+          <label style="font-size:.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px">Support Telegram</label>
+          <input type="text" name="support_telegram" class="search-bar"
+                 value="{{ s.support_telegram or '' }}"
+                 placeholder="@pseudo ou t.me/moncanal">
+        </div>
+        <div>
+          <label style="font-size:.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px">Support WhatsApp</label>
+          <input type="text" name="support_whatsapp" class="search-bar"
+                 value="{{ s.support_whatsapp or '' }}"
+                 placeholder="+7XXXXXXXXXX">
+        </div>
+        <div>
+          <label style="font-size:.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px">URL du site</label>
+          <input type="url" name="site_url" class="search-bar"
+                 value="{{ s.site_url or '' }}"
+                 placeholder="https://benusvpn.duckdns.org">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section Email SMTP -->
+  <div class="col-lg-6">
+    <div class="card-dark">
+      <div class="card-header">📧 Configuration Email (SMTP)</div>
+      <div style="padding:20px;display:flex;flex-direction:column;gap:12px">
+        <div>
+          <label style="font-size:.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px">Serveur SMTP</label>
+          <input type="text" name="smtp_host" class="search-bar"
+                 value="{{ s.smtp_host or '' }}"
+                 placeholder="smtp.gmail.com">
+        </div>
+        <div>
+          <label style="font-size:.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px">Port</label>
+          <input type="number" name="smtp_port" class="search-bar"
+                 value="{{ s.smtp_port or '587' }}"
+                 placeholder="587">
+        </div>
+        <div>
+          <label style="font-size:.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px">Adresse email</label>
+          <input type="email" name="smtp_email" class="search-bar"
+                 value="{{ s.smtp_email or '' }}"
+                 placeholder="votre@gmail.com">
+        </div>
+        <div>
+          <label style="font-size:.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px">Nom d'utilisateur SMTP</label>
+          <input type="text" name="smtp_username" class="search-bar"
+                 value="{{ s.smtp_username or '' }}"
+                 placeholder="votre@gmail.com">
+        </div>
+        <div>
+          <label style="font-size:.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px">Mot de passe d'application</label>
+          <input type="password" name="smtp_password" class="search-bar"
+                 value="{{ s.smtp_password or '' }}"
+                 placeholder="••••••••••••••••"
+                 autocomplete="new-password">
+        </div>
+        <div>
+          <label style="font-size:.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px">Clé API Brevo (optionnel)</label>
+          <input type="text" name="brevo_api_key" class="search-bar"
+                 value="{{ s.brevo_api_key or '' }}"
+                 placeholder="xkeysib-…">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bouton sauvegarde -->
+  <div class="col-12">
+    <div style="display:flex;justify-content:flex-end;gap:10px">
+      <button type="submit" class="btn-accent" style="padding:8px 22px;font-size:.88rem">
+        💾 Enregistrer les paramètres
+      </button>
+    </div>
+  </div>
+
+</div>
+
+</form>
+
+<!-- Section 4 — Tests & Diagnostics (hors formulaire) -->
+<div class="row g-4" style="margin-top:0">
+  <div class="col-12">
+    <div class="card-dark">
+      <div class="card-header">🔧 Tests & Diagnostics</div>
+      <div style="padding:16px 20px;display:flex;flex-wrap:wrap;gap:12px;align-items:center">
+
+        <form method="POST" action="{{ url_for('admin_test_email') }}" style="display:inline">
+          <button class="btn-ghost" type="submit">📧 Tester l'envoi d'email</button>
+        </form>
+
+        <form method="POST" action="{{ url_for('admin_test_telegram') }}" style="display:inline">
+          <button class="btn-ghost" type="submit">✈️ Tester Telegram</button>
+        </form>
+
+        <form method="POST" action="{{ url_for('admin_run_cron') }}"
+              onsubmit="return confirm('Exécuter le cron de vérification des expirations ?')"
+              style="display:inline">
+          <button class="btn-ghost" type="submit">⚙️ Exécuter cron expire</button>
+        </form>
+
+        <a href="{{ url_for('admin_vpn_health') }}" class="btn-ghost">◌ Santé VPN</a>
+
+      </div>
+      <div style="padding:0 20px 16px;font-size:.77rem;color:var(--text-muted);line-height:1.7">
+        <strong style="color:var(--text-secondary)">Tester email</strong> — envoie un email de test à l'adresse SMTP configurée.<br>
+        <strong style="color:var(--text-secondary)">Tester Telegram</strong> — envoie un message de test sur tous les chats configurés.<br>
+        <strong style="color:var(--text-secondary)">Cron expire</strong> — vérifie et expire les abonnements dépassés, envoie les rappels J-3/J-1.
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

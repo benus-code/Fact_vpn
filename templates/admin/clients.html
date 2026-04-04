@@ -12,7 +12,10 @@
     <button class="pill" data-filter="banni">Bannis</button>
     <button class="pill" data-filter="en_attente">En attente</button>
   </div>
-  <button class="btn-accent" onclick="document.getElementById('modal-creer').style.display='flex'">➕ Nouveau client</button>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <button class="btn-ghost" onclick="document.getElementById('modal-broadcast').style.display='flex'">📢 Broadcast</button>
+    <button class="btn-accent" onclick="document.getElementById('modal-creer').style.display='flex'">➕ Nouveau client</button>
+  </div>
 </div>
 
 <div class="mb-3">
@@ -136,6 +139,44 @@
       </button>
     </div>
   </form>
+</div>
+
+<!-- Modal broadcast global -->
+<div id="modal-broadcast" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:500;align-items:center;justify-content:center;backdrop-filter:blur(3px)">
+  <div class="card-dark" style="width:100%;max-width:500px;padding:24px;margin:16px;border-radius:var(--radius-lg)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+      <span style="font-family:var(--font-title);font-size:.95rem;font-weight:700">📢 Broadcast global</span>
+      <button onclick="document.getElementById('modal-broadcast').style.display='none'"
+              style="background:none;border:none;color:var(--text-muted);font-size:1.2rem;cursor:pointer;line-height:1">✕</button>
+    </div>
+    <form method="POST" action="{{ url_for('admin_broadcast') }}" class="row g-3"
+          onsubmit="return confirm('Envoyer ce message à tous les abonnés actifs ?')">
+      <div class="col-12">
+        <label style="font-size:.73rem;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px">Canal d'envoi</label>
+        <select name="channel" class="search-bar">
+          <option value="email">📧 Email uniquement</option>
+          <option value="telegram">✈️ Telegram uniquement</option>
+          <option value="both">✈️ + 📧 Email + Telegram</option>
+        </select>
+      </div>
+      <div class="col-12">
+        <label style="font-size:.73rem;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px">Sujet (email)</label>
+        <input type="text" name="subject" class="search-bar" value="Information VPN" placeholder="Sujet de l'email">
+      </div>
+      <div class="col-12">
+        <label style="font-size:.73rem;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px">Message</label>
+        <textarea name="message" class="search-bar" rows="5" required
+                  placeholder="Votre message à tous les abonnés actifs…"
+                  style="resize:vertical;min-height:100px;font-family:var(--font-body)"></textarea>
+      </div>
+      <div class="col-12">
+        <div style="padding:10px 12px;background:var(--amber-bg);border:1px solid rgba(210,153,34,.25);border-radius:var(--radius-md);font-size:.75rem;color:var(--amber);margin-bottom:8px">
+          ⚠️ Ce message sera envoyé à <strong>tous les abonnés actifs</strong>. Vérifiez avant d'envoyer.
+        </div>
+        <button type="submit" class="btn-accent w-100" style="justify-content:center">📢 Envoyer à tous</button>
+      </div>
+    </form>
+  </div>
 </div>
 
 <!-- Modal créer client -->
