@@ -721,14 +721,72 @@ def settings():
 
 # ─── Message individuel ───────────────────────────────────────────────────────
 
+def _send_message_bg(user_dict, subject, message, channel, s):
+    """Envoi email + telegram en arrière-plan (thread). Loggue les erreurs en DB."""
+    import json, urllib.request, smtplib, sqlite3
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.text       import MIMEText
+
+    errors = []
+
+    if channel in ('email', 'both') and user_dict.get('email'):
+        try:
+            mime = MIMEMultipart('alternative')
+            mime['Subject'] = subject
+            mime['From']    = s.get('smtp_email', '')
+            mime['To']      = user_dict['email']
+            html = (
+                f"<div style='font-family:sans-serif;max-width:520px;margin:0 auto'>"
+                f"<p>Bonjour <strong>{user_dict['nom']}</strong>,</p>"
+                f"<p>{message.replace(chr(10), '<br>')}</p>"
+                f"<hr><small style='color:#888'>VPN Privé</small></div>"
+            )
+            mime.attach(MIMEText(html, 'html'))
+            smtp_host = s.get('smtp_host', 'smtp.gmail.com')
+            smtp_port = int(s.get('smtp_port') or 587)
+            with smtplib.SMTP(smtp_host, smtp_port, timeout=20) as srv:
+                srv.ehlo(); srv.starttls(); srv.ehlo()
+                srv.login(s.get('smtp_username', ''), s.get('smtp_password', ''))
+                srv.sendmail(mime['From'], [user_dict['email']], mime.as_string())
+        except Exception as e:
+            errors.append(f"email: {e}")
+
+    if channel in ('telegram', 'both'):
+        token    = s.get('telegram_bot_token', '')
+        chat_ids = list(dict.fromkeys(filter(None, [
+            s.get('telegram_chat_id', ''),
+            s.get('admin_telegram_id', ''),
+        ])))
+        if token and chat_ids:
+            text = f"📩 <b>Message → {user_dict['nom']}</b>\n{message}"
+            for cid in chat_ids:
+                try:
+                    data = json.dumps({'chat_id': cid, 'text': text, 'parse_mode': 'HTML'}).encode()
+                    req  = urllib.request.Request(
+                        f"https://api.telegram.org/bot{token}/sendMessage",
+                        data=data, headers={'Content-Type': 'application/json'}
+                    )
+                    urllib.request.urlopen(req, timeout=10)
+                except Exception as e:
+                    errors.append(f"telegram/{cid}: {e}")
+
+    if errors:
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            conn.execute(
+                "INSERT INTO alertes (type, message, created_at) VALUES ('error', ?, datetime('now'))",
+                (f"envoyer_message #{user_dict['id']}: {'; '.join(errors)}",)
+            )
+            conn.commit()
+            conn.close()
+        except Exception:
+            pass
+
+
 @admin_bp.route('/clients/<int:uid>/message', methods=['POST'])
 @admin_required
 def envoyer_message(uid):
-    import json
-    import urllib.request
-    import smtplib
-    from email.mime.multipart import MIMEMultipart
-    from email.mime.text import MIMEText
+    import threading
 
     subject = request.form.get('subject', '').strip() or 'Information VPN'
     message = request.form.get('message', '').strip()
@@ -744,58 +802,17 @@ def envoyer_message(uid):
         flash('Utilisateur introuvable.', 'danger')
         return redirect(url_for('admin_bp.clients'))
 
-    s = _get_settings()
+    # Convertir en dict pour le thread (Row SQLite n'est pas thread-safe)
+    user_dict = dict(user)
+    s         = _get_settings()
 
-    if channel in ('email', 'both') and user['email']:
-        try:
-            msg = MIMEMultipart('alternative')
-            msg['Subject'] = subject
-            msg['From']    = s.get('smtp_email', '')
-            msg['To']      = user['email']
-            html = (
-                f"<div style='font-family:sans-serif;max-width:520px;margin:0 auto'>"
-                f"<p>Bonjour <strong>{user['nom']}</strong>,</p>"
-                f"<p>{message.replace(chr(10), '<br>')}</p>"
-                f"<hr><small style='color:#888'>VPN Privé</small></div>"
-            )
-            msg.attach(MIMEText(html, 'html'))
-            smtp_host = s.get('smtp_host', 'smtp.gmail.com')
-            smtp_port = int(s.get('smtp_port') or 587)
-            with smtplib.SMTP(smtp_host, smtp_port) as srv:
-                srv.ehlo(); srv.starttls(); srv.ehlo()
-                srv.login(s.get('smtp_username', ''), s.get('smtp_password', ''))
-                srv.sendmail(msg['From'], [user['email']], msg.as_string())
-            flash(f"✅ Email envoyé à {user['email']}.", 'success')
-        except Exception as e:
-            flash(f"❌ Erreur email : {e}", 'danger')
+    t = threading.Thread(
+        target=_send_message_bg,
+        args=(user_dict, subject, message, channel, s),
+        daemon=True
+    )
+    t.start()
 
-    if channel in ('telegram', 'both'):
-        token    = s.get('telegram_bot_token', '')
-        chat_ids = list(dict.fromkeys(filter(None, [
-            s.get('telegram_chat_id', ''),
-            s.get('admin_telegram_id', ''),
-        ])))
-        if token and chat_ids:
-            text = f"📩 <b>Message → {user['nom']}</b>\n{message}"
-            ok   = False
-            for cid in chat_ids:
-                try:
-                    data = json.dumps({
-                        'chat_id': cid, 'text': text, 'parse_mode': 'HTML'
-                    }).encode()
-                    req = urllib.request.Request(
-                        f"https://api.telegram.org/bot{token}/sendMessage",
-                        data=data, headers={'Content-Type': 'application/json'}
-                    )
-                    urllib.request.urlopen(req, timeout=10)
-                    ok = True
-                except Exception:
-                    pass
-            if ok:
-                flash('✅ Message Telegram envoyé au canal admin.', 'success')
-            else:
-                flash('❌ Échec envoi Telegram.', 'danger')
-        else:
-            flash('⚠️ Telegram non configuré.', 'warning')
-
+    label = {'email': 'email', 'telegram': 'Telegram', 'both': 'email + Telegram'}.get(channel, channel)
+    flash(f"📨 Message envoyé via {label} à {user['nom']}.", 'success')
     return redirect(url_for('admin_bp.client_detail', uid=uid))
