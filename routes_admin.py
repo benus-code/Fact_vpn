@@ -721,79 +721,37 @@ def settings():
 
 # ─── Message individuel ───────────────────────────────────────────────────────
 
-def _send_message_bg(user_dict, subject, message, channel, s):
-    """Envoi email + telegram en arrière-plan (thread). Loggue les erreurs en DB."""
-    import json, urllib.request, sqlite3
+def _send_message_bg(user_dict, subject, message, channel):
+    """
+    Envoi email + telegram en arrière-plan (thread daemon).
+    Réutilise send_email / notify_telegram de app.py (late import, sans circular import
+    car les modules sont entièrement chargés avant le premier appel).
+    Loggue les erreurs dans la table alertes.
+    """
+    import sqlite3
 
     errors = []
 
+    # Late import — safe : app est complètement chargé avant la première requête
+    import app as _app
+
     if channel in ('email', 'both') and user_dict.get('email'):
-        from_addr = s.get('smtp_email', '').strip()
-        api_key   = s.get('brevo_api_key', '').strip()
         html = (
             f"<div style='font-family:sans-serif;max-width:520px;margin:0 auto'>"
             f"<p>Bonjour <strong>{user_dict['nom']}</strong>,</p>"
             f"<p>{message.replace(chr(10), '<br>')}</p>"
             f"<hr><small style='color:#888'>VPN Privé</small></div>"
         )
-
-        # Voie 1 : API HTTP Brevo (port 443 — toujours ouvert)
-        if api_key and from_addr:
-            try:
-                payload = json.dumps({
-                    "sender":      {"name": "SP Network", "email": from_addr},
-                    "to":          [{"email": user_dict['email']}],
-                    "subject":     subject,
-                    "htmlContent": html,
-                }).encode()
-                req = urllib.request.Request(
-                    "https://api.brevo.com/v3/smtp/email",
-                    data=payload,
-                    headers={"api-key": api_key, "Content-Type": "application/json"},
-                )
-                urllib.request.urlopen(req, timeout=15)
-            except Exception as e:
-                errors.append(f"brevo: {e}")
-        elif from_addr:
-            # Voie 2 : SMTP fallback
-            import smtplib
-            from email.mime.multipart import MIMEMultipart
-            from email.mime.text import MIMEText
-            try:
-                mime = MIMEMultipart('alternative')
-                mime['Subject'] = subject
-                mime['From']    = f"SP Network <{from_addr}>"
-                mime['To']      = user_dict['email']
-                mime.attach(MIMEText(html, 'html'))
-                host  = s.get('smtp_host', 'smtp-relay.brevo.com').strip() or 'smtp-relay.brevo.com'
-                port  = int(s.get('smtp_port') or 587)
-                login = s.get('smtp_username', '').strip() or from_addr
-                pwd   = s.get('smtp_password', '').strip()
-                with smtplib.SMTP(host, port, timeout=20) as srv:
-                    srv.ehlo(); srv.starttls(); srv.ehlo()
-                    srv.login(login, pwd)
-                    srv.sendmail(from_addr, [user_dict['email']], mime.as_string())
-            except Exception as e:
-                errors.append(f"smtp: {e}")
+        # Utilise exactement la même fonction que admin_test_email (Brevo API + SMTP fallback)
+        with _app.app.app_context():
+            ok, err = _app.send_email(user_dict['email'], subject, html)
+        if not ok:
+            errors.append(f"email: {err}")
 
     if channel in ('telegram', 'both'):
-        token    = s.get('telegram_bot_token', '')
-        chat_ids = list(dict.fromkeys(filter(None, [
-            s.get('telegram_chat_id', ''),
-            s.get('admin_telegram_id', ''),
-        ])))
-        if token and chat_ids:
-            text = f"📩 <b>Message → {user_dict['nom']}</b>\n{message}"
-            for cid in chat_ids:
-                try:
-                    data = json.dumps({'chat_id': cid, 'text': text, 'parse_mode': 'HTML'}).encode()
-                    req  = urllib.request.Request(
-                        f"https://api.telegram.org/bot{token}/sendMessage",
-                        data=data, headers={'Content-Type': 'application/json'}
-                    )
-                    urllib.request.urlopen(req, timeout=10)
-                except Exception as e:
-                    errors.append(f"telegram/{cid}: {e}")
+        text = f"📩 <b>Message → {user_dict['nom']}</b>\n{message}"
+        with _app.app.app_context():
+            _app.notify_telegram(text)
 
     if errors:
         try:
@@ -829,11 +787,10 @@ def envoyer_message(uid):
 
     # Convertir en dict pour le thread (Row SQLite n'est pas thread-safe)
     user_dict = dict(user)
-    s         = _get_settings()
 
     t = threading.Thread(
         target=_send_message_bg,
-        args=(user_dict, subject, message, channel, s),
+        args=(user_dict, subject, message, channel),
         daemon=True
     )
     t.start()
