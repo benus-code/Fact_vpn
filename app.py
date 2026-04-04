@@ -178,6 +178,64 @@ def init_app_db():
     """)
     conn.execute("CREATE INDEX IF NOT EXISTS idx_pm_ip_ts ON peer_metrics(peer_ip, ts)")
 
+    # ── Migrations v2 — support AWG 2.0 + logs + alertes ──────────────────────
+
+    # peers : infos container + métriques live
+    for col_def in [
+        "container    TEXT DEFAULT 'amnezia-awg'",
+        "wg_interface TEXT DEFAULT 'wg0'",
+        "keepalive    INTEGER DEFAULT 0",
+        "last_handshake INTEGER DEFAULT 0",
+        "rx_bytes     INTEGER DEFAULT 0",
+        "tx_bytes     INTEGER DEFAULT 0",
+    ]:
+        try:
+            conn.execute(f"ALTER TABLE peers ADD COLUMN {col_def}")
+        except sqlite3.OperationalError:
+            pass
+
+    # peer_metrics : support multi-container
+    for col_def in [
+        "container    TEXT DEFAULT 'amnezia-awg'",
+        "keepalive_ok INTEGER DEFAULT 1",
+    ]:
+        try:
+            conn.execute(f"ALTER TABLE peer_metrics ADD COLUMN {col_def}")
+        except sqlite3.OperationalError:
+            pass
+
+    # Initialiser container/wg_interface pour les peers existants
+    conn.execute("""
+        UPDATE peers SET container = 'amnezia-awg', wg_interface = 'wg0'
+        WHERE container IS NULL OR container = ''
+    """)
+
+    # Table logs_admin
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS logs_admin (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            action         TEXT    NOT NULL,
+            detail         TEXT,
+            admin_id       INTEGER,
+            target_user_id INTEGER,
+            ip_source      TEXT,
+            created_at     DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # Table alertes
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS alertes (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            type       TEXT    NOT NULL,
+            message    TEXT    NOT NULL,
+            peer_ip    TEXT,
+            user_id    INTEGER,
+            lu         INTEGER DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
     conn.commit()
     conn.close()
 
