@@ -290,34 +290,28 @@ def _send_telegram_raw(token, chat_id, text, parse_mode="HTML", timeout=10):
     urllib.request.urlopen(req, timeout=timeout)
 
 
-def notify_telegram(message, retries=3, retry_delay=2):
+def _notify_telegram_sync(message, retries=3, retry_delay=2):
     """
-    Envoie un message Telegram vers TOUS les chat_ids configurés.
-    - Retente jusqu'à `retries` fois par destinataire (délai exponentiel)
-    - Fallback HTML → texte brut si Telegram refuse le format
-    - Enregistre les échecs définitifs dans la table `alertes`
-
-    Service critique : ne jamais lever d'exception vers l'appelant.
+    Implémentation synchrone de l'envoi Telegram.
+    Ne jamais appeler directement depuis une route — utiliser notify_telegram().
     """
     import time
 
     s       = get_settings()
     token   = s.get("telegram_bot_token", "").strip()
     if not token:
-        return  # Bot non configuré — silence attendu
+        return
 
-    # Collecter TOUS les destinataires uniques non vides
     chat_ids = list(dict.fromkeys(filter(None, [
         s.get("telegram_chat_id",  "").strip(),
         s.get("admin_telegram_id", "").strip(),
     ])))
     if not chat_ids:
-        return  # Aucun destinataire configuré
+        return
 
     for chat_id in chat_ids:
         sent = False
 
-        # Essayer jusqu'à `retries` fois
         for attempt in range(1, retries + 1):
             try:
                 _send_telegram_raw(token, chat_id, message, parse_mode="HTML")
@@ -338,19 +332,19 @@ def notify_telegram(message, retries=3, retry_delay=2):
                         pass
 
                 if attempt < retries:
-                    time.sleep(retry_delay * attempt)  # 2s, 4s, 6s…
+                    time.sleep(retry_delay * attempt)
                 else:
                     app.logger.error(
                         f"[Telegram] Échec définitif → chat_id={chat_id} : {err}"
                     )
-                    # Enregistrer l'échec en base pour alerte admin
                     try:
-                        db = get_db()
-                        db.execute("""
-                            INSERT INTO alertes (type, message, lu)
-                            VALUES ('telegram_fail', ?, 0)
-                        """, (f"Notif Telegram non envoyée à {chat_id} : {err[:200]}",))
-                        db.commit()
+                        with app.app_context():
+                            db = get_db()
+                            db.execute("""
+                                INSERT INTO alertes (type, message, lu)
+                                VALUES ('telegram_fail', ?, 0)
+                            """, (f"Notif Telegram non envoyée à {chat_id} : {err[:200]}",))
+                            db.commit()
                     except Exception:
                         pass
 
@@ -358,6 +352,21 @@ def notify_telegram(message, retries=3, retry_delay=2):
             app.logger.warning(
                 f"[Telegram] Notification perdue pour chat_id={chat_id}"
             )
+
+
+def notify_telegram(message, retries=3, retry_delay=2):
+    """
+    Envoie un message Telegram vers TOUS les chat_ids configurés.
+    NON-BLOQUANT : dispatche vers un thread daemon et retourne immédiatement.
+    Garantit que les routes ne sont jamais bloquées par des timeouts réseau.
+    """
+    import threading
+
+    def _bg():
+        with app.app_context():
+            _notify_telegram_sync(message, retries, retry_delay)
+
+    threading.Thread(target=_bg, daemon=True).start()
 
 
 def send_email(to_email, subject, body_html):
