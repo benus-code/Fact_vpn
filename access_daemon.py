@@ -97,7 +97,8 @@ def _parse_wg_dump(output: str) -> dict:
         if not pubkey or allowed_ips in ('', '(none)'):
             continue
         bare_ip = allowed_ips.split('/')[0]
-        if bare_ip:
+        # Ne garder que les IPs réelles gérées (exclut blackhole 192.0.2.x etc.)
+        if bare_ip and any(bare_ip.startswith(p) for p in MANAGED_PREFIXES):
             wg_map[pubkey] = bare_ip
     return wg_map
 
