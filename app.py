@@ -1152,6 +1152,34 @@ def admin_ajouter_peer():
         (uid, label, public_key, ip_vpn, date_ajout, vpn_type, container, wg_interface)
     )
     db.commit()
+
+    # ── SÉCURITÉ CRITIQUE : bloquer immédiatement si abonnement non actif ──
+    # Un peer créé pour un user expiré/suspendu doit être verrouillé d'emblée,
+    # sinon il contourne les règles iptables déjà en place sur les anciens peers.
+    abo = db.execute(
+        "SELECT statut, date_fin FROM abonnements WHERE user_id = ?", (uid,)
+    ).fetchone()
+    abo_ok = (
+        abo is not None and
+        abo['statut'] == 'actif' and
+        (abo['date_fin'] is None or abo['date_fin'] >= date.today().isoformat())
+    )
+    if not abo_ok:
+        new_peer = db.execute(
+            "SELECT * FROM peers WHERE user_id = ? AND ip_vpn = ?", (uid, ip_vpn)
+        ).fetchone()
+        if new_peer:
+            block_peer(new_peer)
+            db.execute("UPDATE peers SET actif = 0 WHERE id = ?", (new_peer['id'],))
+            db.commit()
+            statut_str = abo['statut'] if abo else 'sans abonnement'
+            flash(
+                f"⚠️ Appareil « {label} » créé mais immédiatement BLOQUÉ "
+                f"— abonnement {statut_str}. Réactivez l'abonnement pour débloquer.",
+                "warning"
+            )
+            return redirect(url_for("admin_user_detail", uid=uid))
+
     user         = db.execute("SELECT nom FROM users WHERE id = ?", (uid,)).fetchone()
     type_label   = "PiVPN (PC)" if vpn_type == "pivpn" else "Amnezia (mobile)"
     server_label = "AWG 2.0" if container == "amnezia-awg2" else "AWG 1.x"
