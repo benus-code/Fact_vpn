@@ -28,6 +28,11 @@ app.secret_key = os.environ.get("VPN_SECRET_KEY", "CHANGE_CE_SECRET_EN_PROD_SVP"
 from routes_admin import admin_bp
 app.register_blueprint(admin_bp)
 
+# ─── Contrôle d'accès VPN par AllowedIPs (Phase 2) ────────────────────────────
+from vpn_access import suspend_peer as vac_suspend
+from vpn_access import restore_peer as vac_restore
+from vpn_access import sync_all_peers
+
 DB_PATH       = "/opt/vpn-billing/vpn_billing.db"
 CONTAINER     = "amnezia-awg"
 WG_INTERFACE  = "wg0"
@@ -491,16 +496,51 @@ def pivpn_get_config(label):
         return None
 
 def block_peer(peer):
-    """Dispatch : bloque selon le type VPN du peer."""
-    if peer["vpn_type"] == "pivpn":
-        return iptables_block_host(peer["ip_vpn"])
-    return iptables_block_peer(peer["ip_vpn"])
+    """
+    Suspend un peer.
+    Priorité : AllowedIPs blackhole (si clé publique réelle disponible)
+    Fallback  : iptables (si clé MANUAL ou absente)
+    """
+    pubkey    = peer.get('public_key', '')
+    container = peer.get('container', CONTAINER)
+
+    if pubkey and not pubkey.startswith('MANUAL'):
+        result = vac_suspend(pubkey, container, peer['ip_vpn'])
+        if result['success']:
+            return True
+        app.logger.warning(
+            f"WG suspend failed for {peer['ip_vpn']}, fallback iptables"
+        )
+
+    # Fallback iptables existant
+    if peer.get('vpn_type') == 'pivpn':
+        return iptables_block_host(peer['ip_vpn'])
+    return iptables_block_peer(peer['ip_vpn'])
+
 
 def unblock_peer(peer):
-    """Dispatch : débloque selon le type VPN du peer."""
-    if peer["vpn_type"] == "pivpn":
-        return iptables_unblock_host(peer["ip_vpn"])
-    return iptables_unblock_peer(peer["ip_vpn"])
+    """
+    Réactive un peer.
+    Priorité : AllowedIPs normale (si clé publique réelle disponible)
+    Fallback  : iptables
+    """
+    pubkey    = peer.get('public_key', '')
+    container = peer.get('container', CONTAINER)
+
+    if pubkey and not pubkey.startswith('MANUAL'):
+        result = vac_restore(pubkey, container, peer['ip_vpn'])
+        if result['success']:
+            # Retirer aussi la règle iptables si elle existait
+            try:
+                iptables_unblock_peer(peer['ip_vpn'])
+            except Exception:
+                pass
+            return True
+
+    # Fallback iptables existant
+    if peer.get('vpn_type') == 'pivpn':
+        return iptables_unblock_host(peer['ip_vpn'])
+    return iptables_unblock_peer(peer['ip_vpn'])
 
 # ─── Routes publiques ─────────────────────────────────────────────────────────
 @app.route("/")
@@ -1012,6 +1052,51 @@ def admin_test_telegram():
     notify_telegram(msg)
     flash(f"✅ Message de test envoyé à : {', '.join(ids)}", "success")
     return redirect(url_for("admin_panel"))
+
+
+@app.route('/admin/restore-suspensions', methods=['POST'])
+@login_required
+@admin_required
+def admin_restore_suspensions():
+    """
+    Synchronise AllowedIPs pour tous les peers ET ré-applique iptables.
+    Double couche de sécurité après un redémarrage container.
+    """
+    # 1. Synchroniser AllowedIPs (nouveau système — peers avec vraie pubkey)
+    results = sync_all_peers()
+
+    # 2. Ré-appliquer aussi les règles iptables (fallback pour MANUAL keys)
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    suspended_peers = conn.execute("""
+        SELECT p.public_key, p.ip_vpn, p.container, p.vpn_type
+        FROM peers p
+        JOIN users u ON u.id = p.user_id
+        WHERE (p.actif = 0 OR u.is_banned = 1)
+          AND p.ip_vpn IS NOT NULL
+    """).fetchall()
+    conn.close()
+
+    iptables_ok = 0
+    for peer in suspended_peers:
+        try:
+            if peer['vpn_type'] == 'pivpn':
+                iptables_block_host(peer['ip_vpn'])
+            else:
+                iptables_block_peer(peer['ip_vpn'])
+            iptables_ok += 1
+        except Exception:
+            pass
+
+    flash(
+        f"✅ Sync effectué — "
+        f"suspendu WG : {results['suspended']} | "
+        f"réactivé WG : {results['restored']} | "
+        f"sans clé (iptables) : {results['no_key']} | "
+        f"iptables appliqué : {iptables_ok}",
+        'success'
+    )
+    return redirect(url_for('admin_bp.monitoring'))
 
 
 @app.route("/admin/user/<int:uid>")
