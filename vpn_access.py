@@ -23,11 +23,6 @@ logger = logging.getLogger(__name__)
 DB = '/opt/vpn-billing/vpn_billing.db'
 BLACKHOLE_IP = '192.0.2.1/32'  # RFC5737 — jamais routé
 
-CONTAINER_MAP = {
-    'amnezia-awg':  'wg0',
-    'amnezia-awg2': 'awg0',
-}
-
 
 def _run(container: str, *args, timeout=10) -> subprocess.CompletedProcess:
     """Exécute une commande dans un container Docker."""
@@ -37,39 +32,41 @@ def _run(container: str, *args, timeout=10) -> subprocess.CompletedProcess:
 
 def get_current_allowed_ips(container: str) -> dict:
     """
-    Retourne l'état actuel AllowedIPs depuis le serveur.
+    Retourne l'état AllowedIPs depuis le FICHIER DE CONFIG du container.
     Format : { pubkey: 'ip/mask' }
+    (wg show n'est pas utilisé car wg set est interdit sur AmneziaWG)
     """
-    interface = CONTAINER_MAP.get(container, 'wg0')
-    result = _run(container, 'wg', 'show', interface, 'allowed-ips')
+    config_paths = {
+        'amnezia-awg':  '/opt/amnezia/awg/wg0.conf',
+        'amnezia-awg2': '/opt/amnezia/awg/awg0.conf',
+    }
+    config_path = config_paths.get(container)
+    if not config_path:
+        return {}
+
+    r = _run(container, 'cat', config_path)
+    if r.returncode != 0:
+        logger.warning(f"Impossible de lire {config_path} dans {container}: {r.stderr}")
+        return {}
+
     state = {}
-    for line in result.stdout.strip().split('\n'):
-        if not line.strip():
-            continue
-        parts = line.split()
-        if len(parts) == 2:
-            state[parts[0]] = parts[1]
+    current_pubkey = None
+    for line in r.stdout.split('\n'):
+        line = line.strip()
+        if line.startswith('PublicKey'):
+            current_pubkey = line.split('=', 1)[1].strip()
+        elif line.startswith('AllowedIPs') and current_pubkey:
+            state[current_pubkey] = line.split('=', 1)[1].strip()
     return state
 
 
 def _set_allowed_ips(container: str, pubkey: str,
                      allowed_ips: str) -> bool:
     """
-    Applique AllowedIPs via wg set (runtime, sans redémarrage).
-    Puis met à jour le fichier de config pour la persistance.
+    Met à jour AllowedIPs dans le fichier de config (persistance uniquement).
+    wg set est INTERDIT sur AmneziaWG — coupe l'interface.
+    La modification prend effet au prochain redémarrage du container.
     """
-    interface = CONTAINER_MAP.get(container, 'wg0')
-
-    # 1. Appliquer en runtime
-    result = _run(
-        container, 'wg', 'set', interface,
-        'peer', pubkey, 'allowed-ips', allowed_ips
-    )
-    if result.returncode != 0:
-        logger.error(f"wg set failed: {result.stderr}")
-        return False
-
-    # 2. Mettre à jour le fichier de config pour persistance après restart
     _update_config_file(container, pubkey, allowed_ips)
     return True
 
@@ -151,8 +148,8 @@ def suspend_peer(pubkey: str, container: str,
     if ok:
         logger.info(f"SUSPENDU: {vpn_ip} ({pubkey[:20]}...)")
         return {'success': True,
-                'message': f'Peer {vpn_ip} suspendu (blackhole)'}
-    return {'success': False, 'message': 'Échec wg set'}
+                'message': f'Peer {vpn_ip} suspendu (blackhole config)'}
+    return {'success': False, 'message': 'Échec écriture config'}
 
 
 def restore_peer(pubkey: str, container: str, vpn_ip: str) -> dict:
@@ -176,8 +173,8 @@ def restore_peer(pubkey: str, container: str, vpn_ip: str) -> dict:
     if ok:
         logger.info(f"RÉACTIVÉ: {vpn_ip} ({pubkey[:20]}...)")
         return {'success': True,
-                'message': f'Peer {vpn_ip} réactivé'}
-    return {'success': False, 'message': 'Échec wg set'}
+                'message': f'Peer {vpn_ip} réactivé (config)'}
+    return {'success': False, 'message': 'Échec écriture config'}
 
 
 def sync_all_peers() -> dict:
