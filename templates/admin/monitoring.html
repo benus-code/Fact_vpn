@@ -134,7 +134,7 @@
       <div class="table-wrap" style="margin-top:8px">
         <table class="table-dark-custom mb-0">
           <thead>
-            <tr><th>Client</th><th>Label</th><th>IP VPN</th><th>Proto</th><th>Statut</th><th>Handshake</th><th>↓ Reçu</th><th>↑ Envoyé</th><th>KA</th></tr>
+            <tr><th>Client</th><th>Label</th><th>IP VPN</th><th>Proto</th><th>Statut</th><th>WireGuard</th><th>Handshake</th><th>↓ Reçu</th><th>↑ Envoyé</th><th>KA</th></tr>
           </thead>
           <tbody id="live-body">
           {% for p in peers_all %}
@@ -155,6 +155,15 @@
                 <span class="badge-status amber"><span class="dot amber"></span>Inactif</span>
               {% else %}
                 <span class="badge-status gray"><span class="dot gray"></span>Jamais</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if p.wg_status == 'actif' %}
+                <span class="badge-status green" title="{{ p.wg_allowed_ips }}"><span class="dot green"></span>WG Actif</span>
+              {% elif p.wg_status == 'blackhole' %}
+                <span class="badge-status red" title="{{ p.wg_allowed_ips }}"><span class="dot red"></span>WG Bloqué</span>
+              {% else %}
+                <span class="badge-status gray" title="Pas de clé publique"><span class="dot gray"></span>No Key</span>
               {% endif %}
             </td>
             <td style="font-family:var(--font-mono);font-size:.79rem;color:var(--text-secondary)">{{ p.hs_label }}</td>

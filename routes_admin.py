@@ -16,6 +16,7 @@ from vpn_utils import (
     format_bytes, format_age, peer_status_label, get_kpis,
     apply_keepalive, log_admin_action, CONTAINERS, get_keepalive_alerts,
 )
+from vpn_access import get_current_allowed_ips, BLACKHOLE_IP
 
 admin_bp = Blueprint('admin_bp', __name__, url_prefix='/admin/v2')
 
@@ -468,6 +469,19 @@ def monitoring():
         key=lambda p: all_live.get(p['ip_vpn'].split('/')[0], {}).get('rx', 0),
         reverse=True
     )[:10]
+
+    # État WireGuard AllowedIPs par clé publique
+    current_wg_state = get_current_allowed_ips('amnezia-awg')
+    current_wg_state.update(get_current_allowed_ips('amnezia-awg2'))
+    for peer in peers_all:
+        pk = peer.get('public_key', '')
+        if pk and not pk.startswith('MANUAL'):
+            allowed = current_wg_state.get(pk, 'inconnu')
+            peer['wg_status']      = 'blackhole' if allowed == BLACKHOLE_IP else 'actif'
+            peer['wg_allowed_ips'] = allowed
+        else:
+            peer['wg_status']      = 'no_key'
+            peer['wg_allowed_ips'] = None
 
     return render_template('admin/monitoring.html',
                            containers=containers_info,
