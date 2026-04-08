@@ -501,6 +501,8 @@ def block_peer(peer):
     Priorité : AllowedIPs blackhole (si clé publique réelle disponible)
     Fallback  : iptables (si clé MANUAL ou absente)
     """
+    if not isinstance(peer, dict):
+        peer = dict(peer)
     pubkey    = peer.get('public_key', '')
     container = peer.get('container', CONTAINER)
 
@@ -524,6 +526,8 @@ def unblock_peer(peer):
     Priorité : AllowedIPs normale (si clé publique réelle disponible)
     Fallback  : iptables
     """
+    if not isinstance(peer, dict):
+        peer = dict(peer)
     pubkey    = peer.get('public_key', '')
     container = peer.get('container', CONTAINER)
 
