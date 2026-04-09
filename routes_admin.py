@@ -109,29 +109,38 @@ def _enrich_peers(peers, all_live=None):
         hs_age  = live.get('handshake_age_s')
         ka      = live.get('keepalive', 0)
 
-        status_info = peer_status_label(hs_ts)
+        u_is_banned = bool(p.get('is_banned', 0))
+        abo_statut  = p.get('abo_statut')
+        date_fin    = p.get('date_fin')
+        today_iso   = date.today().isoformat()
+
+        if not p['actif'] or u_is_banned:
+            status_info = {'label': 'Suspendu', 'dot': 'red',   'badge': 'danger'}
+        elif abo_statut in ('expire', 'suspendu', None) or not date_fin or date_fin < today_iso:
+            status_info = {'label': 'Expiré',   'dot': 'amber', 'badge': 'warning'}
+        else:
+            status_info = peer_status_label(hs_ts)
+
         warn_ka = (p['actif'] and ka != 25 and hs_ts and (now_ts - hs_ts) < 600)
+
+        if status_info['dot'] == 'green':
+            filter_key = 'connecte'
+        elif not p['actif'] or u_is_banned:
+            filter_key = 'suspendu'
+        else:
+            filter_key = 'inactif'
 
         item = dict(p)
         item.update({
-            'status':      status_info['dot'],     # 'green'|'amber'|'red'|'gray'
+            'status':       status_info['dot'],
             'status_label': status_info['label'],
-            'filter_key':  ('suspendu' if not p['actif']
-                            else status_info['dot'] if status_info['dot'] in ('green',)
-                            else 'inactif' if status_info['dot'] == 'amber'
-                            else 'inactif'),
-            'hs_label':    format_age(hs_age),
-            'transfer_rx': format_bytes(live.get('rx')),
-            'transfer_tx': format_bytes(live.get('tx')),
-            'keepalive':   ka,
-            'warn_ka':     warn_ka,
+            'filter_key':   filter_key,
+            'hs_label':     format_age(hs_age),
+            'transfer_rx':  format_bytes(live.get('rx')),
+            'transfer_tx':  format_bytes(live.get('tx')),
+            'keepalive':    ka,
+            'warn_ka':      warn_ka,
         })
-        if status_info['dot'] == 'green':
-            item['filter_key'] = 'connecte'
-        elif not p['actif']:
-            item['filter_key'] = 'suspendu'
-        else:
-            item['filter_key'] = 'inactif'
 
         result.append(item)
     return result
@@ -270,10 +279,16 @@ def client_detail(uid):
         (uid,)
     ).fetchone()
 
-    peers_rows = db.execute(
-        "SELECT * FROM peers WHERE user_id = ? ORDER BY id DESC",
-        (uid,)
-    ).fetchall()
+    peers_rows = db.execute("""
+        SELECT p.*, u.is_banned,
+               a.statut AS abo_statut, a.date_fin
+        FROM peers p
+        JOIN users u ON u.id = p.user_id
+        LEFT JOIN abonnements a ON a.user_id = p.user_id
+            AND a.date_fin = (SELECT MAX(date_fin) FROM abonnements WHERE user_id = p.user_id)
+        WHERE p.user_id = ?
+        ORDER BY p.id DESC
+    """, (uid,)).fetchall()
 
     histo = db.execute(
         "SELECT * FROM paiements WHERE user_id = ? ORDER BY date_paiement DESC",
@@ -315,9 +330,12 @@ def client_detail(uid):
 def peers():
     db = get_db()
     rows = db.execute("""
-        SELECT p.*, u.nom AS user_nom
+        SELECT p.*, u.nom AS user_nom, u.is_banned,
+               a.statut AS abo_statut, a.date_fin
         FROM peers p
         JOIN users u ON u.id = p.user_id
+        LEFT JOIN abonnements a ON a.user_id = p.user_id
+            AND a.date_fin = (SELECT MAX(date_fin) FROM abonnements WHERE user_id = p.user_id)
         ORDER BY p.id DESC
     """).fetchall()
 
@@ -456,9 +474,12 @@ def monitoring():
 
     # Tous les peers enrichis
     rows = db.execute("""
-        SELECT p.*, u.nom AS user_nom
+        SELECT p.*, u.nom AS user_nom, u.is_banned,
+               a.statut AS abo_statut, a.date_fin
         FROM peers p
         JOIN users u ON u.id = p.user_id
+        LEFT JOIN abonnements a ON a.user_id = p.user_id
+            AND a.date_fin = (SELECT MAX(date_fin) FROM abonnements WHERE user_id = p.user_id)
         ORDER BY p.id
     """).fetchall()
     peers_all = _enrich_peers(rows, all_live)

@@ -181,18 +181,13 @@
           {% set bare_ip = p.ip_vpn.split('/')[0] %}
           {% set live = peers_live.get(bare_ip, {}) %}
           {% set hs_ts = live.get('handshake_ts', 0) %}
-          {% set status = peer_status(hs_ts) %}
           <tr>
             <td style="font-family:var(--font-mono);color:var(--text-muted);font-size:.74rem">#{{ p.id }}</td>
             <td style="font-weight:500;color:var(--text)">{{ p.label }}</td>
             <td><code style="font-family:var(--font-mono);color:var(--text-secondary);font-size:.78rem">{{ p.ip_vpn }}</code></td>
             <td><span class="badge-proto {{ 'awg2' if p.container == 'amnezia-awg2' else 'awg1' }}">{{ 'AWG 2.0' if p.container == 'amnezia-awg2' else 'AWG 1.x' }}</span></td>
             <td>
-              {% if not p.actif %}<span class="badge-status gray"><span class="dot gray"></span>Suspendu</span>
-              {% else %}
-              <span class="badge-status {{ status.dot }}">
-                <span class="dot {{ status.dot }}"></span>{{ status.label }}
-              </span>{% endif %}
+              <span class="badge-status {{ p.status }}"><span class="dot {{ p.status }}"></span>{{ p.status_label }}</span>
             </td>
             <td style="font-family:var(--font-mono);font-size:.79rem;color:var(--text-secondary)">{{ format_age(live.get('handshake_age_s')) }}</td>
             <td style="font-size:.8rem;color:var(--text-secondary)">{{ format_bytes(live.get('rx')) }}</td>
@@ -201,7 +196,7 @@
               {% set ka = live.get('keepalive', 0) %}
               {% if ka == 25 %}<span style="color:var(--green);font-size:.78rem;font-weight:600">✓ 25s</span>
               {% elif ka > 0 %}<span style="color:var(--amber);font-family:var(--font-mono);font-size:.78rem">{{ ka }}s</span>
-              {% elif p.actif and status.dot != 'gray' %}<span style="color:var(--red);font-size:.78rem">⚠ OFF</span>
+              {% elif p.actif and p.status not in ('gray', 'red', 'amber') %}<span style="color:var(--red);font-size:.78rem">⚠ OFF</span>
               {% else %}<span style="color:var(--text-muted);font-size:.78rem">—</span>{% endif %}
             </td>
             <td>
