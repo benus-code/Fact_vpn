@@ -28,10 +28,8 @@ app.secret_key = os.environ.get("VPN_SECRET_KEY", "CHANGE_CE_SECRET_EN_PROD_SVP"
 from routes_admin import admin_bp
 app.register_blueprint(admin_bp)
 
-# ─── Contrôle d'accès VPN par AllowedIPs (Phase 2) ────────────────────────────
-from vpn_access import suspend_peer as vac_suspend
-from vpn_access import restore_peer as vac_restore
-from vpn_access import sync_all_peers
+# ─── Contrôle d'accès VPN (daemon iptables) ───────────────────────────────────
+from access_daemon import build_wg_map, block_ip, unblock_ip
 
 DB_PATH       = "/opt/vpn-billing/vpn_billing.db"
 CONTAINER     = "amnezia-awg"
@@ -497,54 +495,61 @@ def pivpn_get_config(label):
 
 def block_peer(peer):
     """
-    Suspend un peer.
-    Priorité : AllowedIPs blackhole (si clé publique réelle disponible)
-    Fallback  : iptables (si clé MANUAL ou absente)
+    Suspension d'un peer.
+    1. iptables existant (conservé)
+    2. + blocage via IP actuelle depuis wg dump
     """
     if not isinstance(peer, dict):
         peer = dict(peer)
-    pubkey    = peer.get('public_key', '')
-    container = peer.get('container', CONTAINER)
 
-    if pubkey and not pubkey.startswith('MANUAL'):
-        result = vac_suspend(pubkey, container, peer['ip_vpn'])
-        if result['success']:
-            return True
-        app.logger.warning(
-            f"WG suspend failed for {peer['ip_vpn']}, fallback iptables"
-        )
-
-    # Fallback iptables existant
+    # Méthode existante (conservée)
     if peer.get('vpn_type') == 'pivpn':
-        return iptables_block_host(peer['ip_vpn'])
-    return iptables_block_peer(peer['ip_vpn'])
+        iptables_block_host(peer['ip_vpn'])
+    else:
+        iptables_block_peer(peer['ip_vpn'])
+
+    # Méthode dynamique en complément
+    pubkey = peer.get('public_key', '')
+    if pubkey and not pubkey.startswith('MANUAL'):
+        try:
+            wg_map = build_wg_map()
+            ip_real = wg_map.get(pubkey)
+            if ip_real and ip_real != peer['ip_vpn']:
+                # IP a changé → bloquer l'IP actuelle aussi
+                block_ip(ip_real)
+        except Exception as e:
+            app.logger.warning(f"block_peer dynamic failed: {e}")
+
+    return True
 
 
 def unblock_peer(peer):
     """
-    Réactive un peer.
-    Priorité : AllowedIPs normale (si clé publique réelle disponible)
-    Fallback  : iptables
+    Réactivation d'un peer.
+    1. iptables existant (conservé)
+    2. + déblocage IP actuelle depuis wg dump
     """
     if not isinstance(peer, dict):
         peer = dict(peer)
-    pubkey    = peer.get('public_key', '')
-    container = peer.get('container', CONTAINER)
 
-    if pubkey and not pubkey.startswith('MANUAL'):
-        result = vac_restore(pubkey, container, peer['ip_vpn'])
-        if result['success']:
-            # Retirer aussi la règle iptables si elle existait
-            try:
-                iptables_unblock_peer(peer['ip_vpn'])
-            except Exception:
-                pass
-            return True
-
-    # Fallback iptables existant
+    # Méthode existante (conservée)
     if peer.get('vpn_type') == 'pivpn':
-        return iptables_unblock_host(peer['ip_vpn'])
-    return iptables_unblock_peer(peer['ip_vpn'])
+        iptables_unblock_host(peer['ip_vpn'])
+    else:
+        iptables_unblock_peer(peer['ip_vpn'])
+
+    # Méthode dynamique en complément
+    pubkey = peer.get('public_key', '')
+    if pubkey and not pubkey.startswith('MANUAL'):
+        try:
+            wg_map = build_wg_map()
+            ip_real = wg_map.get(pubkey)
+            if ip_real:
+                unblock_ip(ip_real)
+        except Exception as e:
+            app.logger.warning(f"unblock_peer dynamic failed: {e}")
+
+    return True
 
 # ─── Routes publiques ─────────────────────────────────────────────────────────
 @app.route("/")
@@ -1062,42 +1067,16 @@ def admin_test_telegram():
 @login_required
 @admin_required
 def admin_restore_suspensions():
-    """
-    Synchronise AllowedIPs pour tous les peers ET ré-applique iptables.
-    Double couche de sécurité après un redémarrage container.
-    """
-    # 1. Synchroniser AllowedIPs (nouveau système — peers avec vraie pubkey)
-    results = sync_all_peers()
-
-    # 2. Ré-appliquer aussi les règles iptables (fallback pour MANUAL keys)
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    suspended_peers = conn.execute("""
-        SELECT p.public_key, p.ip_vpn, p.container, p.vpn_type
-        FROM peers p
-        JOIN users u ON u.id = p.user_id
-        WHERE (p.actif = 0 OR u.is_banned = 1)
-          AND p.ip_vpn IS NOT NULL
-    """).fetchall()
-    conn.close()
-
-    iptables_ok = 0
-    for peer in suspended_peers:
-        try:
-            if peer['vpn_type'] == 'pivpn':
-                iptables_block_host(peer['ip_vpn'])
-            else:
-                iptables_block_peer(peer['ip_vpn'])
-            iptables_ok += 1
-        except Exception:
-            pass
-
+    """Force un cycle de synchronisation iptables complet."""
+    from access_daemon import sync_once
+    results = sync_once()
     flash(
         f"✅ Sync effectué — "
-        f"suspendu WG : {results['suspended']} | "
-        f"réactivé WG : {results['restored']} | "
-        f"sans clé (iptables) : {results['no_key']} | "
-        f"iptables appliqué : {iptables_ok}",
+        f"bloqué : {results['blocked']} | "
+        f"débloqué : {results['unblocked']} | "
+        f"déjà OK : {results['already_ok']} | "
+        f"sans IP : {results['no_ip']} | "
+        f"erreurs : {results['errors']}",
         'success'
     )
     return redirect(url_for('admin_bp.monitoring'))
