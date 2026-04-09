@@ -1,30 +1,16 @@
 [Unit]
-Description=VPN Access Daemon — contrôle iptables temps-réel (wg show dump)
-Documentation=file:///opt/vpn-billing/access_daemon.py
-After=docker.service network-online.target
-Wants=network-online.target
-# Redémarrer si le daemon plante, mais pas si arrêt volontaire (exit 0)
-StartLimitIntervalSec=120
-StartLimitBurst=5
+Description=VPN Access Control Daemon
+After=docker.service network.target
+Requires=docker.service
 
 [Service]
 Type=simple
 WorkingDirectory=/opt/vpn-billing
 ExecStart=/opt/vpn-billing/venv/bin/python3 /opt/vpn-billing/access_daemon.py
-Restart=on-failure
+Restart=always
 RestartSec=10
-
-# Le daemon écrit dans /var/log/vpn_access_daemon.log + stdout
-# StandardOutput vers journald pour `journalctl -u vpn-access-daemon`
 StandardOutput=journal
 StandardError=journal
-
-# Sécurité minimale (doit rester root pour iptables + docker)
-User=root
-Group=root
-
-# Fichier d'environnement optionnel (variables custom si besoin)
-# EnvironmentFile=-/opt/vpn-billing/.env
 
 [Install]
 WantedBy=multi-user.target
