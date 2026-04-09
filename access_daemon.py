@@ -92,7 +92,8 @@ def build_wg_map() -> Dict[str, str]:
                 if allowed_ips and allowed_ips != '(none)':
                     # Extraire IP depuis "10.8.1.X/32"
                     ip = allowed_ips.split('/')[0]
-                    if ip and ip != '(none)':
+                    # Ne garder que les IPs VPN réelles (exclut blackhole 192.0.2.x etc.)
+                    if ip and ip != '(none)' and ip.startswith('10.8.'):
                         mapping[pubkey] = ip
 
         except subprocess.TimeoutExpired:
