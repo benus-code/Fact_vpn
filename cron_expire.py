@@ -136,8 +136,6 @@ def main():
 
     if not expired:
         print(f"[{now}] Aucun peer à désactiver.")
-        conn.close()
-        return
 
     for peer in expired:
         try:
