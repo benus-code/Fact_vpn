@@ -1202,12 +1202,15 @@ def admin_ajouter_peer():
     wg_interface = wg_iface_map.get(container, "wg0")
 
     db = get_db()
-    # Vérifier conflit d'IP dans le MÊME container uniquement
-    # (les deux containers peuvent avoir des IPs identiques si subnets différents)
-    if db.execute(
-        "SELECT id FROM peers WHERE ip_vpn = ? AND container = ?",
-        (ip_vpn, container)
-    ).fetchone():
+    # Vérifier conflit d'IP dans le MÊME container — ignorer peers inactifs et users bannis
+    if db.execute("""
+        SELECT p.id FROM peers p
+        JOIN users u ON u.id = p.user_id
+        WHERE p.ip_vpn = ?
+          AND p.container = ?
+          AND p.actif = 1
+          AND u.is_banned = 0
+    """, (ip_vpn, container)).fetchone():
         flash(f"L'IP {ip_vpn} est déjà attribuée dans {container}.", "danger")
         return redirect(url_for("admin_user_detail", uid=uid))
 
