@@ -173,6 +173,8 @@ def main():
         ).fetchone()
         if not user:
             continue
+        # sqlite3.Row n'a pas .get() — convertir en dict
+        user = dict(user)
 
         # Email au client
         html_suspension = (
@@ -210,6 +212,8 @@ def main():
           AND a.date_fin = ?
           AND (a.reminded_j3 IS NULL OR a.reminded_j3 = 0)
     """, (j3,)).fetchall()
+    # sqlite3.Row n'a pas .get() — convertir en dicts
+    reminders_j3 = [dict(r) for r in reminders_j3]
 
     email_j3_ok = 0
     for r in reminders_j3:
@@ -242,6 +246,8 @@ def main():
           AND a.date_fin = ?
           AND (a.reminded_j1 IS NULL OR a.reminded_j1 = 0)
     """, (j1,)).fetchall()
+    # sqlite3.Row n'a pas .get() — convertir en dicts
+    reminders_j1 = [dict(r) for r in reminders_j1]
 
     email_j1_ok = 0
     for r in reminders_j1:

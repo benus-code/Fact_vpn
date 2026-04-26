@@ -102,6 +102,9 @@ def _enrich_peers(peers, all_live=None):
     now_ts = int(datetime.utcnow().timestamp())
     result = []
 
+    # sqlite3.Row n'a pas .get() — convertir en dict immédiatement
+    peers = [dict(p) for p in peers]
+
     for p in peers:
         bare_ip = (p['ip_vpn'] or '').split('/')[0]
         live    = all_live.get(bare_ip, {})
