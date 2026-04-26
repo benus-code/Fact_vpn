@@ -13,6 +13,8 @@ import urllib.request
 import json
 import smtplib
 import ssl
+import logging
+from logging.handlers import RotatingFileHandler
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import date, datetime, timedelta
@@ -23,6 +25,41 @@ from werkzeug.security import generate_password_hash, check_password_hash as wz_
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("VPN_SECRET_KEY", "CHANGE_CE_SECRET_EN_PROD_SVP")
+
+# ─── Logging structuré ────────────────────────────────────────────────────────
+if not app.debug:
+    try:
+        _err_handler = RotatingFileHandler(
+            '/var/log/vpn-billing-errors.log',
+            maxBytes=10 * 1024 * 1024,  # 10 MB
+            backupCount=5,
+        )
+        _err_handler.setLevel(logging.ERROR)
+        _err_handler.setFormatter(logging.Formatter(
+            '%(asctime)s %(levelname)s: %(message)s '
+            '[in %(pathname)s:%(lineno)d]'
+        ))
+        app.logger.addHandler(_err_handler)
+        app.logger.setLevel(logging.INFO)
+    except (PermissionError, FileNotFoundError):
+        # Le dossier /var/log n'est pas accessible (dev local) — fallback console
+        pass
+
+# ─── Pages d'erreur personnalisées ────────────────────────────────────────────
+@app.errorhandler(404)
+def _page_not_found(e):
+    return render_template('errors/404.html'), 404
+
+
+@app.errorhandler(500)
+def _internal_error(e):
+    app.logger.error(f"500 Error: {e}")
+    return render_template('errors/500.html'), 500
+
+
+@app.errorhandler(403)
+def _forbidden(e):
+    return render_template('errors/403.html'), 403
 
 # ─── Blueprint admin (nouveau dashboard) ──────────────────────────────────────
 from routes_admin import admin_bp
