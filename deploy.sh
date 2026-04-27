@@ -13,19 +13,24 @@ echo "    Source : $REPO_DIR"
 echo "    Dest   : $INSTALL_DIR"
 echo ""
 
-# 1. Copier les fichiers Python
-cp "$REPO_DIR/app.py"              "$INSTALL_DIR/app.py"
-cp "$REPO_DIR/cron_expire.py"      "$INSTALL_DIR/cron_expire.py"
-cp "$REPO_DIR/restore_iptables.py" "$INSTALL_DIR/restore_iptables.py"
-cp "$REPO_DIR/migrate_vpn_type.py"  "$INSTALL_DIR/migrate_vpn_type.py"
-cp "$REPO_DIR/import_pivpn_peers.py" "$INSTALL_DIR/import_pivpn_peers.py"
+# 1. Copier les fichiers Python (seulement si repo ≠ dossier d'installation)
+if [ "$REPO_DIR" != "$INSTALL_DIR" ]; then
+  cp "$REPO_DIR/app.py"               "$INSTALL_DIR/app.py"
+  cp "$REPO_DIR/cron_expire.py"       "$INSTALL_DIR/cron_expire.py"
+  cp "$REPO_DIR/restore_iptables.py"  "$INSTALL_DIR/restore_iptables.py"
+  cp "$REPO_DIR/migrate_vpn_type.py"  "$INSTALL_DIR/migrate_vpn_type.py"
+  cp "$REPO_DIR/import_pivpn_peers.py" "$INSTALL_DIR/import_pivpn_peers.py"
 
-# 2. Copier les templates
-mkdir -p "$INSTALL_DIR/templates"
-cp "$REPO_DIR/templates/"*.html   "$INSTALL_DIR/templates/"
+  # 2. Copier les templates
+  mkdir -p "$INSTALL_DIR/templates"
+  cp "$REPO_DIR/templates/"*.html   "$INSTALL_DIR/templates/"
 
-# 3. Mettre à jour les dépendances Python si requirements.txt a changé
-"$INSTALL_DIR/venv/bin/pip" install -q -r "$REPO_DIR/requirements.txt"
+  # 3. Mettre à jour les dépendances Python
+  "$INSTALL_DIR/venv/bin/pip" install -q -r "$REPO_DIR/requirements.txt"
+else
+  echo "    (repo = install dir, copie ignorée)"
+  "$INSTALL_DIR/venv/bin/pip" install -q -r "$INSTALL_DIR/requirements.txt"
+fi
 
 # 4. Installer / mettre à jour le timer systemd (2x/jour)
 cp "$REPO_DIR/renewal-reminder.service" /etc/systemd/system/renewal-reminder.service
