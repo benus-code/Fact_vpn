@@ -2,7 +2,7 @@
 """
 cron_expire.py — Désactive automatiquement les peers dont l'abonnement a expiré.
                  Envoie aussi un rappel par email J-3 avant expiration.
-Ajouter dans crontab :  0 8 * * * python3 /opt/vpn-billing/cron_expire.py >> /var/log/vpn_expire.log 2>&1
+Géré par systemd timer renewal-reminder.timer (9h + 18h MSK = 06:00 + 15:00 UTC).
 """
 
 import sqlite3
@@ -19,12 +19,28 @@ from datetime import date, timedelta
 DB_PATH   = "/opt/vpn-billing/vpn_billing.db"
 CONTAINER = "amnezia-awg"
 
+
+def is_valid_email(email: str) -> bool:
+    """Retourne True si l'email peut recevoir des messages (pas fictif/local)."""
+    if not email or not isinstance(email, str):
+        return False
+    email = email.strip().lower()
+    if '@' not in email:
+        return False
+    domain = email.split('@', 1)[1]
+    if '.local' in domain:          # vpn.local, vpn.local2, vpn.local34 …
+        return False
+    if '.' not in domain:           # localhost, local …
+        return False
+    BLOCKED = {'example.com', 'test.com', 'vpn2.local', 'vpn3.local'}
+    if domain in BLOCKED:
+        return False
+    return True
+
 def send_reminder_email(conn, to_email, nom, date_fin_str):
     """Envoie un email de rappel J-3. Lit les settings SMTP depuis la DB."""
-    if not to_email or '@' not in to_email:
-        return False
-    domain = to_email.split('@', 1)[1].lower()
-    if '.local' in domain or '.' not in domain:
+    if not is_valid_email(to_email):
+        print(f"[email] Ignoré (adresse invalide/locale) → {nom} ({to_email})")
         return False
     row = conn.execute(
         "SELECT value FROM settings WHERE key = 'smtp_email'"
@@ -143,6 +159,12 @@ def main():
         JOIN users u ON u.id = a.user_id
         WHERE a.statut = 'actif'
           AND a.date_fin = ?
+          AND u.email IS NOT NULL
+          AND u.email != ''
+          AND u.email NOT LIKE '%@%.local%'
+          AND u.email NOT LIKE '%@vpn2.local%'
+          AND u.email NOT LIKE '%@vpn3.local%'
+          AND u.email NOT LIKE '%@example.com'
     """, (j3,)).fetchall()
 
     email_ok = 0

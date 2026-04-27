@@ -27,10 +27,21 @@ cp "$REPO_DIR/templates/"*.html   "$INSTALL_DIR/templates/"
 # 3. Mettre à jour les dépendances Python si requirements.txt a changé
 "$INSTALL_DIR/venv/bin/pip" install -q -r "$REPO_DIR/requirements.txt"
 
-# 4. Redémarrer le service
+# 4. Installer / mettre à jour le timer systemd (2x/jour)
+cp "$REPO_DIR/renewal-reminder.service" /etc/systemd/system/renewal-reminder.service
+cp "$REPO_DIR/renewal-reminder.timer"   /etc/systemd/system/renewal-reminder.timer
+systemctl daemon-reload
+systemctl enable --now renewal-reminder.timer
+
+# 5. Supprimer l'ancienne entrée cron si elle existe
+(crontab -l 2>/dev/null | grep -v "cron_expire.py") | crontab - 2>/dev/null || true
+
+# 6. Redémarrer le service Flask
 systemctl restart vpn-billing
 
 echo ""
 echo "✅ Mise à jour terminée !"
 echo ""
 systemctl status vpn-billing --no-pager -l
+echo ""
+systemctl list-timers renewal-reminder.timer --no-pager

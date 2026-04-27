@@ -1,0 +1,10 @@
+[Unit]
+Description=Rappels VPN 2x/jour — 9h et 18h MSK (06:00 et 15:00 UTC)
+
+[Timer]
+OnCalendar=*-*-* 06:00:00 UTC
+OnCalendar=*-*-* 15:00:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target

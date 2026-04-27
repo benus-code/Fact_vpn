@@ -1,0 +1,11 @@
+[Unit]
+Description=VPN Billing — Rappels renouvellement et expiration
+After=network.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/vpn-billing
+ExecStart=/opt/vpn-billing/venv/bin/python3 /opt/vpn-billing/cron_expire.py
+StandardOutput=append:/var/log/vpn_expire.log
+StandardError=append:/var/log/vpn_expire.log
+User=root
