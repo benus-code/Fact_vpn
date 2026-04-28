@@ -611,16 +611,20 @@ def admin_panel():
     kpi_awg0 = _count_active_peers("amnezia-awg2", "awg0")
 
     # ── Revenus 12 mois ──
+    # Arithmétique mensuelle exacte : pas de timedelta(days=30) qui saute des mois
     revenus_12 = []
     labels_12  = []
+    _base = today.year * 12 + (today.month - 1)
     for i in range(11, -1, -1):
-        m = (today.replace(day=1) - timedelta(days=i*30)).strftime("%Y-%m")
+        _abs       = _base - i
+        _y, _m     = _abs // 12, _abs % 12 + 1
+        ym_str     = f"{_y:04d}-{_m:02d}"
         val = db.execute(
             "SELECT COALESCE(SUM(montant),0) FROM paiements WHERE valide=1 AND strftime('%Y-%m', date_paiement)=?",
-            (m,)
+            (ym_str,)
         ).fetchone()[0]
         revenus_12.append(int(val))
-        labels_12.append(datetime.strptime(m, "%Y-%m").strftime("%b")[:1].upper())
+        labels_12.append(datetime(year=_y, month=_m, day=1).strftime("%b")[:1].upper())
 
     max_rev = max(revenus_12) if max(revenus_12) > 0 else 1
 
@@ -805,13 +809,16 @@ def admin_paiements():
     else:
         rev_variation = None
 
-    # Revenus 12 mois pour graphe
+    # Revenus 12 mois pour graphe — arithmétique mensuelle exacte
     revenus_12, labels_12 = [], []
+    _base = today.year * 12 + (today.month - 1)
     for i in range(11, -1, -1):
-        m = (today.replace(day=1) - timedelta(days=i*30)).strftime("%Y-%m")
-        val = db.execute("SELECT COALESCE(SUM(montant),0) FROM paiements WHERE valide=1 AND strftime('%Y-%m',date_paiement)=?", (m,)).fetchone()[0]
+        _abs   = _base - i
+        _y, _m = _abs // 12, _abs % 12 + 1
+        ym_str = f"{_y:04d}-{_m:02d}"
+        val = db.execute("SELECT COALESCE(SUM(montant),0) FROM paiements WHERE valide=1 AND strftime('%Y-%m',date_paiement)=?", (ym_str,)).fetchone()[0]
         revenus_12.append(int(val))
-        labels_12.append(datetime.strptime(m, "%Y-%m").strftime("%b")[:1].upper())
+        labels_12.append(datetime(year=_y, month=_m, day=1).strftime("%b")[:1].upper())
     max_rev = max(revenus_12) if max(revenus_12) > 0 else 1
 
     demandes = db.execute("SELECT COUNT(*) FROM abonnements WHERE statut='en_attente'").fetchone()[0]

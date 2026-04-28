@@ -9,7 +9,9 @@ Endpoints utilisés :
 import os
 import sqlite3
 import logging
-import requests
+import json
+import urllib.request
+import urllib.parse
 from datetime import datetime, timedelta
 
 DB = "/opt/vpn-billing/vpn_billing.db"
@@ -44,7 +46,27 @@ def _headers():
     key = get_api_key()
     if not key:
         return None
-    return {"api-key": key, "accept": "application/json", "content-type": "application/json"}
+    return {"api-key": key, "Accept": "application/json", "Content-Type": "application/json"}
+
+
+def _get(path, params=None):
+    """GET Brevo API, returns parsed JSON dict or raises on error. Sets .status_code attribute."""
+    h = _headers()
+    if not h:
+        return None
+    url = f"{BREVO_BASE}{path}"
+    if params:
+        url += "?" + urllib.parse.urlencode(params)
+    req = urllib.request.Request(url, headers=h)
+    try:
+        with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+            resp.status_code = resp.status
+            data = json.loads(resp.read())
+            data["_status_code"] = resp.status
+            return data
+    except urllib.error.HTTPError as e:
+        err = type("R", (), {"status_code": e.code, "text": e.read().decode(errors="replace")})()
+        raise err
 
 
 def _log_error(message, file_line=""):
@@ -64,15 +86,12 @@ def _log_error(message, file_line=""):
 
 def get_account():
     """Retourne dict avec email_credits et plan, ou None si erreur / clé absente."""
-    h = _headers()
-    if not h:
+    if not get_api_key():
         return None
     try:
-        r = requests.get(f"{BREVO_BASE}/account", headers=h, timeout=TIMEOUT)
-        if r.status_code != 200:
-            _log_error(f"GET /account → {r.status_code}: {r.text[:200]}", "brevo.py:get_account")
+        d = _get("/account")
+        if d is None:
             return None
-        d = r.json()
         email_credits = 0
         for p in d.get("plan", []):
             if p.get("type") in ("payAsYouGo", "salesPayAsYouGo", "free", "monthly"):
@@ -92,22 +111,13 @@ def get_aggregated_stats(days=30):
     Retourne dict avec requests, delivered, opens, hardBounces, softBounces, etc.
     Ou None si erreur.
     """
-    h = _headers()
-    if not h:
+    if not get_api_key():
         return None
     end   = datetime.now().strftime("%Y-%m-%d")
     start = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
     try:
-        r = requests.get(
-            f"{BREVO_BASE}/smtp/statistics/aggregatedReport",
-            headers=h,
-            params={"startDate": start, "endDate": end},
-            timeout=TIMEOUT,
-        )
-        if r.status_code != 200:
-            _log_error(f"aggregatedReport → {r.status_code}", "brevo.py:get_aggregated_stats")
-            return None
-        return r.json()
+        d = _get("/smtp/statistics/aggregatedReport", params={"startDate": start, "endDate": end})
+        return d
     except Exception as e:
         _log_error(f"get_aggregated_stats: {e}", "brevo.py:get_aggregated_stats")
         return None
@@ -115,21 +125,14 @@ def get_aggregated_stats(days=30):
 
 def get_events_for_email(email, days=90, limit=50):
     """Retourne la liste des événements Brevo pour un destinataire."""
-    h = _headers()
-    if not h:
+    if not get_api_key():
         return []
     start = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
     end   = datetime.now().strftime("%Y-%m-%d")
     try:
-        r = requests.get(
-            f"{BREVO_BASE}/smtp/statistics/events",
-            headers=h,
-            params={"email": email, "startDate": start, "endDate": end, "limit": limit},
-            timeout=TIMEOUT,
-        )
-        if r.status_code != 200:
-            return []
-        return r.json().get("events", [])
+        d = _get("/smtp/statistics/events",
+                 params={"email": email, "startDate": start, "endDate": end, "limit": limit})
+        return (d or {}).get("events", [])
     except Exception as e:
         _log_error(f"get_events_for_email({email}): {e}", "brevo.py:get_events_for_email")
         return []

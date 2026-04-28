@@ -57,9 +57,13 @@ a:hover { text-decoration: underline; }
   flex: 1;
   padding: 16px;
   overflow-x: hidden;
+  min-width: 0;
 }
 @media (min-width: 768px) {
-  .admin-content { padding: 20px 24px; }
+  .admin-content { padding: 24px 32px; }
+}
+@media (min-width: 1280px) {
+  .admin-content { padding: 28px 40px; }
 }
 
 /* ── Sidebar ── */
@@ -85,7 +89,7 @@ a:hover { text-decoration: underline; }
     transform: translateX(0) !important;
     height: 100vh;
   }
-  .admin-layout { margin-left: 240px; }
+  /* Pas de margin-left sur admin-layout : la sidebar sticky est déjà dans le flux */
 }
 .sidebar-overlay {
   display: none;
@@ -279,6 +283,16 @@ a:hover { text-decoration: underline; }
 }
 @media (min-width: 768px) {
   .kpi-grid-3 { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* kpi-row : alias flexible (utilisé dans monitoring/emailing) */
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+@media (min-width: 768px) {
+  .kpi-row { grid-template-columns: repeat(4, 1fr); }
 }
 
 .kpi-card {
