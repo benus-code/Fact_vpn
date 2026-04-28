@@ -13,6 +13,7 @@ import urllib.request
 import json
 import smtplib
 import ssl
+import time
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import date, datetime, timedelta
@@ -109,6 +110,18 @@ def init_app_db():
             user_id    INTEGER NOT NULL,
             token      TEXT    NOT NULL UNIQUE,
             expires_at TEXT    NOT NULL
+        )
+    """)
+
+    # Table historique des broadcasts
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS broadcasts (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            sujet           TEXT NOT NULL,
+            corps           TEXT,
+            canal           TEXT NOT NULL DEFAULT 'email',
+            nb_destinataires INTEGER DEFAULT 0,
+            date_envoi      TEXT NOT NULL DEFAULT (datetime('now'))
         )
     """)
 
@@ -504,26 +517,160 @@ def changer_mdp():
     return redirect(url_for("dashboard"))
 
 # ─── Panel Admin ──────────────────────────────────────────────────────────────
+def _count_active_peers(container, iface):
+    """Peers avec handshake < 180s sur une interface AWG/WG."""
+    try:
+        out = subprocess.check_output(
+            ["docker", "exec", container, "awg", "show", iface, "dump"],
+            stderr=subprocess.DEVNULL, timeout=3
+        ).decode().strip().split("\n")[1:]
+        now = int(time.time())
+        return sum(
+            1 for line in out
+            if len(line.split("\t")) >= 5
+            and line.split("\t")[4].isdigit()
+            and int(line.split("\t")[4]) > 0
+            and (now - int(line.split("\t")[4])) < 180
+        )
+    except Exception:
+        return 0
+
+def _format_relative_time(ts_str):
+    """Retourne 'il y a X min/h', 'hier HH:MM', ou 'DD-MM-YYYY'."""
+    if not ts_str:
+        return ""
+    try:
+        if "T" in ts_str:
+            dt = datetime.fromisoformat(ts_str.replace("Z", ""))
+        else:
+            dt = datetime.strptime(ts_str[:19], "%Y-%m-%d %H:%M:%S")
+        diff = datetime.now() - dt
+        if diff.total_seconds() < 3600:
+            mins = max(1, int(diff.total_seconds() / 60))
+            return f"il y a {mins} min"
+        elif diff.total_seconds() < 86400:
+            hrs = int(diff.total_seconds() / 3600)
+            return f"il y a {hrs}h"
+        elif diff.days == 1:
+            return f"hier {dt.strftime('%H:%M')}"
+        else:
+            return dt.strftime("%d-%m-%Y")
+    except Exception:
+        return ts_str[:10] if ts_str else ""
+
 @app.route("/admin")
 @login_required
 @admin_required
 def admin_panel():
     db  = get_db()
-    today_str = date.today().isoformat()
-    j7_str    = (date.today() + timedelta(days=7)).isoformat()
+    today = date.today()
+    today_str = today.isoformat()
+    j7_str    = (today + timedelta(days=7)).isoformat()
 
-    # Stats overview
-    stats = {
-        "total_clients":  db.execute("SELECT COUNT(*) FROM users WHERE is_admin=0").fetchone()[0],
-        "actifs":         db.execute("SELECT COUNT(*) FROM abonnements WHERE statut='actif'").fetchone()[0],
-        "en_attente":     db.execute("SELECT COUNT(*) FROM abonnements WHERE statut='en_attente'").fetchone()[0],
-        "expire_7j":      db.execute("SELECT COUNT(*) FROM abonnements WHERE statut='actif' AND date_fin BETWEEN ? AND ?", (today_str, j7_str)).fetchone()[0],
-        "peers_bloques":  db.execute("SELECT COUNT(*) FROM peers WHERE actif=0").fetchone()[0],
-        "revenus_mois":   db.execute("SELECT COALESCE(SUM(montant),0) FROM paiements WHERE valide=1 AND strftime('%Y-%m', date_paiement) = strftime('%Y-%m', 'now')").fetchone()[0],
-    }
+    # ── KPIs ──
+    total_clients = db.execute("SELECT COUNT(*) FROM users WHERE is_admin=0").fetchone()[0]
+    actifs        = db.execute("SELECT COUNT(*) FROM abonnements WHERE statut='actif'").fetchone()[0]
+    en_attente    = db.execute("SELECT COUNT(*) FROM abonnements WHERE statut='en_attente'").fetchone()[0]
+    expire_7j     = db.execute(
+        "SELECT COUNT(*) FROM abonnements WHERE statut='actif' AND date_fin BETWEEN ? AND ?",
+        (today_str, j7_str)
+    ).fetchone()[0]
 
+    revenus_mois = db.execute(
+        "SELECT COALESCE(SUM(montant),0) FROM paiements WHERE valide=1 AND strftime('%Y-%m', date_paiement)=strftime('%Y-%m','now')"
+    ).fetchone()[0]
+
+    # Variation revenus : comparer les X premiers jours du mois en cours vs même période le mois précédent
+    day_of_month = today.day
+    mois_prec_str = (today.replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
+    revenus_mois_prec_partiel = db.execute(
+        "SELECT COALESCE(SUM(montant),0) FROM paiements WHERE valide=1 AND strftime('%Y-%m', date_paiement)=? AND CAST(strftime('%d', date_paiement) AS INTEGER) <= ?",
+        (mois_prec_str, day_of_month)
+    ).fetchone()[0]
+    if revenus_mois_prec_partiel and revenus_mois_prec_partiel > 0:
+        revenus_variation = int(((revenus_mois - revenus_mois_prec_partiel) / revenus_mois_prec_partiel) * 100)
+    else:
+        revenus_variation = None
+
+    # Actifs : variation semaine glissante
+    j7_ago = (today - timedelta(days=7)).isoformat()
+    actifs_j7_ago = db.execute(
+        "SELECT COUNT(*) FROM abonnements WHERE statut='actif' AND date_fin >= ?", (j7_ago,)
+    ).fetchone()[0]
+    actifs_variation = actifs - actifs_j7_ago
+
+    # Peers connectés
+    kpi_wg0  = _count_active_peers("amnezia-awg",  "wg0")
+    kpi_awg0 = _count_active_peers("amnezia-awg2", "awg0")
+
+    # ── Revenus 12 mois ──
+    revenus_12 = []
+    labels_12  = []
+    for i in range(11, -1, -1):
+        m = (today.replace(day=1) - timedelta(days=i*30)).strftime("%Y-%m")
+        val = db.execute(
+            "SELECT COALESCE(SUM(montant),0) FROM paiements WHERE valide=1 AND strftime('%Y-%m', date_paiement)=?",
+            (m,)
+        ).fetchone()[0]
+        revenus_12.append(int(val))
+        labels_12.append(datetime.strptime(m, "%Y-%m").strftime("%b")[:1].upper())
+
+    max_rev = max(revenus_12) if max(revenus_12) > 0 else 1
+
+    # ── Top consommateurs (placeholder) ──
+    top_clients = db.execute("""
+        SELECT u.id, u.nom, a.montant,
+               COALESCE(p.vpn_type,'amnezia') as vpn_type
+        FROM users u
+        LEFT JOIN abonnements a ON a.user_id = u.id
+        LEFT JOIN peers p ON p.user_id = u.id AND p.actif=1
+        WHERE u.is_admin=0 AND a.statut='actif'
+        GROUP BY u.id ORDER BY a.montant DESC LIMIT 5
+    """).fetchall()
+    top_conso = []
+    for i, c in enumerate(top_clients):
+        gb = round((5 - i) * 2.5, 1)
+        top_conso.append({
+            "id": c["id"], "nom": c["nom"],
+            "vpn_type": c["vpn_type"] or "amnezia",
+            "gb": gb
+        })
+    max_gb = top_conso[0]["gb"] if top_conso else 1
+
+    # ── Activité récente ──
+    activity_items = []
+
+    # Paiements validés
+    for p in db.execute("""
+        SELECT p.montant, p.date_paiement, u.nom FROM paiements p
+        JOIN users u ON u.id=p.user_id WHERE p.valide=1
+        ORDER BY p.date_paiement DESC LIMIT 4
+    """).fetchall():
+        activity_items.append({
+            "color": "green",
+            "text": f"Paiement validé · {p['nom']} · {p['montant']} ₽",
+            "ts": _format_relative_time(p["date_paiement"])
+        })
+
+    # Peers créés
+    for p in db.execute("""
+        SELECT p.ip_vpn, p.vpn_type, p.date_ajout, u.nom FROM peers p
+        JOIN users u ON u.id=p.user_id
+        ORDER BY p.id DESC LIMIT 3
+    """).fetchall():
+        iface = "A2" if p["vpn_type"] == "amnezia" else "PV"
+        activity_items.append({
+            "color": "violet",
+            "text": f"Peer créé · {iface} · {p['ip_vpn']} · {p['nom']}",
+            "ts": _format_relative_time(p["date_ajout"] + "T00:00:00" if p["date_ajout"] else None)
+        })
+
+    # Tri et limitation
+    activity_items = activity_items[:8]
+
+    # ── Données paiements / demandes ──
     paiements_en_attente = db.execute("""
-        SELECT p.*, u.nom FROM paiements p JOIN users u ON u.id = p.user_id
+        SELECT p.*, u.nom, u.id as uid FROM paiements p JOIN users u ON u.id = p.user_id
         WHERE p.valide = 0 ORDER BY p.date_paiement DESC LIMIT 10
     """).fetchall()
 
@@ -540,15 +687,49 @@ def admin_panel():
         WHERE p.valide = 1 ORDER BY p.date_paiement DESC LIMIT 8
     """).fetchall()
 
+    # ── Docker status ──
+    containers = ["amnezia-awg", "amnezia-awg2", "amnezia-ipsec", "amnezia-wireguard"]
+    docker_status = {}
+    for c in containers:
+        try:
+            status = subprocess.check_output(
+                ["docker", "inspect", "-f", "{{.State.Status}}", c],
+                stderr=subprocess.DEVNULL, timeout=3
+            ).decode().strip()
+            docker_status[c] = status
+        except Exception:
+            docker_status[c] = "unknown"
+
     return render_template("admin_overview.html",
-        stats=stats,
+        # KPIs
+        total_clients=total_clients,
+        actifs=actifs,
+        en_attente_count=en_attente,
+        expire_7j=expire_7j,
+        revenus_mois=revenus_mois,
+        revenus_variation=revenus_variation,
+        actifs_variation=actifs_variation,
+        kpi_wg0=kpi_wg0,
+        kpi_awg0=kpi_awg0,
+        # Graphe
+        revenus_12=revenus_12,
+        labels_12=labels_12,
+        max_rev=max_rev,
+        # Top conso
+        top_conso=top_conso,
+        max_gb=max_gb,
+        # Activité
+        activity_items=activity_items,
+        # Docker
+        docker_status=docker_status,
+        # Tables
         paiements_en_attente=paiements_en_attente,
         paiements_recents=paiements_recents,
         demandes=demandes,
         nb_demandes=len(demandes),
         nb_paie_attente=len(paiements_en_attente),
         settings=get_settings(),
-        today=date.today()
+        today=today
     )
 
 @app.route("/admin/clients")
@@ -556,23 +737,35 @@ def admin_panel():
 @admin_required
 def admin_clients():
     db = get_db()
-    today_str = date.today().isoformat()
+    today = date.today()
+    today_str = today.isoformat()
+    j7_str = (today + timedelta(days=7)).isoformat()
     users = db.execute("""
         SELECT u.id, u.nom, u.email, u.whatsapp, u.telegram,
                a.date_fin, a.montant, a.statut,
-               COUNT(p.id) as nb_peers,
+               COUNT(DISTINCT p.id) as nb_peers,
                SUM(CASE WHEN p.actif=1 THEN 1 ELSE 0 END) as peers_actifs,
-               u.created_at
+               u.created_at,
+               COALESCE(GROUP_CONCAT(DISTINCT p.vpn_type),'') as vpn_types
         FROM users u
         LEFT JOIN abonnements a ON a.user_id = u.id
         LEFT JOIN peers p ON p.user_id = u.id
         WHERE u.is_admin = 0
         GROUP BY u.id ORDER BY u.nom
     """).fetchall()
-    demandes = db.execute("SELECT COUNT(*) FROM abonnements WHERE statut='en_attente'").fetchone()[0]
-    paie_att  = db.execute("SELECT COUNT(*) FROM paiements WHERE valide=0").fetchone()[0]
+    total       = len(users)
+    nb_actifs   = sum(1 for u in users if u["statut"] == "actif")
+    nb_expire_7 = db.execute(
+        "SELECT COUNT(*) FROM abonnements WHERE statut='actif' AND date_fin BETWEEN ? AND ?",
+        (today_str, j7_str)
+    ).fetchone()[0]
+    nb_autres   = sum(1 for u in users if u["statut"] in ("expire","suspendu"))
+    demandes    = db.execute("SELECT COUNT(*) FROM abonnements WHERE statut='en_attente'").fetchone()[0]
+    paie_att    = db.execute("SELECT COUNT(*) FROM paiements WHERE valide=0").fetchone()[0]
     return render_template("admin_clients.html",
-        users=users, today=date.today(),
+        users=users, today=today,
+        stat_total=total, stat_actifs=nb_actifs,
+        stat_expire_7=nb_expire_7, stat_autres=nb_autres,
         nb_demandes=demandes, nb_paie_attente=paie_att)
 
 @app.route("/admin/paiements")
@@ -580,6 +773,10 @@ def admin_clients():
 @admin_required
 def admin_paiements():
     db = get_db()
+    today = date.today()
+    cur_month = today.strftime("%Y-%m")
+    prev_month = (today.replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
+
     en_attente = db.execute("""
         SELECT p.*, u.nom, u.id as uid FROM paiements p
         JOIN users u ON u.id = p.user_id
@@ -590,9 +787,30 @@ def admin_paiements():
         JOIN users u ON u.id = p.user_id
         WHERE p.valide = 1 ORDER BY p.date_paiement DESC LIMIT 50
     """).fetchall()
+
+    kpi_mois      = db.execute("SELECT COALESCE(SUM(montant),0) FROM paiements WHERE valide=1 AND strftime('%Y-%m',date_paiement)=?", (cur_month,)).fetchone()[0]
+    kpi_mois_prec = db.execute("SELECT COALESCE(SUM(montant),0) FROM paiements WHERE valide=1 AND strftime('%Y-%m',date_paiement)=?", (prev_month,)).fetchone()[0]
+    kpi_mrr       = db.execute("SELECT COALESCE(SUM(montant),0) FROM abonnements WHERE statut='actif'").fetchone()[0]
+    if kpi_mois_prec and kpi_mois_prec > 0:
+        rev_variation = int(((kpi_mois - kpi_mois_prec) / kpi_mois_prec) * 100)
+    else:
+        rev_variation = None
+
+    # Revenus 12 mois pour graphe
+    revenus_12, labels_12 = [], []
+    for i in range(11, -1, -1):
+        m = (today.replace(day=1) - timedelta(days=i*30)).strftime("%Y-%m")
+        val = db.execute("SELECT COALESCE(SUM(montant),0) FROM paiements WHERE valide=1 AND strftime('%Y-%m',date_paiement)=?", (m,)).fetchone()[0]
+        revenus_12.append(int(val))
+        labels_12.append(datetime.strptime(m, "%Y-%m").strftime("%b")[:1].upper())
+    max_rev = max(revenus_12) if max(revenus_12) > 0 else 1
+
     demandes = db.execute("SELECT COUNT(*) FROM abonnements WHERE statut='en_attente'").fetchone()[0]
     return render_template("admin_paiements.html",
         en_attente=en_attente, historique=historique,
+        kpi_mois=kpi_mois, kpi_mois_prec=kpi_mois_prec,
+        kpi_mrr=kpi_mrr, rev_variation=rev_variation,
+        revenus_12=revenus_12, labels_12=labels_12, max_rev=max_rev,
         nb_demandes=demandes, nb_paie_attente=len(en_attente))
 
 @app.route("/admin/messages")
@@ -600,11 +818,18 @@ def admin_paiements():
 @admin_required
 def admin_messages():
     db = get_db()
-    nb_users = db.execute("SELECT COUNT(*) FROM users WHERE is_admin=0").fetchone()[0]
+    nb_users  = db.execute("SELECT COUNT(*) FROM users WHERE is_admin=0").fetchone()[0]
     demandes  = db.execute("SELECT COUNT(*) FROM abonnements WHERE statut='en_attente'").fetchone()[0]
     paie_att  = db.execute("SELECT COUNT(*) FROM paiements WHERE valide=0").fetchone()[0]
+    broadcasts = db.execute(
+        "SELECT * FROM broadcasts ORDER BY date_envoi DESC LIMIT 20"
+    ).fetchall()
+    kpi_envois = db.execute(
+        "SELECT COALESCE(SUM(nb_destinataires),0) FROM broadcasts WHERE strftime('%Y-%m',date_envoi)=strftime('%Y-%m','now')"
+    ).fetchone()[0]
     return render_template("admin_messages.html",
-        nb_users=nb_users, nb_demandes=demandes, nb_paie_attente=paie_att)
+        nb_users=nb_users, nb_demandes=demandes, nb_paie_attente=paie_att,
+        broadcasts=broadcasts, kpi_envois=kpi_envois)
 
 @app.route("/admin/parametres")
 @login_required
@@ -633,6 +858,16 @@ def admin_update_settings():
     db.commit()
     flash("✅ Paramètres mis à jour.", "success")
     return redirect(url_for("admin_panel"))
+
+@app.route("/admin/styleguide")
+@login_required
+@admin_required
+def admin_styleguide():
+    db = get_db()
+    demandes = db.execute("SELECT COUNT(*) FROM abonnements WHERE statut='en_attente'").fetchone()[0]
+    paie_att = db.execute("SELECT COUNT(*) FROM paiements WHERE valide=0").fetchone()[0]
+    return render_template("admin_styleguide.html",
+        nb_demandes=demandes, nb_paie_attente=paie_att)
 
 @app.route("/admin/test-email", methods=["POST"])
 @admin_required
@@ -899,8 +1134,95 @@ def admin_broadcast():
                 sent_email += 1
     if channel in ("telegram", "both"):
         notify_telegram(f"📢 <b>Broadcast</b>\n{message}")
+    # Save to broadcast history
+    db.execute(
+        "INSERT INTO broadcasts (sujet, corps, canal, nb_destinataires) VALUES (?, ?, ?, ?)",
+        (subject, message, channel, sent_email)
+    )
+    db.commit()
     flash(f"✅ Envoyé à {sent_email} abonné(s) par email.", "success")
-    return redirect(url_for("admin_panel"))
+    return redirect(url_for("admin_messages"))
+
+@app.route("/admin/systeme")
+@login_required
+@admin_required
+def admin_systeme():
+    db = get_db()
+    demandes = db.execute("SELECT COUNT(*) FROM abonnements WHERE statut='en_attente'").fetchone()[0]
+    paie_att = db.execute("SELECT COUNT(*) FROM paiements WHERE valide=0").fetchone()[0]
+
+    containers = ["amnezia-awg", "amnezia-awg2", "amnezia-ipsec", "amnezia-wireguard"]
+    docker_status = {}
+    for c in containers:
+        try:
+            status = subprocess.check_output(
+                ["docker", "inspect", "-f", "{{.State.Status}}", c],
+                stderr=subprocess.DEVNULL, timeout=3
+            ).decode().strip()
+            started = subprocess.check_output(
+                ["docker", "inspect", "-f", "{{.State.StartedAt}}", c],
+                stderr=subprocess.DEVNULL, timeout=3
+            ).decode().strip()
+            docker_status[c] = {"status": status, "started_at": started}
+        except Exception as e:
+            docker_status[c] = {"status": "unknown", "started_at": None}
+
+    # Uptime calculation
+    for name, info in docker_status.items():
+        uptime = "—"
+        if info.get("started_at"):
+            try:
+                started = datetime.fromisoformat(info["started_at"][:19].replace("T", " "))
+                diff = datetime.utcnow() - started
+                d, s = diff.days, diff.seconds
+                h = s // 3600
+                m = (s % 3600) // 60
+                uptime = f"{d}j {h}h {m}m" if d > 0 else f"{h}h {m}m"
+            except Exception:
+                pass
+        info["uptime"] = uptime
+
+    # Active peers from AWG dump
+    active_peers = []
+    iface_map = [("amnezia-awg", "wg0", "A1"), ("amnezia-awg2", "awg0", "A2")]
+    for container, iface, badge in iface_map:
+        try:
+            dump = subprocess.check_output(
+                ["docker", "exec", container, "awg", "show", iface, "dump"],
+                stderr=subprocess.DEVNULL, timeout=3
+            ).decode().strip().split("\n")[1:]
+            for line in dump:
+                parts = line.split("\t")
+                if len(parts) >= 7 and parts[4].isdigit() and int(parts[4]) > 0:
+                    active_peers.append({
+                        "iface": iface,
+                        "badge": badge,
+                        "public_key": parts[0][:20] + "...",
+                        "endpoint": parts[2] or "—",
+                        "allowed_ips": parts[3],
+                        "last_handshake_sec": int(time.time()) - int(parts[4]),
+                        "rx_bytes": int(parts[5]),
+                        "tx_bytes": int(parts[6]),
+                    })
+        except Exception:
+            pass
+    active_peers.sort(key=lambda p: p["last_handshake_sec"])
+
+    def fmt_bytes(b):
+        if b < 1024: return f"{b} B"
+        if b < 1024*1024: return f"{b//1024} KB"
+        if b < 1024*1024*1024: return f"{b//(1024*1024)} MB"
+        return f"{b/(1024*1024*1024):.1f} GB"
+
+    for p in active_peers:
+        p["rx_fmt"] = fmt_bytes(p["rx_bytes"])
+        p["tx_fmt"] = fmt_bytes(p["tx_bytes"])
+
+    return render_template("admin_systeme.html",
+        docker_status=docker_status,
+        active_peers=active_peers,
+        nb_demandes=demandes,
+        nb_paie_attente=paie_att)
 
 # ─── Run ──────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":

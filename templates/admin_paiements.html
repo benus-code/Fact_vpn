@@ -3,61 +3,122 @@
 {% block topbar_title %}Paiements{% endblock %}
 {% block content %}
 
-<div class="page-title">💳 Paiements</div>
-<div class="page-sub">Validation et historique</div>
+<div class="page-stack">
 
-{% if en_attente %}
-<div class="card-admin mb-3" style="border-left:4px solid #f79000">
-  <div class="card-header-admin" style="color:#f79000">
-    ⏳ En attente de validation
-    <span class="nav-badge ms-1" style="background:#f79000">{{ en_attente|length }}</span>
+  {# ── KPI 3 cards #}
+  <div class="kpi-grid-3">
+    <div class="kpi-card">
+      <div class="kpi-label">Revenus ce mois</div>
+      <div class="kpi-value">{{ kpi_mois }} ₽</div>
+      {% if rev_variation is not none %}
+        {% if rev_variation >= 0 %}
+          <div class="kpi-variation kpi-variation--up">↑ +{{ rev_variation }}% vs mois préc.</div>
+        {% else %}
+          <div class="kpi-variation kpi-variation--down">↓ {{ rev_variation }}% vs mois préc.</div>
+        {% endif %}
+      {% else %}
+        <div class="kpi-variation text-muted">premier mois</div>
+      {% endif %}
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Mois précédent</div>
+      <div class="kpi-value">{{ kpi_mois_prec }} ₽</div>
+      <div class="kpi-variation text-muted">référence</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">MRR estimé</div>
+      <div class="kpi-value">{{ kpi_mrr }} ₽</div>
+      <div class="kpi-variation text-muted">abonnements actifs × tarif</div>
+    </div>
   </div>
-  <div class="table-responsive">
-    <table class="table-admin">
-      <thead><tr><th>Client</th><th>Montant</th><th>Mois</th><th>Date</th><th>Note</th><th></th></tr></thead>
-      <tbody>
-        {% for p in en_attente %}
-        <tr>
-          <td><a href="{{ url_for('admin_user_detail', uid=p.uid) }}" style="font-weight:600;color:inherit">{{ p.nom }}</a></td>
-          <td><strong>{{ p.montant }} ₽</strong></td>
-          <td>{{ p.mois_prolonges }}</td>
-          <td style="font-size:.82rem;color:#888">{{ p.date_paiement[:10] }}</td>
-          <td style="font-size:.82rem;color:#888">{{ p.note or '—' }}</td>
-          <td><a href="{{ url_for('admin_user_detail', uid=p.uid) }}" class="btn-admin-outline">Valider →</a></td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</div>
-{% else %}
-<div class="card-admin mb-3" style="padding:20px;text-align:center;color:#888">
-  ✅ Aucun paiement en attente
-</div>
-{% endif %}
 
-<div class="card-admin">
-  <div class="card-header-admin">📋 Historique (50 derniers)</div>
-  {% if historique %}
-  <div class="table-responsive">
-    <table class="table-admin">
-      <thead><tr><th>Client</th><th>Montant</th><th>Mois</th><th>Date</th><th>Note</th></tr></thead>
-      <tbody>
-        {% for p in historique %}
-        <tr>
-          <td><a href="{{ url_for('admin_user_detail', uid=p.uid) }}" style="color:inherit;font-weight:600">{{ p.nom }}</a></td>
-          <td>{{ p.montant }} ₽</td>
-          <td>{{ p.mois_prolonges }}</td>
-          <td style="font-size:.82rem;color:#888">{{ p.date_paiement[:10] }}</td>
-          <td style="font-size:.82rem;color:#888">{{ p.note or '—' }}</td>
-        </tr>
+  {# ── Graphe 12 mois #}
+  <div class="section-card">
+    <div class="section-card-header">
+      <span class="section-card-title"><i data-lucide="trending-up" class="icon-sm"></i>Revenus 12 mois</span>
+      <span class="code-xs" style="color:var(--accent-violet)">Total : {{ revenus_12 | sum }} ₽</span>
+    </div>
+    <div class="section-card-body">
+      <div class="bar-chart bar-chart-large" style="height:160px">
+        {% for i in range(revenus_12|length) %}
+          {% set pct = ((revenus_12[i] / max_rev * 100) | int) if max_rev > 0 else 0 %}
+          {% set is_current = (i == revenus_12|length - 1) %}
+          <div class="bar-item">
+            <div class="bar-fill {% if is_current %}bar-fill--current{% endif %}"
+                 style="height:{{ [pct,2]|max }}%" title="{{ revenus_12[i] }} ₽"></div>
+            <div class="bar-label {% if is_current %}text-violet{% endif %}">{{ labels_12[i] }}</div>
+          </div>
         {% endfor %}
-      </tbody>
-    </table>
+      </div>
+    </div>
+  </div>
+
+  {# ── Paiements en attente #}
+  {% if en_attente %}
+  <div class="section-card section-card--warning">
+    <div class="section-card-header">
+      <span class="section-card-title" style="color:var(--accent-orange)">
+        <i data-lucide="clock" class="icon-sm"></i>
+        En attente de validation
+        <span class="sidebar-badge sidebar-badge--orange ms-1">{{ en_attente|length }}</span>
+      </span>
+    </div>
+    <div class="table-responsive">
+      <table class="table-dense">
+        <thead><tr><th>Client</th><th>Montant</th><th>Mois</th><th>Date</th><th>Note</th><th></th></tr></thead>
+        <tbody>
+          {% for p in en_attente %}
+          <tr>
+            <td><a href="{{ url_for('admin_user_detail', uid=p.uid) }}" style="color:var(--text-primary);font-weight:600">{{ p.nom }}</a></td>
+            <td><strong>{{ p.montant }} ₽</strong></td>
+            <td class="code-xs">{{ p.mois_prolonges }}</td>
+            <td class="code-xs">{{ p.date_paiement[:10] }}</td>
+            <td class="text-muted-sm">{{ p.note or '—' }}</td>
+            <td><a href="{{ url_for('admin_user_detail', uid=p.uid) }}" class="btn-secondary" style="font-size:12px;padding:5px 10px">Valider →</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </div>
   {% else %}
-  <div style="padding:24px;text-align:center;color:#888">Aucun paiement validé.</div>
+  <div class="section-card">
+    <div class="section-card-body" style="text-align:center;color:var(--text-muted);padding:20px">
+      <i data-lucide="check-circle" class="icon-md" style="color:var(--accent-green);margin-bottom:6px;display:block;margin-left:auto;margin-right:auto"></i>
+      Aucun paiement en attente
+    </div>
+  </div>
   {% endif %}
-</div>
 
+  {# ── Historique #}
+  <div class="section-card">
+    <div class="section-card-header">
+      <span class="section-card-title"><i data-lucide="list" class="icon-sm"></i>Historique (50 derniers)</span>
+    </div>
+    {% if historique %}
+    <div class="table-responsive">
+      <table class="table-dense">
+        <thead><tr><th>Client</th><th>Montant</th><th>Mois couverts</th><th>Date</th><th>Note</th></tr></thead>
+        <tbody>
+          {% for p in historique %}
+          <tr onclick="window.location='{{ url_for('admin_user_detail', uid=p.uid) }}'">
+            <td><strong>{{ p.nom }}</strong></td>
+            <td>{{ p.montant }} ₽</td>
+            <td class="code-xs">
+              {% if p.mois_prolonges == 1 %}1 mois
+              {% else %}{{ p.mois_prolonges }} mois{% endif %}
+            </td>
+            <td class="code-xs">{{ p.date_paiement[:10] }}</td>
+            <td class="text-muted-sm">{{ p.note or '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="section-card-body" style="text-align:center;color:var(--text-muted)">Aucun paiement validé.</div>
+    {% endif %}
+  </div>
+
+</div>
 {% endblock %}

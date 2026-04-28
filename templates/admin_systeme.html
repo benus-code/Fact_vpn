@@ -1,0 +1,150 @@
+{% extends "base_admin.html" %}
+{% block title %}Système — Admin VPN{% endblock %}
+{% block topbar_title %}Système{% endblock %}
+{% block content %}
+
+<div class="page-stack">
+
+  {# ── Docker containers #}
+  <div class="section-card">
+    <div class="section-card-header">
+      <span class="section-card-title"><i data-lucide="box" class="icon-sm"></i>Containers Docker</span>
+      {% set down_count = [] %}
+      {% for name, info in docker_status.items() %}
+        {% if info.status != 'running' %}{% set _ = down_count.append(1) %}{% endif %}
+      {% endfor %}
+      {% if down_count|length == 0 %}
+        <div class="live-indicator"><span class="live-dot"></span>ALL OK</div>
+      {% else %}
+        <div class="live-indicator live-indicator--error"><span class="live-dot"></span>{{ down_count|length }} DOWN</div>
+      {% endif %}
+    </div>
+    <div class="section-card-body">
+      <div class="docker-grid">
+        {% for name, info in docker_status.items() %}
+        <div class="docker-card">
+          <div class="docker-card-name">{{ name }}</div>
+          <div class="docker-status-line">
+            {% if info.status == 'running' %}
+              <div class="docker-dot docker-dot--running"></div>
+              <span style="font-size:12px;color:var(--accent-green)">running</span>
+            {% elif info.status == 'unknown' %}
+              <div class="docker-dot docker-dot--unknown"></div>
+              <span style="font-size:12px;color:var(--text-muted)">unknown</span>
+            {% else %}
+              <div class="docker-dot docker-dot--stopped"></div>
+              <span style="font-size:12px;color:var(--accent-red)">{{ info.status }}</span>
+            {% endif %}
+          </div>
+          <div class="code-xs mt-8">{{ info.uptime }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  {# ── Peers actifs en temps réel #}
+  <div class="section-card">
+    <div class="section-card-header">
+      <span class="section-card-title">
+        <i data-lucide="wifi" class="icon-sm"></i>
+        Peers actifs en temps réel
+        <span class="sidebar-badge ms-1">{{ active_peers | selectattr('last_handshake_sec', 'lt', 180) | list | length }}</span>
+      </span>
+      <div class="d-flex gap-8 align-center">
+        <label class="d-flex align-center gap-8" style="font-size:12px;color:var(--text-secondary);cursor:pointer">
+          <input type="checkbox" id="autoRefresh" onchange="toggleAutoRefresh(this)">
+          Auto-refresh 30s
+        </label>
+        <a href="{{ url_for('admin_systeme') }}" class="btn-secondary" style="font-size:12px;padding:5px 10px">
+          <i data-lucide="refresh-cw" class="icon-xs" style="display:inline;vertical-align:middle"></i>
+          Rafraîchir
+        </a>
+      </div>
+    </div>
+    {% if active_peers %}
+    <div class="table-responsive">
+      <table class="table-dense">
+        <thead>
+          <tr>
+            <th>Iface</th>
+            <th>Public key</th>
+            <th>Endpoint</th>
+            <th>IP VPN</th>
+            <th>Handshake</th>
+            <th>RX</th>
+            <th>TX</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in active_peers %}
+          <tr>
+            <td><span class="badge-iface badge-iface-{{ 'a1' if p.iface == 'wg0' else 'a2' }}">{{ p.badge }}</span></td>
+            <td><code class="code-xs">{{ p.public_key }}</code></td>
+            <td class="code-xs">{{ p.endpoint }}</td>
+            <td><code class="code-sm">{{ p.allowed_ips }}</code></td>
+            <td>
+              <span class="code-xs" style="color:
+                {%- if p.last_handshake_sec < 60 -%}var(--accent-green)
+                {%- elif p.last_handshake_sec < 180 -%}var(--accent-orange)
+                {%- else -%}var(--accent-red)
+                {%- endif -%}">
+                {{ p.last_handshake_sec }}s
+              </span>
+            </td>
+            <td class="code-xs">{{ p.rx_fmt }}</td>
+            <td class="code-xs">{{ p.tx_fmt }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="section-card-body" style="text-align:center;color:var(--text-muted);padding:20px">
+      <i data-lucide="wifi-off" class="icon-md" style="display:block;margin:0 auto 8px;color:var(--text-muted)"></i>
+      Aucun peer avec handshake récent (&lt; 3 min)
+    </div>
+    {% endif %}
+    <div class="table-counter">{{ active_peers | length }} peers dans le dump (handshake connu)</div>
+  </div>
+
+  {# ── Charge VPS (placeholder) #}
+  <div class="section-card">
+    <div class="section-card-header">
+      <span class="section-card-title"><i data-lucide="cpu" class="icon-sm"></i>Charge VPS</span>
+      <span class="code-xs" style="color:var(--text-muted)">phase 7 — node_exporter</span>
+    </div>
+    <div class="section-card-body">
+      <div class="row g-3">
+        <div class="col-md-4">
+          <div style="margin-bottom:6px;font-size:11px;color:var(--text-secondary)">CPU</div>
+          <div class="progress-bar-container"><div class="progress-bar" style="width:0%"></div></div>
+          <div class="code-xs mt-8" style="color:var(--text-muted)">données phase 7</div>
+        </div>
+        <div class="col-md-4">
+          <div style="margin-bottom:6px;font-size:11px;color:var(--text-secondary)">RAM</div>
+          <div class="progress-bar-container"><div class="progress-bar progress-bar--blue" style="width:0%"></div></div>
+          <div class="code-xs mt-8" style="color:var(--text-muted)">données phase 7</div>
+        </div>
+        <div class="col-md-4">
+          <div style="margin-bottom:6px;font-size:11px;color:var(--text-secondary)">Réseau</div>
+          <div class="progress-bar-container"><div class="progress-bar progress-bar--green" style="width:0%"></div></div>
+          <div class="code-xs mt-8" style="color:var(--text-muted)">données phase 7</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+var refreshTimer = null;
+function toggleAutoRefresh(cb) {
+  if (cb.checked) {
+    refreshTimer = setInterval(function() { window.location.reload(); }, 30000);
+  } else {
+    clearInterval(refreshTimer);
+  }
+}
+</script>
+{% endblock %}

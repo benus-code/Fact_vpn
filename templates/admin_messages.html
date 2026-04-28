@@ -3,36 +3,169 @@
 {% block topbar_title %}Messages{% endblock %}
 {% block content %}
 
-<div class="page-title">📢 Messages</div>
-<div class="page-sub">Diffuser un message à tous les abonnés ({{ nb_users }} clients)</div>
+<div class="page-stack">
 
-<div class="card-admin" style="max-width:680px">
-  <div class="card-header-admin">📤 Nouveau message</div>
-  <div style="padding:20px">
-    <form method="POST" action="{{ url_for('admin_broadcast') }}" class="form-admin">
-      <div class="mb-3">
-        <label>Sujet (pour les emails)</label>
-        <input type="text" name="subject" placeholder="ex: Maintenance le 20 mai" required>
-      </div>
-      <div class="mb-3">
-        <label>Canal d'envoi</label>
-        <select name="channel">
-          <option value="email">📧 Email uniquement</option>
-          <option value="both">📧 Email + ✈️ Telegram (admin)</option>
-        </select>
-      </div>
-      <div class="mb-3">
-        <label>Message</label>
-        <textarea name="message" rows="5"
-          placeholder="Votre message pour tous les abonnés..." required
-          style="resize:vertical"></textarea>
-      </div>
-      <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
-        <button type="submit" class="btn-admin-primary">Envoyer à tous →</button>
-        <small style="color:#888">⚠ Les adresses @vpn.local sont ignorées automatiquement.</small>
-      </div>
-    </form>
+  {# ── KPIs #}
+  <div class="kpi-grid-3">
+    <div class="kpi-card">
+      <div class="kpi-label">Mails envoyés ce mois</div>
+      <div class="kpi-value">{{ kpi_envois }}</div>
+      <div class="kpi-variation text-muted">destinataires</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Taux d'ouverture moyen</div>
+      <div class="kpi-value">—</div>
+      <!-- TODO Brevo API GET /smtp/statistics/aggregatedReport -->
+      <div class="kpi-variation text-muted">Brevo non configuré</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Taux de bounce</div>
+      <div class="kpi-value">—</div>
+      <!-- TODO Brevo API -->
+      <div class="kpi-variation text-muted">Brevo non configuré</div>
+    </div>
   </div>
+
+  {# ── Templates rapides #}
+  <div class="section-card">
+    <div class="section-card-header">
+      <span class="section-card-title"><i data-lucide="zap" class="icon-sm"></i>Templates rapides</span>
+    </div>
+    <div class="section-card-body">
+      <div class="row g-2">
+        <div class="col-md-4">
+          <button class="template-card w-full" onclick="fillTemplate(
+            'Votre accès VPN expire dans 3 jours',
+            'Bonjour,\n\nVotre abonnement VPN expire dans 3 jours.\n\nPensez à renouveler votre accès pour continuer à bénéficier du service.\n\nCordialement,\nVPN Privé'
+          )">
+            <div class="template-card-title"><i data-lucide="clock" class="icon-sm text-orange"></i>Relance J-3</div>
+            <div class="template-card-desc">Rappel 3 jours avant expiration</div>
+          </button>
+        </div>
+        <div class="col-md-4">
+          <button class="template-card w-full" onclick="fillTemplate(
+            'Dernier rappel — votre accès expire demain',
+            'Bonjour,\n\nVotre abonnement VPN expire demain.\n\nRenouvelez votre accès maintenant pour éviter toute interruption.\n\nCordialement,\nVPN Privé'
+          )">
+            <div class="template-card-title"><i data-lucide="alert-triangle" class="icon-sm text-red"></i>Relance J-1</div>
+            <div class="template-card-desc">Dernier rappel avant expiration</div>
+          </button>
+        </div>
+        <div class="col-md-4">
+          <button class="template-card w-full" onclick="fillTemplate(
+            'Maintenance prévue',
+            'Bonjour,\n\nNous vous informons d\'une maintenance prévue sur notre infrastructure VPN.\n\nLe service pourra être momentanément indisponible. Nous vous excusons pour la gêne occasionnée.\n\nCordialement,\nVPN Privé'
+          )">
+            <div class="template-card-title"><i data-lucide="settings" class="icon-sm text-blue"></i>Maintenance</div>
+            <div class="template-card-desc">Information maintenance technique</div>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ── Formulaire nouveau message #}
+  <div class="section-card">
+    <div class="section-card-header">
+      <span class="section-card-title"><i data-lucide="send" class="icon-sm"></i>Nouveau message</span>
+      <span style="font-size:11px;color:var(--text-muted)">{{ nb_users }} abonnés</span>
+    </div>
+    <div class="section-card-body">
+      <form method="POST" action="{{ url_for('admin_broadcast') }}" class="form-ds" id="broadcastForm">
+        <div class="input-group-ds">
+          <label class="input-label">Sujet (pour les emails)</label>
+          <input type="text" name="subject" id="msgSubject" class="input-text" placeholder="ex: Maintenance le 20 mai" required>
+        </div>
+        <div class="input-group-ds">
+          <label class="input-label">Canal d'envoi</label>
+          <select name="channel" id="msgChannel" class="input-select" onchange="updateCounter()">
+            <option value="email">Email uniquement</option>
+            <option value="both">Email + Telegram (admin)</option>
+          </select>
+        </div>
+        <div class="input-group-ds">
+          <label class="input-label">Message</label>
+          <textarea name="message" id="msgBody" class="input-textarea" rows="5"
+                    placeholder="Votre message pour tous les abonnés…" required
+                    oninput="updateCharCount(this)"></textarea>
+          <div class="char-counter" id="charCount">0 / 1000</div>
+        </div>
+        <div class="d-flex align-center gap-12 flex-wrap">
+          <button type="submit" class="btn-primary">
+            <i data-lucide="send" class="icon-sm"></i>
+            Envoyer à tous →
+          </button>
+          <span id="recipientInfo" style="font-size:11px;color:var(--text-muted)">
+            {{ nb_users }} destinataires email
+          </span>
+          <span style="font-size:11px;color:var(--text-muted)">· Les adresses @vpn.local sont ignorées.</span>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {# ── Historique broadcasts #}
+  {% if broadcasts %}
+  <div class="section-card">
+    <div class="section-card-header">
+      <span class="section-card-title"><i data-lucide="list" class="icon-sm"></i>Historique (20 derniers)</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table-dense">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Sujet</th>
+            <th>Canal</th>
+            <th>Destinataires</th>
+            <th>Ouverture</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for b in broadcasts %}
+          <tr>
+            <td class="code-xs">{{ b.date_envoi[:16] }}</td>
+            <td style="font-size:12px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ b.sujet }}</td>
+            <td>
+              {% if b.canal == 'email' %}
+                <span class="badge-channel badge-channel--email">EMAIL</span>
+              {% elif b.canal == 'telegram' %}
+                <span class="badge-channel badge-channel--telegram">TELEGRAM</span>
+              {% else %}
+                <span class="badge-channel badge-channel--both">EMAIL + TG</span>
+              {% endif %}
+            </td>
+            <td style="font-size:12px">{{ b.nb_destinataires }}</td>
+            <td class="text-muted-sm">—</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
 </div>
 
+<script>
+function fillTemplate(subject, body) {
+  document.getElementById('msgSubject').value = subject;
+  document.getElementById('msgBody').value = body;
+  updateCharCount(document.getElementById('msgBody'));
+  document.getElementById('msgSubject').focus();
+}
+function updateCharCount(ta) {
+  var len = ta.value.length;
+  document.getElementById('charCount').textContent = len + ' / 1000';
+}
+function updateCounter() {
+  var ch = document.getElementById('msgChannel').value;
+  var el = document.getElementById('recipientInfo');
+  if (ch === 'email') {
+    el.textContent = '{{ nb_users }} destinataires email';
+  } else {
+    el.textContent = '{{ nb_users }} destinataires email + 1 admin Telegram';
+  }
+}
+</script>
 {% endblock %}

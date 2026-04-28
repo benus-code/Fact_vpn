@@ -1,0 +1,525 @@
+{% extends "base_admin.html" %}
+{% block title %}Styleguide — Admin VPN{% endblock %}
+{% block topbar_title %}Styleguide{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <div class="page-title-ds">Design System — Styleguide</div>
+  <div class="page-sub-ds">Référence visuelle de tous les composants. Source de vérité pour le développement frontend.</div>
+</div>
+
+<div class="page-stack">
+
+  <!-- ── 1. Palette ─────────────────────────────────────── -->
+  <div class="section-card">
+    <div class="section-card-header">
+      <span class="section-card-title"><i data-lucide="palette" class="icon-sm"></i> Palette de couleurs</span>
+    </div>
+    <div class="section-card-body">
+      <div class="sg-section">
+        <div class="sg-component-title">Fonds</div>
+        <div class="swatch-grid">
+          <div class="swatch"><div class="swatch-color" style="background:#0d1117"></div><div class="swatch-label">bg-app<br>#0d1117</div></div>
+          <div class="swatch"><div class="swatch-color" style="background:#010409"></div><div class="swatch-label">bg-sidebar<br>#010409</div></div>
+          <div class="swatch"><div class="swatch-color" style="background:#161b22"></div><div class="swatch-label">bg-card<br>#161b22</div></div>
+          <div class="swatch"><div class="swatch-color" style="background:#1c2128"></div><div class="swatch-label">bg-card-hover<br>#1c2128</div></div>
+          <div class="swatch"><div class="swatch-color" style="background:#0d1117;border:1px solid #21262d"></div><div class="swatch-label">bg-input<br>#0d1117</div></div>
+          <div class="swatch"><div class="swatch-color" style="background:#21262d"></div><div class="swatch-label">bg-elevated<br>#21262d</div></div>
+        </div>
+      </div>
+      <div class="sg-section">
+        <div class="sg-component-title">Bordures</div>
+        <div class="swatch-grid">
+          <div class="swatch"><div class="swatch-color" style="background:#30363d"></div><div class="swatch-label">border-subtle<br>#30363d</div></div>
+          <div class="swatch"><div class="swatch-color" style="background:#21262d"></div><div class="swatch-label">border-default<br>#21262d</div></div>
+        </div>
+      </div>
+      <div class="sg-section">
+        <div class="sg-component-title">Texte</div>
+        <div class="swatch-grid">
+          <div class="swatch"><div class="swatch-color" style="background:#e6edf3"></div><div class="swatch-label">text-primary<br>#e6edf3</div></div>
+          <div class="swatch"><div class="swatch-color" style="background:#8b949e"></div><div class="swatch-label">text-secondary<br>#8b949e</div></div>
+          <div class="swatch"><div class="swatch-color" style="background:#6e7681"></div><div class="swatch-label">text-muted<br>#6e7681</div></div>
+        </div>
+      </div>
+      <div class="sg-section" style="margin-bottom:0">
+        <div class="sg-component-title">Accents</div>
+        <div class="swatch-grid">
+          <div class="swatch"><div class="swatch-color" style="background:#bc8cff"></div><div class="swatch-label">accent-violet<br>#bc8cff</div></div>
+          <div class="swatch"><div class="swatch-color" style="background:#58a6ff"></div><div class="swatch-label">accent-blue<br>#58a6ff</div></div>
+          <div class="swatch"><div class="swatch-color" style="background:#3fb950"></div><div class="swatch-label">accent-green<br>#3fb950</div></div>
+          <div class="swatch"><div class="swatch-color" style="background:#d29922"></div><div class="swatch-label">accent-orange<br>#d29922</div></div>
+          <div class="swatch"><div class="swatch-color" style="background:#f85149"></div><div class="swatch-label">accent-red<br>#f85149</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 2. Typographie ─────────────────────────────────── -->
+  <div class="section-card">
+    <div class="section-card-header">
+      <span class="section-card-title"><i data-lucide="type" class="icon-sm"></i> Typographie</span>
+    </div>
+    <div class="section-card-body">
+      <div class="sg-section">
+        <div class="sg-component-title">Plus Jakarta Sans — Titres &amp; KPI</div>
+        <div style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:600;font-size:28px;color:var(--text-primary);margin-bottom:4px">4 200 ₽</div>
+        <div style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:600;font-size:22px;color:var(--text-primary);margin-bottom:4px">Valeur KPI 22px</div>
+        <div style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:600;font-size:16px;color:var(--text-primary);margin-bottom:4px">Titre page 16px</div>
+        <div style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:600;font-size:13px;color:var(--text-primary)">Titre section 13px</div>
+      </div>
+      <div class="sg-section">
+        <div class="sg-component-title">Inter — Corps &amp; Labels</div>
+        <div style="font-family:'Inter',sans-serif;font-size:14px;color:var(--text-primary);margin-bottom:4px">Corps de texte 14px / 400</div>
+        <div style="font-family:'Inter',sans-serif;font-size:13px;color:var(--text-primary);margin-bottom:4px">Corps standard 13px / 400</div>
+        <div style="font-family:'Inter',sans-serif;font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:4px">Label champ 12px / 500</div>
+        <div style="font-family:'Inter',sans-serif;font-size:11px;color:var(--text-muted);margin-bottom:4px">Petit texte 11px / 400</div>
+        <div style="font-family:'Inter',sans-serif;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;color:var(--text-secondary)">LABEL UPPERCASE 10px / 500</div>
+      </div>
+      <div class="sg-section" style="margin-bottom:0">
+        <div class="sg-component-title">JetBrains Mono — Code &amp; Données techniques</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-primary);margin-bottom:4px">10.8.0.42/32 — IP VPN 12px</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-secondary);margin-bottom:4px">aBcDeF12345... — Public key tronquée 11px</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-muted);margin-bottom:4px">il y a 12 min — Timestamp 10px</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--text-muted)">PROD · AWG 2.0 · 9px uppercase</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 3. KPI Cards ───────────────────────────────────── -->
+  <div class="section-card">
+    <div class="section-card-header">
+      <span class="section-card-title"><i data-lucide="bar-chart-2" class="icon-sm"></i> KPI Cards</span>
+    </div>
+    <div class="section-card-body">
+      <div class="sg-component-title">Grille 4×1 (desktop) / 2×2 (mobile)</div>
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">Revenus ce mois</div>
+          <div class="kpi-value">4 200 ₽</div>
+          <div class="kpi-variation kpi-variation--up">↑ +12% vs mois préc.</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Clients actifs</div>
+          <div class="kpi-value">62 / 84</div>
+          <div class="kpi-variation kpi-variation--down">↓ −3 cette semaine</div>
+        </div>
+        <div class="kpi-card kpi-card--warning">
+          <div class="kpi-label">Expirent ≤ 7j</div>
+          <div class="kpi-value">8</div>
+          <div class="kpi-variation" style="color:var(--accent-orange)">⚠ à relancer</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Connectés live</div>
+          <div class="kpi-value">23</div>
+          <div class="kpi-sub-badges">
+            <span class="kpi-sub-badge kpi-sub-badge--green">wg0 · 14</span>
+            <span class="kpi-sub-badge kpi-sub-badge--violet">awg0 · 9</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 4. Badges ─────────────────────────────────────── -->
+  <div class="section-card">
+    <div class="section-card-header">
+      <span class="section-card-title"><i data-lucide="tag" class="icon-sm"></i> Badges</span>
+    </div>
+    <div class="section-card-body">
+      <div class="sg-section">
+        <div class="sg-component-title">Interface VPN (A1 / A2 / PV)</div>
+        <div class="sg-demo">
+          <span class="badge-iface badge-iface-a1">A1</span>
+          <span style="font-size:11px;color:var(--text-muted)">AWG 1.x (vert)</span>
+          &nbsp;&nbsp;
+          <span class="badge-iface badge-iface-a2">A2</span>
+          <span style="font-size:11px;color:var(--text-muted)">AWG 2.0 (violet)</span>
+          &nbsp;&nbsp;
+          <span class="badge-iface badge-iface-pv">PV</span>
+          <span style="font-size:11px;color:var(--text-muted)">PiVPN (gris)</span>
+        </div>
+      </div>
+      <div class="sg-section" style="margin-bottom:0">
+        <div class="sg-component-title">Statut abonnement</div>
+        <div class="sg-demo">
+          <span class="badge-status-ds badge-status-actif">Actif</span>
+          <span class="badge-status-ds badge-status-attente">En attente</span>
+          <span class="badge-status-ds badge-status-expire">Expiré</span>
+          <span class="badge-status-ds badge-status-suspendu">Suspendu</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 5. Boutons ────────────────────────────────────── -->
+  <div class="section-card">
+    <div class="section-card-header">
+      <span class="section-card-title"><i data-lucide="mouse-pointer-2" class="icon-sm"></i> Boutons</span>
+    </div>
+    <div class="section-card-body">
+      <div class="sg-section">
+        <div class="sg-component-title">Primaire / Secondaire / Danger / Icône</div>
+        <div class="sg-demo">
+          <button class="btn-primary"><i data-lucide="save" class="icon-sm"></i> Enregistrer</button>
+          <button class="btn-secondary"><i data-lucide="refresh-cw" class="icon-sm"></i> Rafraîchir</button>
+          <button class="btn-danger"><i data-lucide="trash-2" class="icon-sm"></i> Supprimer</button>
+          <button class="btn-icon"><i data-lucide="eye" class="icon-sm"></i></button>
+          <button class="btn-icon"><i data-lucide="mail" class="icon-sm"></i></button>
+          <button class="btn-icon btn-icon--danger"><i data-lucide="pause" class="icon-sm"></i></button>
+          <button class="btn-icon btn-icon--success"><i data-lucide="play" class="icon-sm"></i></button>
+        </div>
+      </div>
+      <div class="sg-section" style="margin-bottom:0">
+        <div class="sg-component-title">États désactivés</div>
+        <div class="sg-demo">
+          <button class="btn-primary" disabled>Traitement…</button>
+          <button class="btn-secondary" disabled>Indisponible</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 6. Formulaires ────────────────────────────────── -->
+  <div class="section-card">
+    <div class="section-card-header">
+      <span class="section-card-title"><i data-lucide="edit-3" class="icon-sm"></i> Formulaires</span>
+    </div>
+    <div class="section-card-body">
+      <div class="sg-component-title">Mise en situation complète</div>
+      <div style="max-width:520px">
+        <div class="form-ds">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div class="input-group-ds">
+              <label class="input-label">Nom complet</label>
+              <input type="text" class="input-text" placeholder="Boris Ivanov" value="Boris Ivanov">
+            </div>
+            <div class="input-group-ds">
+              <label class="input-label">Adresse email</label>
+              <input type="email" class="input-text" placeholder="boris@example.com">
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div class="input-group-ds">
+              <label class="input-label">Statut</label>
+              <select class="input-select">
+                <option>Actif</option>
+                <option>En attente</option>
+                <option>Expiré</option>
+              </select>
+            </div>
+            <div class="input-group-ds">
+              <label class="input-label">Montant (₽)</label>
+              <input type="number" class="input-text" value="100">
+            </div>
+          </div>
+          <div class="input-group-ds">
+            <label class="input-label">Note</label>
+            <textarea class="input-textarea" placeholder="Commentaire optionnel…" style="min-height:70px"></textarea>
+            <div class="char-counter">0 / 500</div>
+          </div>
+          <div class="d-flex gap-8">
+            <button class="btn-primary"><i data-lucide="save" class="icon-sm"></i> Enregistrer</button>
+            <button class="btn-secondary">Annuler</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 7. Tableau dense ──────────────────────────────── -->
+  <div class="section-card">
+    <div class="section-card-header">
+      <span class="section-card-title"><i data-lucide="table" class="icon-sm"></i> Tableau dense</span>
+      <span class="section-card-link">5 lignes · demo</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table-dense">
+        <thead>
+          <tr>
+            <th>Client</th>
+            <th>Interface</th>
+            <th>IP VPN</th>
+            <th>Statut</th>
+            <th>Expire</th>
+            <th class="actions-cell">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td data-label="Client">Boris Ivanov<br><span class="text-muted-sm">boris@example.com</span></td>
+            <td data-label="Interface"><span class="badge-iface badge-iface-a2">A2</span></td>
+            <td data-label="IP VPN"><code class="code-sm">10.8.0.12</code></td>
+            <td data-label="Statut"><span class="badge-status-ds badge-status-actif">Actif</span></td>
+            <td data-label="Expire"><span style="font-size:12px">2026-05-15</span></td>
+            <td data-label="Actions" class="actions-cell">
+              <button class="btn-icon" title="Voir"><i data-lucide="eye" class="icon-sm"></i></button>
+              <button class="btn-icon" title="Email"><i data-lucide="mail" class="icon-sm"></i></button>
+              <button class="btn-icon btn-icon--danger" title="Suspendre"><i data-lucide="pause" class="icon-sm"></i></button>
+            </td>
+          </tr>
+          <tr>
+            <td data-label="Client">Anna Kuznetsova<br><span class="text-muted-sm">anna@example.com</span></td>
+            <td data-label="Interface"><span class="badge-iface badge-iface-a1">A1</span></td>
+            <td data-label="IP VPN"><code class="code-sm">10.8.0.7</code></td>
+            <td data-label="Statut"><span class="badge-status-ds badge-status-actif">Actif</span></td>
+            <td data-label="Expire"><span style="font-size:12px;color:var(--accent-orange)">2026-05-02 ⚠</span></td>
+            <td data-label="Actions" class="actions-cell">
+              <button class="btn-icon" title="Voir"><i data-lucide="eye" class="icon-sm"></i></button>
+              <button class="btn-icon" title="Email"><i data-lucide="mail" class="icon-sm"></i></button>
+              <button class="btn-icon btn-icon--danger" title="Suspendre"><i data-lucide="pause" class="icon-sm"></i></button>
+            </td>
+          </tr>
+          <tr>
+            <td data-label="Client">Dmitri Sokolov<br><span class="text-muted-sm">dmitri@example.com</span></td>
+            <td data-label="Interface"><span class="badge-iface badge-iface-pv">PV</span></td>
+            <td data-label="IP VPN"><code class="code-sm">10.8.1.3</code></td>
+            <td data-label="Statut"><span class="badge-status-ds badge-status-expire">Expiré</span></td>
+            <td data-label="Expire"><span style="font-size:12px;color:var(--accent-red)">2026-04-10</span></td>
+            <td data-label="Actions" class="actions-cell">
+              <button class="btn-icon" title="Voir"><i data-lucide="eye" class="icon-sm"></i></button>
+              <button class="btn-icon" title="Email"><i data-lucide="mail" class="icon-sm"></i></button>
+              <button class="btn-icon btn-icon--success" title="Réactiver"><i data-lucide="play" class="icon-sm"></i></button>
+            </td>
+          </tr>
+          <tr>
+            <td data-label="Client">Maria Petrova<br><span class="text-muted-sm">maria@example.com</span></td>
+            <td data-label="Interface"><span class="badge-iface badge-iface-a2">A2</span></td>
+            <td data-label="IP VPN"><code class="code-sm">10.8.0.25</code></td>
+            <td data-label="Statut"><span class="badge-status-ds badge-status-attente">En attente</span></td>
+            <td data-label="Expire"><span style="font-size:12px;color:var(--text-muted)">—</span></td>
+            <td data-label="Actions" class="actions-cell">
+              <button class="btn-icon" title="Voir"><i data-lucide="eye" class="icon-sm"></i></button>
+              <button class="btn-icon" title="Email"><i data-lucide="mail" class="icon-sm"></i></button>
+              <button class="btn-icon btn-icon--danger" title="Suspendre"><i data-lucide="pause" class="icon-sm"></i></button>
+            </td>
+          </tr>
+          <tr>
+            <td data-label="Client">Ivan Popov<br><span class="text-muted-sm">ivan@example.com</span></td>
+            <td data-label="Interface"><span class="badge-iface badge-iface-a1">A1</span></td>
+            <td data-label="IP VPN"><code class="code-sm">10.8.0.31</code></td>
+            <td data-label="Statut"><span class="badge-status-ds badge-status-suspendu">Suspendu</span></td>
+            <td data-label="Expire"><span style="font-size:12px">2026-06-01</span></td>
+            <td data-label="Actions" class="actions-cell">
+              <button class="btn-icon" title="Voir"><i data-lucide="eye" class="icon-sm"></i></button>
+              <button class="btn-icon" title="Email"><i data-lucide="mail" class="icon-sm"></i></button>
+              <button class="btn-icon btn-icon--success" title="Réactiver"><i data-lucide="play" class="icon-sm"></i></button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="table-counter">Affichage de 5 sur 84 clients</div>
+  </div>
+
+  <!-- ── 8. Barre de progression ───────────────────────── -->
+  <div class="section-card">
+    <div class="section-card-header">
+      <span class="section-card-title"><i data-lucide="activity" class="icon-sm"></i> Barres de progression</span>
+    </div>
+    <div class="section-card-body">
+      <div class="sg-demo sg-demo--block" style="gap:12px">
+        <div style="width:100%">
+          <div class="d-flex justify-between mb-8" style="font-size:11px;color:var(--text-secondary)"><span>Boris Ivanov</span><span class="code-xs">12.4 GB</span></div>
+          <div class="progress-bar-container"><div class="progress-bar" style="width:100%"></div></div>
+        </div>
+        <div style="width:100%">
+          <div class="d-flex justify-between mb-8" style="font-size:11px;color:var(--text-secondary)"><span>Anna K. <span class="badge-iface badge-iface-a1" style="margin-left:4px">A1</span></span><span class="code-xs">9.1 GB</span></div>
+          <div class="progress-bar-container"><div class="progress-bar progress-bar--green" style="width:73%"></div></div>
+        </div>
+        <div style="width:100%">
+          <div class="d-flex justify-between mb-8" style="font-size:11px;color:var(--text-secondary)"><span>Dmitri S.</span><span class="code-xs">4.5 GB</span></div>
+          <div class="progress-bar-container"><div class="progress-bar progress-bar--orange" style="width:36%"></div></div>
+        </div>
+        <div style="width:100%">
+          <div class="d-flex justify-between mb-8" style="font-size:11px;color:var(--text-secondary)"><span>Alerts (rouge)</span><span class="code-xs">1.2 GB</span></div>
+          <div class="progress-bar-container"><div class="progress-bar progress-bar--red" style="width:10%"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 9. Mini graphe barres CSS ─────────────────────── -->
+  <div class="section-card">
+    <div class="section-card-header">
+      <span class="section-card-title"><i data-lucide="bar-chart" class="icon-sm"></i> Graphe barres CSS (12 mois)</span>
+    </div>
+    <div class="section-card-body">
+      <div class="sg-component-title">Barres — hauteur en % du max (aucune dépendance JS)</div>
+      <div class="bar-chart" style="height:80px">
+        <div class="bar-item"><div class="bar-fill" style="height:45%"></div><div class="bar-label">M</div></div>
+        <div class="bar-item"><div class="bar-fill" style="height:52%"></div><div class="bar-label">J</div></div>
+        <div class="bar-item"><div class="bar-fill" style="height:38%"></div><div class="bar-label">J</div></div>
+        <div class="bar-item"><div class="bar-fill" style="height:65%"></div><div class="bar-label">A</div></div>
+        <div class="bar-item"><div class="bar-fill" style="height:71%"></div><div class="bar-label">S</div></div>
+        <div class="bar-item"><div class="bar-fill" style="height:58%"></div><div class="bar-label">O</div></div>
+        <div class="bar-item"><div class="bar-fill" style="height:80%"></div><div class="bar-label">N</div></div>
+        <div class="bar-item"><div class="bar-fill" style="height:88%"></div><div class="bar-label">D</div></div>
+        <div class="bar-item"><div class="bar-fill" style="height:75%"></div><div class="bar-label">J</div></div>
+        <div class="bar-item"><div class="bar-fill" style="height:82%"></div><div class="bar-label">F</div></div>
+        <div class="bar-item"><div class="bar-fill" style="height:90%"></div><div class="bar-label">M</div></div>
+        <div class="bar-item"><div class="bar-fill bar-fill--current" style="height:100%"></div><div class="bar-label" style="color:var(--accent-violet)">A</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 10. Timeline ──────────────────────────────────── -->
+  <div class="section-card">
+    <div class="section-card-header">
+      <span class="section-card-title"><i data-lucide="clock" class="icon-sm"></i> Timeline activité</span>
+    </div>
+    <div class="section-card-body">
+      <ul class="timeline">
+        <li class="timeline-item">
+          <div class="timeline-dot timeline-dot--green"></div>
+          <div class="timeline-content">Paiement validé · Boris Ivanov · 600 ₽</div>
+          <div class="timeline-meta">il y a 12 min</div>
+        </li>
+        <li class="timeline-item">
+          <div class="timeline-dot timeline-dot--violet"></div>
+          <div class="timeline-content">Peer créé · <span class="badge-iface badge-iface-a2">A2</span> · 10.8.0.43 · Maria P.</div>
+          <div class="timeline-meta">il y a 1h</div>
+        </li>
+        <li class="timeline-item">
+          <div class="timeline-dot timeline-dot--orange"></div>
+          <div class="timeline-content">Suspension · Anna Kuznetsova · iptables DROP</div>
+          <div class="timeline-meta">hier 22:14</div>
+        </li>
+        <li class="timeline-item">
+          <div class="timeline-dot timeline-dot--blue"></div>
+          <div class="timeline-content">Email envoyé · Relance J-3 · 8 dest.</div>
+          <div class="timeline-meta">il y a 2h</div>
+        </li>
+        <li class="timeline-item">
+          <div class="timeline-dot timeline-dot--red"></div>
+          <div class="timeline-content">Expiration · Dmitri Sokolov · statut → expiré</div>
+          <div class="timeline-meta">12-04-2026</div>
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ── 11. Indicateur live ───────────────────────────── -->
+  <div class="section-card">
+    <div class="section-card-header">
+      <span class="section-card-title"><i data-lucide="radio" class="icon-sm"></i> Indicateur Live</span>
+    </div>
+    <div class="section-card-body">
+      <div class="sg-demo" style="gap:24px">
+        <div class="live-indicator">
+          <span class="live-dot"></span>
+          PROD
+        </div>
+        <div class="live-indicator" style="color:var(--accent-blue)">
+          <span class="live-dot" style="background:var(--accent-blue);animation:none"></span>
+          STAGING
+        </div>
+        <div class="live-indicator live-indicator--error">
+          <span class="live-dot"></span>
+          2 DOWN
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 12. Accordéons ────────────────────────────────── -->
+  <div class="section-card">
+    <div class="section-card-header">
+      <span class="section-card-title"><i data-lucide="layers" class="icon-sm"></i> Accordéons (HTML natif details/summary)</span>
+    </div>
+    <div class="section-card-body">
+      <details class="accordion-ds" open>
+        <summary class="accordion-summary"><i data-lucide="credit-card" class="icon-sm"></i> Informations de paiement</summary>
+        <div class="accordion-body">
+          <p style="font-size:13px;color:var(--text-secondary)">Contenu de la section paiement. Les accordéons utilisent l'élément HTML natif &lt;details&gt; sans JavaScript.</p>
+        </div>
+      </details>
+      <details class="accordion-ds">
+        <summary class="accordion-summary"><i data-lucide="bot" class="icon-sm"></i> Notifications Telegram</summary>
+        <div class="accordion-body">
+          <p style="font-size:13px;color:var(--text-secondary)">Configuration du bot Telegram pour les notifications admin.</p>
+        </div>
+      </details>
+      <details class="accordion-ds">
+        <summary class="accordion-summary"><i data-lucide="mail" class="icon-sm"></i> Email automatique (Gmail)</summary>
+        <div class="accordion-body">
+          <p style="font-size:13px;color:var(--text-secondary)">Paramètres SMTP Gmail pour les emails transactionnels.</p>
+        </div>
+      </details>
+    </div>
+  </div>
+
+  <!-- ── 13. Badges canal broadcast ───────────────────── -->
+  <div class="section-card">
+    <div class="section-card-header">
+      <span class="section-card-title"><i data-lucide="megaphone" class="icon-sm"></i> Badges canal</span>
+    </div>
+    <div class="section-card-body">
+      <div class="sg-demo">
+        <span class="badge-channel badge-channel--email">EMAIL</span>
+        <span class="badge-channel badge-channel--telegram">TELEGRAM</span>
+        <span class="badge-channel badge-channel--both">EMAIL + TG</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 14. Mise en situation : Grille KPI ───────────── -->
+  <div class="section-card">
+    <div class="section-card-header">
+      <span class="section-card-title"><i data-lucide="layout-dashboard" class="icon-sm"></i> Mise en situation — Grille KPI</span>
+    </div>
+    <div class="section-card-body">
+      <div class="kpi-grid-3">
+        <div class="kpi-card">
+          <div class="kpi-label">Revenus ce mois</div>
+          <div class="kpi-value">4 200 ₽</div>
+          <div class="kpi-variation kpi-variation--up">↑ +8%</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Mois précédent</div>
+          <div class="kpi-value">3 900 ₽</div>
+          <div class="kpi-variation">référence</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">MRR estimé</div>
+          <div class="kpi-value">6 200 ₽</div>
+          <div class="kpi-variation kpi-variation--up">62 clients × 100 ₽</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 15. Mise en situation : Docker cards ──────────── -->
+  <div class="section-card">
+    <div class="section-card-header">
+      <span class="section-card-title"><i data-lucide="server" class="icon-sm"></i> Mise en situation — Statut Docker</span>
+    </div>
+    <div class="section-card-body">
+      <div class="docker-grid">
+        <div class="docker-card">
+          <div class="docker-card-name">amnezia-awg</div>
+          <div class="docker-status-line"><div class="docker-dot docker-dot--running"></div><span style="color:var(--accent-green);font-size:12px">running</span></div>
+          <div class="code-xs mt-8">uptime 12j 4h</div>
+        </div>
+        <div class="docker-card">
+          <div class="docker-card-name">amnezia-awg2</div>
+          <div class="docker-status-line"><div class="docker-dot docker-dot--running"></div><span style="color:var(--accent-green);font-size:12px">running</span></div>
+          <div class="code-xs mt-8">uptime 12j 4h</div>
+        </div>
+        <div class="docker-card">
+          <div class="docker-card-name">amnezia-ipsec</div>
+          <div class="docker-status-line"><div class="docker-dot docker-dot--stopped"></div><span style="color:var(--accent-red);font-size:12px">exited</span></div>
+          <div class="code-xs mt-8">stopped</div>
+        </div>
+        <div class="docker-card">
+          <div class="docker-card-name">amnezia-wireguard</div>
+          <div class="docker-status-line"><div class="docker-dot docker-dot--unknown"></div><span style="color:var(--text-muted);font-size:12px">unknown</span></div>
+          <div class="code-xs mt-8">timeout</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+{% endblock %}
