@@ -3,6 +3,40 @@
 {% block topbar_title %}Monitoring{% endblock %}
 {% block content %}
 
+{# ── Connexions en difficulté (affiché seulement si > 0) ── #}
+{% if problem_clients %}
+<div class="section-card" style="border:1px solid rgba(248,81,73,0.4);background:rgba(248,81,73,0.06);margin-bottom:16px">
+  <div class="section-card-header" style="padding-bottom:10px">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span class="health-dot" style="background:#f85149;width:8px;height:8px;animation:pulse-red 2s ease-in-out infinite"></span>
+      <span style="font-size:13px;font-weight:500;color:#f85149">Connexions en difficulté · {{ problem_clients|length }}</span>
+    </div>
+    <a href="{{ url_for('admin_clients') }}" onclick="sessionStorage.setItem('healthFilter','problem')" style="font-size:11px;color:var(--accent-blue)">tout voir →</a>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:6px">
+    {% for c in problem_clients[:8] %}
+    {% set ico = {'never': '🆕', 'blocked': '🚫', 'dead': '💀'}.get(c.sub_code, '⚠') %}
+    {% set iface_class = 'badge-iface-pv' if c.iface == 'wg0' else 'badge-iface-a2' %}
+    {% set iface_label = 'A1' if c.iface == 'wg0' else 'A2' %}
+    <a href="{{ url_for('admin_user_detail', uid=c.user_id) }}"
+       style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--bg-app);border-radius:4px;text-decoration:none;color:inherit">
+      <div style="display:flex;align-items:center;gap:8px;min-width:0">
+        <span style="font-size:14px;flex-shrink:0">{{ ico }}</span>
+        <span class="badge-iface {{ iface_class }}" style="flex-shrink:0">{{ iface_label }}</span>
+        <span style="font-size:12px;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ c.nom }}</span>
+      </div>
+      <span style="font-size:10px;color:var(--text-muted);font-family:ui-monospace,monospace;flex-shrink:0;margin-left:8px">{{ c.label }}</span>
+    </a>
+    {% endfor %}
+    {% if problem_clients|length > 8 %}
+    <div style="text-align:center;padding:6px;font-size:11px;color:var(--text-muted)">
+      + {{ problem_clients|length - 8 }} autres
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
 {# ── Ligne 1 : CPU / RAM / Disk / Load ── #}
 <div class="kpi-row mb-16">
 

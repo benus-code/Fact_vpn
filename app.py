@@ -159,6 +159,15 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated
 
+# ─── Context processor : compteurs globaux ────────────────────────────────────
+@app.context_processor
+def inject_health_count():
+    try:
+        health = monitoring.get_all_connection_health()
+        return {"nb_problems_global": sum(1 for s in health.values() if s[0] == "problem")}
+    except Exception:
+        return {"nb_problems_global": 0}
+
 # ─── Telegram notifications ───────────────────────────────────────────────────
 def notify_telegram(message):
     """Envoie un message via bot Telegram. Silencieux si non configuré."""
@@ -793,11 +802,48 @@ def admin_clients():
     demandes    = db.execute("SELECT COUNT(*) FROM abonnements WHERE statut='en_attente'").fetchone()[0]
     paie_att    = db.execute("SELECT COUNT(*) FROM paiements WHERE valide=0").fetchone()[0]
     email_statuses = brevo.get_all_email_statuses()
+
+    # Santé connexion par peer (1 seule lecture dump)
+    health_map = monitoring.get_all_connection_health()
+    # Récupère le premier peer actif par user pour afficher son état
+    peer_pubkeys = {}
+    try:
+        rows = db.execute(
+            "SELECT user_id, public_key FROM peers WHERE actif=1 ORDER BY id"
+        ).fetchall()
+        for row in rows:
+            if row["user_id"] not in peer_pubkeys:
+                peer_pubkeys[row["user_id"]] = row["public_key"]
+    except Exception:
+        pass
+
+    users = list(users)
+    for u in users:
+        pk = peer_pubkeys.get(u["id"])
+        if pk and pk in health_map:
+            state, sub, age, label = health_map[pk]
+            u = dict(u)
+        else:
+            state, sub, age, label = "unknown", None, None, "—"
+        # Les sqlite3.Row ne supportent pas l'affectation directe — on passe via le template
+        # via health_by_user dict ci-dessous
+
+    health_by_user = {}
+    for uid, pk in peer_pubkeys.items():
+        if pk in health_map:
+            state, sub, age, label = health_map[pk]
+            health_by_user[uid] = {"state": state, "sub": sub, "age": age, "label": label}
+        else:
+            health_by_user[uid] = {"state": "unknown", "sub": None, "age": None, "label": "—"}
+
+    nb_problems = sum(1 for h in health_by_user.values() if h["state"] == "problem")
+
     return render_template("admin_clients.html",
         users=users, today=today, j7_str=j7_str,
         stat_total=total, stat_actifs=nb_actifs,
         stat_expire_7=nb_expire_7, stat_autres=nb_autres,
         email_statuses=email_statuses,
+        health_by_user=health_by_user, nb_problems=nb_problems,
         nb_demandes=demandes, nb_paie_attente=paie_att)
 
 @app.route("/admin/paiements")
@@ -941,8 +987,18 @@ def admin_user_detail(uid):
         "SELECT * FROM paiements WHERE user_id = ? ORDER BY date_paiement DESC",
         (uid,)
     ).fetchall()
+    # Santé connexion pour chaque peer actif de ce client
+    peer_health = {}
+    for p in peers:
+        if p["actif"] and p["public_key"]:
+            state, sub, age, label = monitoring.get_connection_health(p["public_key"])
+            peer_health[p["id"]] = {
+                "state": state, "sub": sub, "age": age, "label": label,
+                "diag": monitoring.DIAGNOSTIC_TEXT.get(sub, ""),
+            }
     return render_template("admin_user.html",
-        user=user, abo=abo, peers=peers, histo=histo, today=date.today()
+        user=user, abo=abo, peers=peers, histo=histo, today=date.today(),
+        peer_health=peer_health,
     )
 
 # ─── Gestion des peers ────────────────────────────────────────────────────────
@@ -1267,8 +1323,10 @@ def admin_monitoring():
     demandes = db.execute("SELECT COUNT(*) FROM abonnements WHERE statut='en_attente'").fetchone()[0]
     paie_att = db.execute("SELECT COUNT(*) FROM paiements WHERE valide=0").fetchone()[0]
     health = monitoring.get_health()
+    problem_clients = monitoring.get_problem_clients()
     return render_template("admin_monitoring.html",
         health=health,
+        problem_clients=problem_clients,
         nb_demandes=demandes,
         nb_paie_attente=paie_att)
 

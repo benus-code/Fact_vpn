@@ -17,8 +17,8 @@ TIMEOUT = 3   # timeout réseau par appel
 log = logging.getLogger("monitoring")
 
 AWG_CONTAINERS = [
-    ("amnezia-awg",  "awg0"),
-    ("amnezia-awg2", "awg0"),
+    ("amnezia-awg",  "wg0"),   # A1
+    ("amnezia-awg2", "awg0"),  # A2
 ]
 
 
@@ -450,3 +450,215 @@ def get_health():
         "errors_24h":    errors_24h,
         "recent_errors": recent_errors,
     }
+
+
+# ─── Santé connexion par client ───────────────────────────────────────────────
+
+CONN_OK       = "ok"
+CONN_INACTIVE = "inactive"
+CONN_PROBLEM  = "problem"
+
+PROBLEM_NEVER   = "never"    # jamais de handshake
+PROBLEM_DEAD    = "dead"     # > 7 jours sans handshake
+PROBLEM_BLOCKED = "blocked"  # handshake OK mais 0 trafic depuis 1h
+
+HANDSHAKE_OK_SEC       = 300    # 5 min : connexion vivante
+HANDSHAKE_INACTIVE_SEC = 86400  # 1 jour
+HANDSHAKE_DEAD_SEC     = 604800 # 7 jours
+TRAFFIC_STALE_SEC      = 3600   # 1 heure
+
+_LIVE_CACHE    = None
+_LIVE_CACHE_AT = 0.0
+
+
+def _live_dump():
+    """
+    Lit l'état de tous les peers via `awg show <iface> dump` (les 2 interfaces).
+    Cache 10s en mémoire pour éviter de spammer docker exec.
+    Retourne dict {public_key: {'iface', 'last_handshake', 'rx_bytes', 'tx_bytes'}}.
+    """
+    global _LIVE_CACHE, _LIVE_CACHE_AT
+    if _LIVE_CACHE is not None and (time.time() - _LIVE_CACHE_AT) < 10:
+        return _LIVE_CACHE
+
+    out = {}
+    for container, iface in [("amnezia-awg", "wg0"), ("amnezia-awg2", "awg0")]:
+        try:
+            raw = subprocess.check_output(
+                ["docker", "exec", container, "awg", "show", iface, "dump"],
+                stderr=subprocess.DEVNULL, timeout=5,
+            ).decode().strip().split("\n")[1:]
+            for line in raw:
+                parts = line.split("\t")
+                if len(parts) >= 7:
+                    pubkey = parts[0]
+                    out[pubkey] = {
+                        "iface":          iface,
+                        "last_handshake": int(parts[4]) if parts[4].isdigit() else 0,
+                        "rx_bytes":       int(parts[5]) if parts[5].lstrip("-").isdigit() else 0,
+                        "tx_bytes":       int(parts[6]) if parts[6].lstrip("-").isdigit() else 0,
+                    }
+        except Exception:
+            continue
+
+    _LIVE_CACHE    = out
+    _LIVE_CACHE_AT = time.time()
+    return out
+
+
+def _had_traffic_recently(public_key, seconds=TRAFFIC_STALE_SEC):
+    """
+    Retourne True si tx_bytes a augmenté dans les N dernières secondes.
+    Retourne None si l'historique bandwidth_snapshots est insuffisant ou absent.
+    """
+    try:
+        c = sqlite3.connect(DB).cursor()
+        c.execute(
+            "SELECT tx_bytes FROM bandwidth_snapshots "
+            "WHERE public_key=? AND snapshot_at > datetime('now', ?) "
+            "ORDER BY snapshot_at ASC LIMIT 1",
+            (public_key, f"-{seconds} seconds"),
+        )
+        old = c.fetchone()
+        c.execute(
+            "SELECT tx_bytes FROM bandwidth_snapshots "
+            "WHERE public_key=? ORDER BY snapshot_at DESC LIMIT 1",
+            (public_key,),
+        )
+        new = c.fetchone()
+        if not old or not new:
+            return None
+        return new[0] > old[0]
+    except sqlite3.OperationalError:
+        return None  # table absente (phase 8 non déployée)
+
+
+def get_connection_health(public_key):
+    """
+    Retourne (state, sub_code, last_handshake_sec_ago, label).
+    state    ∈ {'ok', 'inactive', 'problem'}
+    sub_code ∈ {None, 'never', 'dead', 'blocked'}
+    """
+    live = _live_dump()
+    peer = live.get(public_key)
+
+    if not peer or peer["last_handshake"] == 0:
+        return (CONN_PROBLEM, PROBLEM_NEVER, None, "jamais connecté")
+
+    age = int(time.time()) - peer["last_handshake"]
+
+    if age < HANDSHAKE_OK_SEC:
+        had_traffic = _had_traffic_recently(public_key)
+        if had_traffic is False:
+            return (CONN_PROBLEM, PROBLEM_BLOCKED, age, "tunnel actif mais 0 trafic")
+        return (CONN_OK, None, age, "connecté")
+
+    if age < HANDSHAKE_INACTIVE_SEC:
+        return (CONN_OK, None, age, "récent")
+
+    if age < HANDSHAKE_DEAD_SEC:
+        return (CONN_INACTIVE, None, age, f"inactif depuis {age // 86400}j")
+
+    return (CONN_PROBLEM, PROBLEM_DEAD, age, f"déconnecté depuis {age // 86400}j")
+
+
+def get_all_connection_health():
+    """
+    Retourne {public_key: (state, sub_code, age, label)} pour tous les peers en 1 lecture.
+    """
+    live = _live_dump()
+    now  = int(time.time())
+
+    # Trafic récent en bloc depuis bandwidth_snapshots
+    traffic_check = {}
+    try:
+        c = sqlite3.connect(DB).cursor()
+        c.execute(
+            "SELECT public_key, "
+            "MIN(CASE WHEN snapshot_at > datetime('now', ?) THEN tx_bytes END) AS old_tx, "
+            "MAX(tx_bytes) AS new_tx "
+            "FROM bandwidth_snapshots "
+            "WHERE snapshot_at > datetime('now', '-2 hours') "
+            "GROUP BY public_key",
+            (f"-{TRAFFIC_STALE_SEC} seconds",),
+        )
+        for pk, old_tx, new_tx in c.fetchall():
+            if old_tx is None or new_tx is None:
+                traffic_check[pk] = None
+            else:
+                traffic_check[pk] = new_tx > old_tx
+    except sqlite3.OperationalError:
+        pass  # table absente
+
+    result = {}
+    for pubkey, peer in live.items():
+        if peer["last_handshake"] == 0:
+            result[pubkey] = (CONN_PROBLEM, PROBLEM_NEVER, None, "jamais connecté")
+            continue
+        age = now - peer["last_handshake"]
+        if age < HANDSHAKE_OK_SEC:
+            had = traffic_check.get(pubkey)
+            if had is False:
+                result[pubkey] = (CONN_PROBLEM, PROBLEM_BLOCKED, age, "tunnel actif · 0 trafic")
+            else:
+                result[pubkey] = (CONN_OK, None, age, "connecté")
+        elif age < HANDSHAKE_INACTIVE_SEC:
+            result[pubkey] = (CONN_OK, None, age, "récent")
+        elif age < HANDSHAKE_DEAD_SEC:
+            result[pubkey] = (CONN_INACTIVE, None, age, f"{age // 86400}j sans connexion")
+        else:
+            result[pubkey] = (CONN_PROBLEM, PROBLEM_DEAD, age, f"mort · {age // 86400}j")
+    return result
+
+
+def get_problem_clients():
+    """
+    Retourne la liste des clients en état 'problem' avec infos de base,
+    triés par sévérité : blocked → never → dead.
+    """
+    health = get_all_connection_health()
+    problem_pubkeys = [pk for pk, (state, _, _, _) in health.items() if state == CONN_PROBLEM]
+    if not problem_pubkeys:
+        return []
+
+    live = _live_dump()
+    placeholders = ",".join("?" * len(problem_pubkeys))
+    try:
+        c = sqlite3.connect(DB).cursor()
+        c.execute(
+            f"SELECT p.public_key, p.vpn_type, u.id, u.nom, u.email "
+            f"FROM peers p LEFT JOIN users u ON u.id = p.user_id "
+            f"WHERE p.public_key IN ({placeholders}) "
+            f"  AND (p.actif IS NULL OR p.actif = 1)",
+            problem_pubkeys,
+        )
+        rows = c.fetchall()
+    except Exception:
+        return []
+
+    out = []
+    for pubkey, vpn_type, user_id, nom, email in rows:
+        state, sub_code, age, label = health[pubkey]
+        peer_live = live.get(pubkey, {})
+        iface = peer_live.get("iface", "awg0")
+        out.append({
+            "user_id":  user_id,
+            "nom":      nom or "?",
+            "email":    email or "",
+            "iface":    iface,
+            "public_key": pubkey,
+            "sub_code": sub_code,
+            "age_sec":  age,
+            "label":    label,
+        })
+
+    severity = {PROBLEM_BLOCKED: 0, PROBLEM_NEVER: 1, PROBLEM_DEAD: 2}
+    out.sort(key=lambda x: severity.get(x["sub_code"], 99))
+    return out
+
+
+DIAGNOSTIC_TEXT = {
+    PROBLEM_NEVER:   "Le client n'a jamais activé sa configuration. Vérifier qu'il a bien reçu le QR code et qu'il a installé l'application Amnezia.",
+    PROBLEM_BLOCKED: "Le tunnel WireGuard est établi mais aucun trafic ne passe. Causes probables : DPI/firewall agressif (ESET, FAI russe, réseau universitaire), client a coupé l'app sans déconnecter, antivirus qui bloque le tunnel.",
+    PROBLEM_DEAD:    "Le client ne s'est pas connecté depuis plus de 7 jours. Possible : changement d'appareil, désinstallation de l'app, voyage hors zone de besoin. À relancer.",
+}

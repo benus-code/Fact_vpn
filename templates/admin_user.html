@@ -135,9 +135,10 @@
   {% if peers %}
   <div class="table-responsive">
     <table class="table-dense">
-      <thead><tr><th>Label</th><th>Type</th><th>IP VPN</th><th>Ajouté le</th><th>Statut</th><th class="actions-cell">Actions</th></tr></thead>
+      <thead><tr><th>Label</th><th>Type</th><th>IP VPN</th><th>Ajouté le</th><th>Statut</th><th>Santé</th><th class="actions-cell">Actions</th></tr></thead>
       <tbody>
         {% for p in peers %}
+        {% set ph = peer_health.get(p.id, {}) %}
         <tr>
           <td data-label="Label"><strong>{{ p.label }}</strong></td>
           <td data-label="Type">
@@ -152,6 +153,28 @@
           <td data-label="Statut">
             {% if p.actif %}<span class="badge-status-ds badge-status-actif">Actif</span>
             {% else %}<span class="badge-status-ds badge-status-suspendu">Suspendu</span>{% endif %}
+          </td>
+          <td data-label="Santé">
+            {% if ph and p.actif %}
+              {% set hs = ph.get('state', 'unknown') %}
+              {% set hsc = ph.get('sub') %}
+              {% set hlabel = ph.get('label', '—') %}
+              {% if hs == 'ok' %}
+                <span class="health-pill health-ok" title="{{ hlabel }}"><span class="health-dot"></span> OK</span>
+              {% elif hs == 'inactive' %}
+                <span class="health-pill health-inactive" title="{{ hlabel }}"><span class="health-dot"></span> Inactif</span>
+              {% elif hs == 'problem' %}
+                {% set pb_label = {'never': 'Jamais', 'blocked': 'Bloqué', 'dead': 'Mort'}.get(hsc, 'Problème') %}
+                <span class="health-pill health-problem" title="{{ hlabel }}"><span class="health-dot"></span> {{ pb_label }}</span>
+              {% else %}
+                <span class="health-pill health-unknown">—</span>
+              {% endif %}
+              {% if ph.get('diag') %}
+              <div style="font-size:10px;color:var(--text-muted);margin-top:4px;max-width:220px;line-height:1.4">{{ ph.diag }}</div>
+              {% endif %}
+            {% else %}
+              <span class="health-pill health-unknown">—</span>
+            {% endif %}
           </td>
           <td data-label="Actions" class="actions-cell">
             <div class="d-flex gap-8 flex-wrap">

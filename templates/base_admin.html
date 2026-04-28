@@ -33,7 +33,9 @@
          class="sidebar-item {% if request.endpoint in ['admin_clients','admin_user_detail'] %}sidebar-item-active{% endif %}">
         <i data-lucide="users" class="icon-sm"></i>
         Clients
-        {% if nb_demandes is defined and nb_demandes > 0 %}
+        {% if nb_problems_global is defined and nb_problems_global > 0 %}
+          <span class="sidebar-badge sidebar-badge--red">{{ nb_problems_global }}</span>
+        {% elif nb_demandes is defined and nb_demandes > 0 %}
           <span class="sidebar-badge sidebar-badge--orange">{{ nb_demandes }}</span>
         {% endif %}
       </a>

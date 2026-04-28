@@ -26,6 +26,14 @@
   </div>
 </div>
 
+{% if nb_problems > 0 %}
+<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;margin-bottom:12px;background:rgba(248,81,73,0.06);border:1px solid rgba(248,81,73,0.3);border-radius:8px;cursor:pointer" onclick="filterHealth('problem')">
+  <span class="health-dot" style="background:#f85149;width:8px;height:8px;animation:pulse-red 2s ease-in-out infinite;flex-shrink:0"></span>
+  <span style="font-size:13px;color:#f85149;font-weight:500">{{ nb_problems }} client(s) avec connexion en difficulté</span>
+  <span style="font-size:11px;color:var(--text-muted);margin-left:4px">— cliquer pour filtrer</span>
+</div>
+{% endif %}
+
 <div class="section-card">
 
   {# Barre de filtres #}
@@ -46,6 +54,12 @@
       <option value="amnezia">AWG</option>
       <option value="pivpn">PiVPN</option>
     </select>
+    <select id="filterHealth" class="input-select" style="width:auto;min-width:130px" onchange="filterTable()">
+      <option value="">Toute santé</option>
+      <option value="ok">OK</option>
+      <option value="inactive">Inactif</option>
+      <option value="problem">Problème</option>
+    </select>
     <button class="filter-reset" onclick="resetFilters()">
       <i data-lucide="x" class="icon-xs" style="display:inline;vertical-align:middle"></i> Réinitialiser
     </button>
@@ -59,6 +73,7 @@
           <th>Client</th>
           <th>Interface</th>
           <th>Statut</th>
+          <th>Santé</th>
           <th>Appareils</th>
           <th>Expire</th>
           <th>Tarif</th>
@@ -70,10 +85,12 @@
       <tbody>
         {% for u in users %}
         {% set vpn_list = u.vpn_types.split(',') if u.vpn_types else [] %}
+        {% set h = health_by_user.get(u.id, {}) %}
         <tr
           data-search="{{ u.nom|lower }} {{ u.email|lower }}"
           data-statut="{{ u.statut or '' }}"
           data-iface="{{ u.vpn_types or '' }}"
+          data-health="{{ h.get('state', 'unknown') }}"
           onclick="window.location='{{ url_for('admin_user_detail', uid=u.id) }}'">
           <td data-label="Client">
             <strong>{{ u.nom }}</strong>
@@ -101,6 +118,27 @@
               <span class="badge-status-ds badge-status-suspendu">Suspendu</span>
             {% else %}
               <span class="text-muted-sm">—</span>
+            {% endif %}
+          </td>
+          <td data-label="Santé">
+            {% set hs = h.get('state', 'unknown') %}
+            {% set hsc = h.get('sub') %}
+            {% set hlabel = h.get('label', '—') %}
+            {% if hs == 'ok' %}
+              <span class="health-pill health-ok" title="{{ hlabel }}">
+                <span class="health-dot"></span> OK
+              </span>
+            {% elif hs == 'inactive' %}
+              <span class="health-pill health-inactive" title="{{ hlabel }}">
+                <span class="health-dot"></span> Inactif
+              </span>
+            {% elif hs == 'problem' %}
+              {% set pb_label = {'never': 'Jamais', 'blocked': 'Bloqué', 'dead': 'Mort'}.get(hsc, 'Problème') %}
+              <span class="health-pill health-problem" title="{{ hlabel }}">
+                <span class="health-dot"></span> {{ pb_label }}
+              </span>
+            {% else %}
+              <span class="health-pill health-unknown">—</span>
             {% endif %}
           </td>
           <td data-label="Appareils">
@@ -164,26 +202,33 @@
 <script>
 var totalRows = {{ users|length }};
 function filterTable() {
-  var q       = document.getElementById('searchInput').value.toLowerCase();
-  var statut  = document.getElementById('filterStatut').value;
-  var iface   = document.getElementById('filterIface').value;
-  var rows    = document.querySelectorAll('#clientsTable tbody tr');
+  var q      = document.getElementById('searchInput').value.toLowerCase();
+  var statut = document.getElementById('filterStatut').value;
+  var iface  = document.getElementById('filterIface').value;
+  var health = document.getElementById('filterHealth').value;
+  var rows   = document.querySelectorAll('#clientsTable tbody tr');
   var visible = 0;
   rows.forEach(function(tr) {
-    var matchSearch = !q || tr.dataset.search.includes(q);
+    var matchSearch = !q      || tr.dataset.search.includes(q);
     var matchStatut = !statut || tr.dataset.statut === statut;
-    var matchIface  = !iface  || (tr.dataset.iface && tr.dataset.iface.includes(iface));
-    var show = matchSearch && matchStatut && matchIface;
+    var matchIface  = !iface  || (tr.dataset.iface  && tr.dataset.iface.includes(iface));
+    var matchHealth = !health || tr.dataset.health === health;
+    var show = matchSearch && matchStatut && matchIface && matchHealth;
     tr.style.display = show ? '' : 'none';
     if (show) visible++;
   });
   document.getElementById('tableCounter').textContent =
     'Affichage de ' + visible + ' sur ' + totalRows + ' clients';
 }
+function filterHealth(val) {
+  document.getElementById('filterHealth').value = val;
+  filterTable();
+}
 function resetFilters() {
   document.getElementById('searchInput').value = '';
   document.getElementById('filterStatut').value = '';
   document.getElementById('filterIface').value = '';
+  document.getElementById('filterHealth').value = '';
   filterTable();
 }
 </script>
