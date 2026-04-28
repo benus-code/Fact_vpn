@@ -1,0 +1,96 @@
+{% extends "base_admin.html" %}
+{% block title %}Clients — Admin VPN{% endblock %}
+{% block topbar_title %}Clients{% endblock %}
+{% block content %}
+
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px">
+  <div>
+    <div class="page-title" style="margin-bottom:0">👥 Clients</div>
+    <div class="page-sub" style="margin-bottom:0">{{ users|length }} abonné(s)</div>
+  </div>
+  <div class="search-bar">
+    <input type="text" id="searchInput" placeholder="Rechercher nom, email…" oninput="filterTable()">
+  </div>
+</div>
+
+<div class="card-admin">
+  <div class="table-responsive">
+    <table class="table-admin" id="clientsTable">
+      <thead>
+        <tr>
+          <th>Nom / Email</th>
+          <th>Expire le</th>
+          <th>Statut</th>
+          <th>Appareils</th>
+          <th>Tarif</th>
+          <th>Contact</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr data-search="{{ u.nom|lower }} {{ u.email|lower }}">
+          <td>
+            <strong>{{ u.nom }}</strong><br>
+            <small style="color:#888">{{ u.email }}</small>
+          </td>
+          <td>
+            {% if u.date_fin %}
+              {% set diff = (u.date_fin | string) %}
+              <span style="font-size:.85rem">{{ u.date_fin }}</span>
+              {% if u.statut == 'actif' and u.date_fin <= today.isoformat() %}
+                <br><span style="color:#e94560;font-size:.72rem">⚠ Expiré</span>
+              {% elif u.statut == 'actif' and u.date_fin <= (today.isoformat()[:8] ~ '%02d' % (today.day + 7)) %}
+              {% endif %}
+            {% else %}
+              <span style="color:#aaa">—</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if u.statut == 'actif' %}
+              <span class="badge-status badge-actif">Actif</span>
+            {% elif u.statut == 'en_attente' %}
+              <span class="badge-status badge-attente">En attente</span>
+            {% elif u.statut == 'expire' %}
+              <span class="badge-status badge-expire">Expiré</span>
+            {% elif u.statut == 'suspendu' %}
+              <span class="badge-status badge-suspendu">Suspendu</span>
+            {% else %}
+              <span class="badge-status badge-suspendu">{{ u.statut or '—' }}</span>
+            {% endif %}
+          </td>
+          <td>
+            <span style="color:#2ea043;font-weight:700">{{ u.peers_actifs or 0 }}</span>
+            <span style="color:#888"> / {{ u.nb_peers or 0 }}</span>
+          </td>
+          <td>{{ u.montant or '—' }} ₽</td>
+          <td>
+            {% if u.whatsapp %}
+            {% set wa_num = u.whatsapp | replace('+','') | replace(' ','') | replace('-','') %}
+            <a href="https://wa.me/{{ wa_num }}?text=Bonjour%20{{ u.nom | urlencode }}%20!"
+               target="_blank" title="WhatsApp" style="text-decoration:none;margin-right:4px">💬</a>
+            {% endif %}
+            {% if u.telegram %}
+            <a href="https://t.me/{{ u.telegram | replace('@','') }}"
+               target="_blank" title="Telegram" style="text-decoration:none">✈️</a>
+            {% endif %}
+          </td>
+          <td>
+            <a href="{{ url_for('admin_user_detail', uid=u.id) }}" class="btn-admin-outline">Gérer →</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+function filterTable() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  document.querySelectorAll('#clientsTable tbody tr').forEach(tr => {
+    tr.style.display = tr.dataset.search.includes(q) ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

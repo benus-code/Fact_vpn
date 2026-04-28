@@ -508,43 +508,113 @@ def changer_mdp():
 @login_required
 @admin_required
 def admin_panel():
-    db = get_db()
-    users = db.execute("""
-        SELECT u.id, u.nom, u.email,
-               a.date_debut, a.date_fin, a.montant, a.statut,
-               COUNT(p.id) as nb_peers,
-               SUM(CASE WHEN p.actif=1 THEN 1 ELSE 0 END) as peers_actifs
-        FROM users u
-        LEFT JOIN abonnements a ON a.user_id = u.id
-        LEFT JOIN peers p ON p.user_id = u.id
-        WHERE u.is_admin = 0
-        GROUP BY u.id
-        ORDER BY u.nom
-    """).fetchall()
+    db  = get_db()
+    today_str = date.today().isoformat()
+    j7_str    = (date.today() + timedelta(days=7)).isoformat()
+
+    # Stats overview
+    stats = {
+        "total_clients":  db.execute("SELECT COUNT(*) FROM users WHERE is_admin=0").fetchone()[0],
+        "actifs":         db.execute("SELECT COUNT(*) FROM abonnements WHERE statut='actif'").fetchone()[0],
+        "en_attente":     db.execute("SELECT COUNT(*) FROM abonnements WHERE statut='en_attente'").fetchone()[0],
+        "expire_7j":      db.execute("SELECT COUNT(*) FROM abonnements WHERE statut='actif' AND date_fin BETWEEN ? AND ?", (today_str, j7_str)).fetchone()[0],
+        "peers_bloques":  db.execute("SELECT COUNT(*) FROM peers WHERE actif=0").fetchone()[0],
+        "revenus_mois":   db.execute("SELECT COALESCE(SUM(montant),0) FROM paiements WHERE valide=1 AND strftime('%Y-%m', date_paiement) = strftime('%Y-%m', 'now')").fetchone()[0],
+    }
 
     paiements_en_attente = db.execute("""
-        SELECT p.*, u.nom
-        FROM paiements p
-        JOIN users u ON u.id = p.user_id
-        WHERE p.valide = 0
-        ORDER BY p.date_paiement DESC
+        SELECT p.*, u.nom FROM paiements p JOIN users u ON u.id = p.user_id
+        WHERE p.valide = 0 ORDER BY p.date_paiement DESC LIMIT 10
     """).fetchall()
 
     demandes = db.execute("""
         SELECT u.id, u.nom, u.email, u.whatsapp, u.telegram, u.created_at
-        FROM users u
-        JOIN abonnements a ON a.user_id = u.id
+        FROM users u JOIN abonnements a ON a.user_id = u.id
         WHERE u.is_admin = 0 AND a.statut = 'en_attente'
         ORDER BY u.created_at DESC
     """).fetchall()
 
-    return render_template("admin.html",
-        users=users,
+    paiements_recents = db.execute("""
+        SELECT p.montant, p.mois_prolonges, p.date_paiement, p.note, u.nom, u.id as uid
+        FROM paiements p JOIN users u ON u.id = p.user_id
+        WHERE p.valide = 1 ORDER BY p.date_paiement DESC LIMIT 8
+    """).fetchall()
+
+    return render_template("admin_overview.html",
+        stats=stats,
         paiements_en_attente=paiements_en_attente,
+        paiements_recents=paiements_recents,
         demandes=demandes,
+        nb_demandes=len(demandes),
+        nb_paie_attente=len(paiements_en_attente),
         settings=get_settings(),
         today=date.today()
     )
+
+@app.route("/admin/clients")
+@login_required
+@admin_required
+def admin_clients():
+    db = get_db()
+    today_str = date.today().isoformat()
+    users = db.execute("""
+        SELECT u.id, u.nom, u.email, u.whatsapp, u.telegram,
+               a.date_fin, a.montant, a.statut,
+               COUNT(p.id) as nb_peers,
+               SUM(CASE WHEN p.actif=1 THEN 1 ELSE 0 END) as peers_actifs,
+               u.created_at
+        FROM users u
+        LEFT JOIN abonnements a ON a.user_id = u.id
+        LEFT JOIN peers p ON p.user_id = u.id
+        WHERE u.is_admin = 0
+        GROUP BY u.id ORDER BY u.nom
+    """).fetchall()
+    demandes = db.execute("SELECT COUNT(*) FROM abonnements WHERE statut='en_attente'").fetchone()[0]
+    paie_att  = db.execute("SELECT COUNT(*) FROM paiements WHERE valide=0").fetchone()[0]
+    return render_template("admin_clients.html",
+        users=users, today=date.today(),
+        nb_demandes=demandes, nb_paie_attente=paie_att)
+
+@app.route("/admin/paiements")
+@login_required
+@admin_required
+def admin_paiements():
+    db = get_db()
+    en_attente = db.execute("""
+        SELECT p.*, u.nom, u.id as uid FROM paiements p
+        JOIN users u ON u.id = p.user_id
+        WHERE p.valide = 0 ORDER BY p.date_paiement DESC
+    """).fetchall()
+    historique = db.execute("""
+        SELECT p.*, u.nom, u.id as uid FROM paiements p
+        JOIN users u ON u.id = p.user_id
+        WHERE p.valide = 1 ORDER BY p.date_paiement DESC LIMIT 50
+    """).fetchall()
+    demandes = db.execute("SELECT COUNT(*) FROM abonnements WHERE statut='en_attente'").fetchone()[0]
+    return render_template("admin_paiements.html",
+        en_attente=en_attente, historique=historique,
+        nb_demandes=demandes, nb_paie_attente=len(en_attente))
+
+@app.route("/admin/messages")
+@login_required
+@admin_required
+def admin_messages():
+    db = get_db()
+    nb_users = db.execute("SELECT COUNT(*) FROM users WHERE is_admin=0").fetchone()[0]
+    demandes  = db.execute("SELECT COUNT(*) FROM abonnements WHERE statut='en_attente'").fetchone()[0]
+    paie_att  = db.execute("SELECT COUNT(*) FROM paiements WHERE valide=0").fetchone()[0]
+    return render_template("admin_messages.html",
+        nb_users=nb_users, nb_demandes=demandes, nb_paie_attente=paie_att)
+
+@app.route("/admin/parametres")
+@login_required
+@admin_required
+def admin_parametres():
+    db = get_db()
+    demandes = db.execute("SELECT COUNT(*) FROM abonnements WHERE statut='en_attente'").fetchone()[0]
+    paie_att  = db.execute("SELECT COUNT(*) FROM paiements WHERE valide=0").fetchone()[0]
+    return render_template("admin_parametres.html",
+        settings=get_settings(), nb_demandes=demandes, nb_paie_attente=paie_att)
 
 @app.route("/admin/settings/update", methods=["POST"])
 @login_required

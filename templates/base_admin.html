@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Admin — VPN Privé{% endblock %}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    :root {
+      --sidebar-w: 230px;
+      --red:       #e94560;
+      --dark:      #0d1117;
+      --dark2:     #161b22;
+      --dark3:     #21262d;
+      --text-muted-sidebar: #8b949e;
+      --bg-content: #f6f8fa;
+    }
+
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg-content); }
+
+    /* ── Sidebar ── */
+    #sidebar {
+      position: fixed; top: 0; left: 0;
+      width: var(--sidebar-w); height: 100vh;
+      background: var(--dark); display: flex; flex-direction: column;
+      z-index: 1000; overflow-y: auto;
+      transition: transform .25s ease;
+    }
+    .sidebar-brand {
+      padding: 20px 20px 16px;
+      border-bottom: 1px solid var(--dark3);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .sidebar-brand .brand-icon { font-size: 1.5rem; }
+    .sidebar-brand .brand-text { color: #fff; font-weight: 800; font-size: 1rem; line-height: 1.2; }
+    .sidebar-brand .brand-sub  { color: var(--text-muted-sidebar); font-size: .72rem; font-weight: 400; }
+
+    .sidebar-section {
+      padding: 16px 12px 4px;
+      font-size: .68rem; font-weight: 700; letter-spacing: .08em;
+      text-transform: uppercase; color: var(--text-muted-sidebar);
+    }
+    .nav-link-admin {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 20px; color: var(--text-muted-sidebar);
+      text-decoration: none; font-size: .875rem;
+      border-left: 3px solid transparent;
+      transition: all .15s;
+    }
+    .nav-link-admin:hover { color: #fff; background: var(--dark2); }
+    .nav-link-admin.active { color: #fff; border-left-color: var(--red); background: var(--dark2); }
+    .nav-link-admin .nav-icon { font-size: 1rem; width: 20px; text-align: center; flex-shrink: 0; }
+    .nav-badge {
+      margin-left: auto; background: var(--red);
+      color: #fff; font-size: .65rem; font-weight: 700;
+      padding: 2px 7px; border-radius: 20px;
+    }
+
+    .sidebar-footer {
+      margin-top: auto; padding: 16px 20px;
+      border-top: 1px solid var(--dark3);
+      color: var(--text-muted-sidebar); font-size: .78rem;
+    }
+    .sidebar-footer a { color: var(--text-muted-sidebar); text-decoration: none; }
+    .sidebar-footer a:hover { color: var(--red); }
+
+    /* ── Topbar ── */
+    #topbar {
+      position: fixed; top: 0; left: var(--sidebar-w); right: 0;
+      height: 56px; background: #fff;
+      border-bottom: 1px solid #e1e4e8;
+      display: flex; align-items: center; padding: 0 24px;
+      z-index: 999; gap: 12px;
+    }
+    .topbar-hamburger {
+      display: none; background: none; border: none;
+      font-size: 1.3rem; cursor: pointer; color: #555;
+    }
+    .topbar-title { font-weight: 700; color: #1e2535; font-size: .95rem; }
+    .topbar-spacer { flex: 1; }
+    .topbar-admin-chip {
+      background: var(--dark2); color: #fff;
+      padding: 5px 14px; border-radius: 20px;
+      font-size: .8rem; font-weight: 600;
+    }
+    .topbar-logout {
+      color: #666; text-decoration: none; font-size: .82rem;
+      padding: 5px 10px; border-radius: 6px;
+    }
+    .topbar-logout:hover { background: #f3f4f6; color: var(--red); }
+
+    /* ── Content ── */
+    #content {
+      margin-left: var(--sidebar-w);
+      padding: 80px 28px 40px;
+      min-height: 100vh;
+    }
+
+    /* ── Cards ── */
+    .card-admin {
+      background: #fff; border-radius: 10px;
+      border: 1px solid #e1e4e8;
+      box-shadow: 0 1px 4px rgba(0,0,0,.05);
+    }
+    .card-admin .card-header-admin {
+      padding: 16px 20px 12px;
+      border-bottom: 1px solid #f0f2f4;
+      font-weight: 700; font-size: .92rem; color: #1e2535;
+      display: flex; align-items: center; gap: 8px;
+    }
+
+    /* ── Stat cards ── */
+    .stat-card {
+      background: #fff; border-radius: 10px;
+      border: 1px solid #e1e4e8;
+      padding: 20px 22px;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .stat-card .stat-label { font-size: .78rem; color: #666; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+    .stat-card .stat-value { font-size: 2rem; font-weight: 800; color: #1e2535; line-height: 1; }
+    .stat-card .stat-icon  { font-size: 1.6rem; }
+    .stat-card .stat-sub   { font-size: .75rem; color: #888; margin-top: 2px; }
+    .stat-card.red   { border-left: 4px solid var(--red); }
+    .stat-card.green { border-left: 4px solid #2ea043; }
+    .stat-card.orange{ border-left: 4px solid #f79000; }
+    .stat-card.blue  { border-left: 4px solid #1f6feb; }
+    .stat-card.purple{ border-left: 4px solid #8957e5; }
+    .stat-card.gray  { border-left: 4px solid #6e7681; }
+
+    /* ── Tables ── */
+    .table-admin { width: 100%; border-collapse: separate; border-spacing: 0; }
+    .table-admin thead th {
+      background: #f6f8fa; padding: 10px 14px;
+      font-size: .75rem; font-weight: 700; color: #57606a;
+      text-transform: uppercase; letter-spacing: .05em;
+      border-bottom: 1px solid #e1e4e8; white-space: nowrap;
+    }
+    .table-admin tbody td {
+      padding: 11px 14px; border-bottom: 1px solid #f0f2f4;
+      font-size: .865rem; vertical-align: middle;
+    }
+    .table-admin tbody tr:last-child td { border-bottom: none; }
+    .table-admin tbody tr:hover td { background: #f9fafb; }
+
+    /* ── Badges ── */
+    .badge-status { padding: 3px 10px; border-radius: 20px; font-size: .72rem; font-weight: 700; }
+    .badge-actif    { background: rgba(46,160,67,.12); color: #2ea043; border: 1px solid rgba(46,160,67,.3); }
+    .badge-expire   { background: rgba(233,69,96,.12);  color: var(--red); border: 1px solid rgba(233,69,96,.3); }
+    .badge-attente  { background: rgba(247,144,0,.12); color: #f79000; border: 1px solid rgba(247,144,0,.3); }
+    .badge-suspendu { background: rgba(110,118,129,.12); color: #6e7681; border: 1px solid rgba(110,118,129,.3); }
+    .badge-pivpn    { background: rgba(31,111,235,.12); color: #1f6feb; border: 1px solid rgba(31,111,235,.3); }
+    .badge-amnezia  { background: rgba(137,87,229,.12); color: #8957e5; border: 1px solid rgba(137,87,229,.3); }
+
+    /* ── Buttons ── */
+    .btn-admin-primary {
+      background: var(--red); color: #fff; border: none;
+      padding: 7px 16px; border-radius: 6px; font-size: .83rem; font-weight: 600;
+      cursor: pointer; text-decoration: none; display: inline-block;
+      transition: opacity .15s;
+    }
+    .btn-admin-primary:hover { opacity: .88; color: #fff; }
+    .btn-admin-outline {
+      background: transparent; color: #555;
+      border: 1px solid #d0d7de; padding: 5px 12px;
+      border-radius: 6px; font-size: .8rem; font-weight: 600;
+      cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 5px;
+      transition: all .15s;
+    }
+    .btn-admin-outline:hover { border-color: #888; color: #222; }
+    .btn-admin-danger {
+      background: rgba(233,69,96,.1); color: var(--red);
+      border: 1px solid rgba(233,69,96,.3); padding: 5px 12px;
+      border-radius: 6px; font-size: .8rem; font-weight: 600;
+      cursor: pointer; transition: all .15s;
+    }
+    .btn-admin-danger:hover { background: var(--red); color: #fff; }
+
+    /* ── Page title ── */
+    .page-title { font-size: 1.35rem; font-weight: 800; color: #1e2535; margin-bottom: 4px; }
+    .page-sub   { font-size: .85rem; color: #666; margin-bottom: 24px; }
+
+    /* ── Forms ── */
+    .form-admin input, .form-admin select, .form-admin textarea {
+      border: 1px solid #d0d7de; border-radius: 6px;
+      padding: 7px 11px; font-size: .85rem; width: 100%;
+      background: #fff; color: #1e2535;
+      transition: border-color .15s;
+    }
+    .form-admin input:focus, .form-admin select:focus, .form-admin textarea:focus {
+      outline: none; border-color: var(--red);
+      box-shadow: 0 0 0 3px rgba(233,69,96,.12);
+    }
+    .form-admin label { font-size: .78rem; font-weight: 600; color: #57606a; margin-bottom: 4px; display: block; }
+
+    /* ── Flash messages ── */
+    .flash-bar {
+      padding: 10px 16px; border-radius: 8px; font-size: .86rem;
+      margin-bottom: 16px; display: flex; align-items: center; gap: 8px;
+    }
+    .flash-success { background: rgba(46,160,67,.1); color: #1a7f37; border: 1px solid rgba(46,160,67,.25); }
+    .flash-danger  { background: rgba(233,69,96,.1);  color: #cf222e; border: 1px solid rgba(233,69,96,.25); }
+    .flash-warning { background: rgba(247,144,0,.1);  color: #b35900; border: 1px solid rgba(247,144,0,.25); }
+    .flash-info    { background: rgba(31,111,235,.1);  color: #0550ae; border: 1px solid rgba(31,111,235,.25); }
+
+    /* ── Search bar ── */
+    .search-bar {
+      position: relative; max-width: 300px;
+    }
+    .search-bar input {
+      padding-left: 32px; border: 1px solid #d0d7de;
+      border-radius: 6px; font-size: .85rem; height: 34px; width: 100%;
+    }
+    .search-bar::before {
+      content: '🔍'; position: absolute; left: 9px; top: 50%;
+      transform: translateY(-50%); font-size: .8rem; pointer-events: none;
+    }
+
+    /* ── Mobile ── */
+    @media (max-width: 768px) {
+      #sidebar { transform: translateX(-100%); }
+      #sidebar.open { transform: translateX(0); }
+      #topbar { left: 0; }
+      #content { margin-left: 0; padding: 72px 16px 32px; }
+      .topbar-hamburger { display: block; }
+      .stat-card .stat-value { font-size: 1.5rem; }
+    }
+
+    /* ── Overlay mobile ── */
+    #sidebar-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.5); z-index: 999;
+    }
+    #sidebar-overlay.show { display: block; }
+  </style>
+</head>
+<body>
+
+{# ── Sidebar ── #}
+<nav id="sidebar">
+  <div class="sidebar-brand">
+    <span class="brand-icon">🔐</span>
+    <div>
+      <div class="brand-text">VPN Privé</div>
+      <div class="brand-sub">Administration</div>
+    </div>
+  </div>
+
+  <div class="sidebar-section">Navigation</div>
+
+  <a href="{{ url_for('admin_panel') }}"
+     class="nav-link-admin {% if request.endpoint == 'admin_panel' %}active{% endif %}">
+    <span class="nav-icon">📊</span> Vue d'ensemble
+  </a>
+  <a href="{{ url_for('admin_clients') }}"
+     class="nav-link-admin {% if request.endpoint == 'admin_clients' %}active{% endif %}">
+    <span class="nav-icon">👥</span> Clients
+    {% if nb_demandes is defined and nb_demandes > 0 %}
+      <span class="nav-badge">{{ nb_demandes }}</span>
+    {% endif %}
+  </a>
+  <a href="{{ url_for('admin_paiements') }}"
+     class="nav-link-admin {% if request.endpoint == 'admin_paiements' %}active{% endif %}">
+    <span class="nav-icon">💳</span> Paiements
+    {% if nb_paie_attente is defined and nb_paie_attente > 0 %}
+      <span class="nav-badge">{{ nb_paie_attente }}</span>
+    {% endif %}
+  </a>
+  <a href="{{ url_for('admin_messages') }}"
+     class="nav-link-admin {% if request.endpoint == 'admin_messages' %}active{% endif %}">
+    <span class="nav-icon">📢</span> Messages
+  </a>
+
+  <div class="sidebar-section">Configuration</div>
+
+  <a href="{{ url_for('admin_parametres') }}"
+     class="nav-link-admin {% if request.endpoint == 'admin_parametres' %}active{% endif %}">
+    <span class="nav-icon">⚙️</span> Paramètres
+  </a>
+  <a href="{{ url_for('dashboard') }}" class="nav-link-admin">
+    <span class="nav-icon">↗</span> Espace abonné
+  </a>
+
+  <div class="sidebar-footer">
+    <div>{{ session.get('user_nom', 'Admin') }}</div>
+    <a href="{{ url_for('logout') }}">Se déconnecter →</a>
+  </div>
+</nav>
+
+<div id="sidebar-overlay" onclick="closeSidebar()"></div>
+
+{# ── Topbar ── #}
+<header id="topbar">
+  <button class="topbar-hamburger" onclick="toggleSidebar()">☰</button>
+  <span class="topbar-title">{% block topbar_title %}Admin{% endblock %}</span>
+  <div class="topbar-spacer"></div>
+  <span class="topbar-admin-chip">{{ session.get('user_nom', 'Admin') }}</span>
+  <a href="{{ url_for('logout') }}" class="topbar-logout">Déconnexion</a>
+</header>
+
+{# ── Content ── #}
+<main id="content">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+      <div class="flash-bar flash-{{ category }}">{{ message }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  {% block content %}{% endblock %}
+</main>
+
+<script>
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebar-overlay').classList.toggle('show');
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebar-overlay').classList.remove('show');
+}
+// Prevent double submit
+document.querySelectorAll('form').forEach(f => {
+  f.addEventListener('submit', () => {
+    setTimeout(() => f.querySelectorAll('[type=submit]').forEach(b => b.disabled = true), 0);
+  });
+});
+</script>
+</body>
+</html>

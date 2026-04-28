@@ -1,0 +1,38 @@
+{% extends "base_admin.html" %}
+{% block title %}Messages — Admin VPN{% endblock %}
+{% block topbar_title %}Messages{% endblock %}
+{% block content %}
+
+<div class="page-title">📢 Messages</div>
+<div class="page-sub">Diffuser un message à tous les abonnés ({{ nb_users }} clients)</div>
+
+<div class="card-admin" style="max-width:680px">
+  <div class="card-header-admin">📤 Nouveau message</div>
+  <div style="padding:20px">
+    <form method="POST" action="{{ url_for('admin_broadcast') }}" class="form-admin">
+      <div class="mb-3">
+        <label>Sujet (pour les emails)</label>
+        <input type="text" name="subject" placeholder="ex: Maintenance le 20 mai" required>
+      </div>
+      <div class="mb-3">
+        <label>Canal d'envoi</label>
+        <select name="channel">
+          <option value="email">📧 Email uniquement</option>
+          <option value="both">📧 Email + ✈️ Telegram (admin)</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label>Message</label>
+        <textarea name="message" rows="5"
+          placeholder="Votre message pour tous les abonnés..." required
+          style="resize:vertical"></textarea>
+      </div>
+      <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+        <button type="submit" class="btn-admin-primary">Envoyer à tous →</button>
+        <small style="color:#888">⚠ Les adresses @vpn.local sont ignorées automatiquement.</small>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}

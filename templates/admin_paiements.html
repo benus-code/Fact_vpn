@@ -1,0 +1,63 @@
+{% extends "base_admin.html" %}
+{% block title %}Paiements — Admin VPN{% endblock %}
+{% block topbar_title %}Paiements{% endblock %}
+{% block content %}
+
+<div class="page-title">💳 Paiements</div>
+<div class="page-sub">Validation et historique</div>
+
+{% if en_attente %}
+<div class="card-admin mb-3" style="border-left:4px solid #f79000">
+  <div class="card-header-admin" style="color:#f79000">
+    ⏳ En attente de validation
+    <span class="nav-badge ms-1" style="background:#f79000">{{ en_attente|length }}</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table-admin">
+      <thead><tr><th>Client</th><th>Montant</th><th>Mois</th><th>Date</th><th>Note</th><th></th></tr></thead>
+      <tbody>
+        {% for p in en_attente %}
+        <tr>
+          <td><a href="{{ url_for('admin_user_detail', uid=p.uid) }}" style="font-weight:600;color:inherit">{{ p.nom }}</a></td>
+          <td><strong>{{ p.montant }} ₽</strong></td>
+          <td>{{ p.mois_prolonges }}</td>
+          <td style="font-size:.82rem;color:#888">{{ p.date_paiement[:10] }}</td>
+          <td style="font-size:.82rem;color:#888">{{ p.note or '—' }}</td>
+          <td><a href="{{ url_for('admin_user_detail', uid=p.uid) }}" class="btn-admin-outline">Valider →</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div class="card-admin mb-3" style="padding:20px;text-align:center;color:#888">
+  ✅ Aucun paiement en attente
+</div>
+{% endif %}
+
+<div class="card-admin">
+  <div class="card-header-admin">📋 Historique (50 derniers)</div>
+  {% if historique %}
+  <div class="table-responsive">
+    <table class="table-admin">
+      <thead><tr><th>Client</th><th>Montant</th><th>Mois</th><th>Date</th><th>Note</th></tr></thead>
+      <tbody>
+        {% for p in historique %}
+        <tr>
+          <td><a href="{{ url_for('admin_user_detail', uid=p.uid) }}" style="color:inherit;font-weight:600">{{ p.nom }}</a></td>
+          <td>{{ p.montant }} ₽</td>
+          <td>{{ p.mois_prolonges }}</td>
+          <td style="font-size:.82rem;color:#888">{{ p.date_paiement[:10] }}</td>
+          <td style="font-size:.82rem;color:#888">{{ p.note or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div style="padding:24px;text-align:center;color:#888">Aucun paiement validé.</div>
+  {% endif %}
+</div>
+
+{% endblock %}

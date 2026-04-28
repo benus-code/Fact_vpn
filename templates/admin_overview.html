@@ -1,0 +1,178 @@
+{% extends "base_admin.html" %}
+{% block title %}Vue d'ensemble — Admin VPN{% endblock %}
+{% block topbar_title %}Vue d'ensemble{% endblock %}
+{% block content %}
+
+<div class="page-title">📊 Vue d'ensemble</div>
+<div class="page-sub">Tableau de bord en temps réel</div>
+
+{# ── Stats cards ── #}
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="stat-card blue">
+      <div class="stat-icon">👥</div>
+      <div class="stat-value">{{ stats.total_clients }}</div>
+      <div class="stat-label">Clients</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="stat-card green">
+      <div class="stat-icon">✅</div>
+      <div class="stat-value">{{ stats.actifs }}</div>
+      <div class="stat-label">Actifs</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="stat-card orange">
+      <div class="stat-icon">⏳</div>
+      <div class="stat-value">{{ stats.en_attente }}</div>
+      <div class="stat-label">En attente</div>
+      {% if stats.en_attente > 0 %}
+      <div class="stat-sub"><a href="{{ url_for('admin_clients') }}" style="color:inherit">Voir →</a></div>
+      {% endif %}
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="stat-card red">
+      <div class="stat-icon">⚠️</div>
+      <div class="stat-value">{{ stats.expire_7j }}</div>
+      <div class="stat-label">Expire ≤ 7j</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="stat-card purple">
+      <div class="stat-icon">💰</div>
+      <div class="stat-value">{{ stats.revenus_mois | int }} ₽</div>
+      <div class="stat-label">Revenus mois</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="stat-card gray">
+      <div class="stat-icon">🔴</div>
+      <div class="stat-value">{{ stats.peers_bloques }}</div>
+      <div class="stat-label">Accès bloqués</div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+
+  {# ── Demandes en attente ── #}
+  <div class="col-lg-6">
+    <div class="card-admin">
+      <div class="card-header-admin">
+        🆕 Nouvelles demandes
+        {% if demandes %}<span class="nav-badge ms-1">{{ demandes|length }}</span>{% endif %}
+      </div>
+      {% if demandes %}
+      <div class="table-responsive">
+        <table class="table-admin">
+          <thead><tr><th>Nom</th><th>Contact</th><th>Date</th><th></th></tr></thead>
+          <tbody>
+            {% for d in demandes %}
+            <tr>
+              <td>
+                <strong>{{ d.nom }}</strong><br>
+                <small style="color:#888">{{ d.email }}</small>
+              </td>
+              <td>
+                {% if d.whatsapp %}<span title="WA">📱 {{ d.whatsapp }}</span>{% endif %}
+                {% if d.telegram %}<br><span title="TG">✈️ {{ d.telegram }}</span>{% endif %}
+                {% if not d.whatsapp and not d.telegram %}<span style="color:#aaa">—</span>{% endif %}
+              </td>
+              <td style="color:#888;font-size:.8rem">{{ d.created_at[:10] if d.created_at else '—' }}</td>
+              <td><a href="{{ url_for('admin_user_detail', uid=d.id) }}" class="btn-admin-outline">Gérer</a></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div style="padding:24px;text-align:center;color:#888;font-size:.88rem;">
+        Aucune demande en attente ✅
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── Paiements en attente ── #}
+  <div class="col-lg-6">
+    <div class="card-admin">
+      <div class="card-header-admin">
+        💳 Paiements à valider
+        {% if paiements_en_attente %}<span class="nav-badge ms-1">{{ paiements_en_attente|length }}</span>{% endif %}
+      </div>
+      {% if paiements_en_attente %}
+      <div class="table-responsive">
+        <table class="table-admin">
+          <thead><tr><th>Client</th><th>Montant</th><th>Date</th><th></th></tr></thead>
+          <tbody>
+            {% for p in paiements_en_attente %}
+            <tr>
+              <td><strong>{{ p.nom }}</strong></td>
+              <td><strong>{{ p.montant }} ₽</strong> / {{ p.mois_prolonges }}m</td>
+              <td style="color:#888;font-size:.8rem">{{ p.date_paiement[:10] }}</td>
+              <td><a href="{{ url_for('admin_user_detail', uid=p.user_id) }}" class="btn-admin-outline">Valider</a></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div style="padding:24px;text-align:center;color:#888;font-size:.88rem;">
+        Aucun paiement en attente ✅
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── Paiements récents ── #}
+  <div class="col-12">
+    <div class="card-admin">
+      <div class="card-header-admin" style="justify-content:space-between">
+        <span>💰 Paiements récents validés</span>
+        <a href="{{ url_for('admin_paiements') }}" style="font-size:.8rem;color:#888;text-decoration:none">Tout voir →</a>
+      </div>
+      {% if paiements_recents %}
+      <div class="table-responsive">
+        <table class="table-admin">
+          <thead><tr><th>Client</th><th>Montant</th><th>Mois</th><th>Date</th><th>Note</th></tr></thead>
+          <tbody>
+            {% for p in paiements_recents %}
+            <tr>
+              <td><a href="{{ url_for('admin_user_detail', uid=p.uid) }}" style="color:inherit;font-weight:600">{{ p.nom }}</a></td>
+              <td><strong>{{ p.montant }} ₽</strong></td>
+              <td>{{ p.mois_prolonges }}m</td>
+              <td style="color:#888;font-size:.8rem">{{ p.date_paiement[:10] }}</td>
+              <td style="color:#888;font-size:.8rem">{{ p.note or '—' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div style="padding:24px;text-align:center;color:#888;font-size:.88rem;">Aucun paiement encore.</div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+
+{# ── Créer un utilisateur ── #}
+<div class="card-admin mt-3">
+  <div class="card-header-admin">➕ Créer un utilisateur</div>
+  <div style="padding:16px 20px">
+    <form method="POST" action="{{ url_for('admin_creer_user') }}" class="form-admin">
+      <div class="row g-2 align-items-end">
+        <div class="col-md-2"><label>Nom complet</label><input type="text" name="nom" placeholder="Ivan Petrov" required></div>
+        <div class="col-md-2"><label>Email</label><input type="email" name="email" placeholder="ivan@mail.ru" required></div>
+        <div class="col-md-2"><label>Mot de passe</label><input type="text" name="password" placeholder="mot de passe" required></div>
+        <div class="col-md-2"><label>WhatsApp</label><input type="text" name="whatsapp" placeholder="+7 9XX XXX-XX-XX"></div>
+        <div class="col-md-2"><label>Telegram</label><input type="text" name="telegram" placeholder="@username"></div>
+        <div class="col-md-2"><label>&nbsp;</label><button type="submit" class="btn-admin-primary w-100">Créer</button></div>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}

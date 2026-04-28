@@ -1,17 +1,11 @@
-{% extends "base.html" %}
+{% extends "base_admin.html" %}
 {% block title %}{{ user.nom }} — Admin{% endblock %}
+{% block topbar_title %}{{ user.nom }}{% endblock %}
 {% block content %}
-<nav aria-label="Fil d'Ariane" class="mb-2">
-  <ol class="breadcrumb mb-0">
-    <li class="breadcrumb-item"><a href="{{ url_for('dashboard') }}">Espace</a></li>
-    <li class="breadcrumb-item"><a href="{{ url_for('admin_panel') }}">Admin</a></li>
-    <li class="breadcrumb-item active" aria-current="page">{{ user.nom }}</li>
-  </ol>
-</nav>
-<div class="d-flex align-items-center gap-3 mb-4 flex-wrap">
-  <a href="{{ url_for('admin_panel') }}" class="btn btn-outline-secondary btn-sm">← Retour</a>
-  <h4 class="fw-bold mb-0">{{ user.nom }}</h4>
-  <span class="text-muted small">{{ user.email }}</span>
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap">
+  <a href="{{ url_for('admin_clients') }}" class="btn-admin-outline">← Clients</a>
+  <div class="page-title" style="margin-bottom:0">{{ user.nom }}</div>
+  <span style="color:#888;font-size:.87rem">{{ user.email }}</span>
   {% if user.whatsapp %}
   {% set wa_num = user.whatsapp | replace('+','') | replace(' ','') | replace('-','') %}
     <a href="https://wa.me/{{ wa_num }}"
@@ -53,189 +47,160 @@
   {% endif %}
 </div>
 
-<div class="row g-4">
+<div class="row g-3">
 
   {# ── Abonnement ── #}
   <div class="col-md-6">
-    <div class="card p-4">
-      <h6 class="fw-bold mb-3">📅 Abonnement</h6>
-      {% if abo %}
-        <p class="mb-1">Début : {{ abo.date_debut or '—' }}</p>
-        <p class="mb-1">Fin : <strong>{{ abo.date_fin or '—' }}</strong></p>
-        <p class="mb-3">Tarif : {{ abo.montant }} ₽ / mois &nbsp;|&nbsp; Statut :
-          <span class="badge {% if abo.statut == 'actif' %}bg-success{% elif abo.statut == 'suspendu' %}bg-warning text-dark{% else %}bg-danger{% endif %}">
-            {{ abo.statut }}
+    <div class="card-admin">
+      <div class="card-header-admin">📅 Abonnement</div>
+      <div style="padding:16px 20px" class="form-admin">
+        {% if abo %}
+        <div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:14px;font-size:.88rem">
+          <span>Début : <strong>{{ abo.date_debut or '—' }}</strong></span>
+          <span>Fin : <strong>{{ abo.date_fin or '—' }}</strong></span>
+          <span>Tarif : <strong>{{ abo.montant }} ₽/mois</strong></span>
+          <span>
+            {% if abo.statut == 'actif' %}<span class="badge-status badge-actif">Actif</span>
+            {% elif abo.statut == 'expire' %}<span class="badge-status badge-expire">Expiré</span>
+            {% elif abo.statut == 'en_attente' %}<span class="badge-status badge-attente">En attente</span>
+            {% else %}<span class="badge-status badge-suspendu">{{ abo.statut }}</span>{% endif %}
           </span>
-        </p>
-      {% endif %}
-      <hr>
-      <h6 class="mb-2">Modifier l'abonnement</h6>
-      <form method="POST" action="{{ url_for('admin_modifier_abo') }}" class="row g-2">
-        <input type="hidden" name="user_id" value="{{ user.id }}">
-        <div class="col-6">
-          <label class="form-label small">Date de fin</label>
-          <input type="date" name="date_fin" class="form-control form-control-sm"
-                 value="{{ abo.date_fin or '' }}" required>
         </div>
-        <div class="col-4">
-          <label class="form-label small">Tarif (₽)</label>
-          <input type="number" step="1" name="montant" class="form-control form-control-sm"
-                 value="{{ abo.montant or 100 }}" required>
-        </div>
-        <div class="col-12">
-          <button class="btn btn-sm btn-primary">Enregistrer</button>
-        </div>
-      </form>
+        {% endif %}
+        <form method="POST" action="{{ url_for('admin_modifier_abo') }}">
+          <input type="hidden" name="user_id" value="{{ user.id }}">
+          <div class="row g-2 align-items-end">
+            <div class="col-6"><label>Date de fin</label><input type="date" name="date_fin" value="{{ abo.date_fin or '' }}" required></div>
+            <div class="col-3"><label>Tarif (₽)</label><input type="number" step="1" name="montant" value="{{ abo.montant or 100 }}" required></div>
+            <div class="col-3"><label>&nbsp;</label><button type="submit" class="btn-admin-primary w-100">Enregistrer</button></div>
+          </div>
+        </form>
+      </div>
     </div>
   </div>
 
   {# ── Ajouter paiement ── #}
   <div class="col-md-6">
-    <div class="card p-4">
-      <h6 class="fw-bold mb-3">💳 Enregistrer un paiement</h6>
-      <form method="POST" action="{{ url_for('admin_ajouter_paiement') }}" class="row g-2">
-        <input type="hidden" name="user_id" value="{{ user.id }}">
-        <div class="col-5">
-          <label class="form-label small">Montant (₽)</label>
-          <input type="number" step="1" name="montant" class="form-control form-control-sm"
-                 value="{{ abo.montant or 100 }}" required>
-        </div>
-        <div class="col-3">
-          <label class="form-label small">Mois</label>
-          <input type="number" name="mois" class="form-control form-control-sm" value="1" min="1" max="12" required>
-        </div>
-        <div class="col-12">
-          <label class="form-label small">Note (optionnel)</label>
-          <input type="text" name="note" class="form-control form-control-sm" placeholder="ex: virement 01/03">
-        </div>
-        <div class="col-12 d-flex gap-2 mt-1">
-          <button class="btn btn-sm btn-success">✅ Valider le paiement</button>
-          <form method="POST" action="{{ url_for('admin_suspendre_tout', uid=user.id) }}"
-                onsubmit="return confirm('Suspendre tous les accès de {{ user.nom }} ?')">
-            <button class="btn btn-sm btn-danger">🚫 Tout suspendre</button>
-          </form>
-        </div>
-      </form>
+    <div class="card-admin">
+      <div class="card-header-admin">💳 Enregistrer un paiement</div>
+      <div style="padding:16px 20px" class="form-admin">
+        <form method="POST" action="{{ url_for('admin_ajouter_paiement') }}">
+          <input type="hidden" name="user_id" value="{{ user.id }}">
+          <div class="row g-2 align-items-end">
+            <div class="col-4"><label>Montant (₽)</label><input type="number" step="1" name="montant" value="{{ abo.montant or 100 }}" required></div>
+            <div class="col-3"><label>Mois</label><input type="number" name="mois" value="1" min="1" max="12" required></div>
+            <div class="col-5"><label>Note (optionnel)</label><input type="text" name="note" placeholder="ex: virement 01/03"></div>
+            <div class="col-6">
+              <button type="submit" class="btn-admin-primary w-100">✅ Valider le paiement</button>
+            </div>
+            <div class="col-6">
+              <form method="POST" action="{{ url_for('admin_suspendre_tout', uid=user.id) }}"
+                    onsubmit="return confirm('Suspendre tous les accès de {{ user.nom }} ?')">
+                <button type="submit" class="btn-admin-danger w-100">🚫 Tout suspendre</button>
+              </form>
+            </div>
+          </div>
+        </form>
+      </div>
     </div>
   </div>
 
   {# ── Peers / appareils ── #}
   <div class="col-12">
-    <div class="card p-4">
-      <h6 class="fw-bold mb-3">📱 Appareils ({{ peers|length }})</h6>
-
+    <div class="card-admin">
+      <div class="card-header-admin">📱 Appareils ({{ peers|length }})</div>
       {% if peers %}
-      <table class="table table-sm align-middle mb-4">
-        <thead class="table-light">
-          <tr>
-            <th>Label</th>
-            <th>Type</th>
-            <th>IP VPN</th>
-            <th>Ajouté le</th>
-            <th>Statut</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for p in peers %}
-          <tr>
-            <td><strong>{{ p.label }}</strong></td>
-            <td>
-              {% if p.vpn_type == 'pivpn' %}
-                <span class="badge bg-info text-dark">💻 PiVPN</span>
-              {% else %}
-                <span class="badge bg-secondary">📱 Amnezia</span>
-              {% endif %}
-            </td>
-            <td><code>{{ p.ip_vpn }}</code></td>
-            <td class="text-muted small">{{ p.date_ajout or '—' }}</td>
-            <td>
-              <span class="peer-badge {% if p.actif %}peer-on{% else %}peer-off{% endif %}">
-                {% if p.actif %}Actif{% else %}Suspendu{% endif %}
-              </span>
-            </td>
-            <td class="d-flex gap-1 flex-wrap">
-              {% if p.actif %}
-              <form method="POST" action="{{ url_for('admin_suspendre_peer', peer_id=p.id) }}">
-                <button class="btn btn-outline-warning btn-sm py-0 px-2">Suspendre</button>
-              </form>
-              {% else %}
-              <form method="POST" action="{{ url_for('admin_reactiver_peer', peer_id=p.id) }}">
-                <button class="btn btn-outline-success btn-sm py-0 px-2">Réactiver</button>
-              </form>
-              {% endif %}
-              {% if p.vpn_type == 'pivpn' %}
-              <a href="{{ url_for('admin_peer_config', peer_id=p.id) }}"
-                 class="btn btn-outline-info btn-sm py-0 px-2" title="Télécharger la config">⬇ .conf</a>
-              {% endif %}
-              <form method="POST" action="{{ url_for('admin_supprimer_peer', peer_id=p.id) }}"
-                    onsubmit="return confirm('Supprimer {{ p.label }} ({{ p.ip_vpn }}) définitivement ?')">
-                <button class="btn btn-outline-danger btn-sm py-0 px-2">Supprimer</button>
-              </form>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+      <div class="table-responsive">
+        <table class="table-admin">
+          <thead><tr><th>Label</th><th>Type</th><th>IP VPN</th><th>Ajouté le</th><th>Statut</th><th>Actions</th></tr></thead>
+          <tbody>
+            {% for p in peers %}
+            <tr>
+              <td><strong>{{ p.label }}</strong></td>
+              <td>
+                {% if p.vpn_type == 'pivpn' %}
+                  <span class="badge-status badge-pivpn">💻 PiVPN</span>
+                {% else %}
+                  <span class="badge-status badge-amnezia">📱 Amnezia</span>
+                {% endif %}
+              </td>
+              <td><code style="font-size:.82rem;color:#555">{{ p.ip_vpn }}</code></td>
+              <td style="color:#888;font-size:.82rem">{{ p.date_ajout or '—' }}</td>
+              <td>
+                {% if p.actif %}<span class="badge-status badge-actif">Actif</span>
+                {% else %}<span class="badge-status badge-suspendu">Suspendu</span>{% endif %}
+              </td>
+              <td>
+                <div style="display:flex;gap:6px;flex-wrap:wrap">
+                  {% if p.actif %}
+                  <form method="POST" action="{{ url_for('admin_suspendre_peer', peer_id=p.id) }}">
+                    <button class="btn-admin-outline" style="color:#f79000;border-color:#f79000">Suspendre</button>
+                  </form>
+                  {% else %}
+                  <form method="POST" action="{{ url_for('admin_reactiver_peer', peer_id=p.id) }}">
+                    <button class="btn-admin-outline" style="color:#2ea043;border-color:#2ea043">Réactiver</button>
+                  </form>
+                  {% endif %}
+                  {% if p.vpn_type == 'pivpn' %}
+                  <a href="{{ url_for('admin_peer_config', peer_id=p.id) }}" class="btn-admin-outline">⬇ .conf</a>
+                  {% endif %}
+                  <form method="POST" action="{{ url_for('admin_supprimer_peer', peer_id=p.id) }}"
+                        onsubmit="return confirm('Supprimer {{ p.label }} définitivement ?')">
+                    <button class="btn-admin-danger">Supprimer</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
       {% else %}
-      <p class="text-muted small">Aucun appareil enregistré pour cet utilisateur.</p>
+      <div style="padding:20px;color:#888;font-size:.88rem">Aucun appareil enregistré.</div>
       {% endif %}
 
-      {# ── Formulaire ajout appareil ── #}
-      <hr>
-      <h6 class="mb-2">➕ Ajouter un appareil</h6>
-      <form method="POST" action="{{ url_for('admin_ajouter_peer') }}" class="row g-2 align-items-end">
-        <input type="hidden" name="user_id" value="{{ user.id }}">
-        <div class="col-md-3">
-          <label class="form-label small">Label <span class="text-danger">*</span></label>
-          <input type="text" name="label" class="form-control form-control-sm"
-                 placeholder="ex: phone1, laptop" required>
-        </div>
-        <div class="col-md-3">
-          <label class="form-label small">IP VPN <span class="text-danger">*</span></label>
-          <input type="text" name="ip_vpn" class="form-control form-control-sm"
-                 placeholder="ex: 10.8.1.53" required
-                 pattern="^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$"
-                 title="Format attendu : 10.8.1.X">
-        </div>
-        <div class="col-md-2">
-          <label class="form-label small">Type VPN</label>
-          <select name="vpn_type" class="form-select form-select-sm">
-            <option value="amnezia">📱 Amnezia (mobile)</option>
-            <option value="pivpn">💻 PiVPN (PC)</option>
-          </select>
-        </div>
-        <div class="col-md-2">
-          <label class="form-label small">Date d'ajout</label>
-          <input type="date" name="date_ajout" class="form-control form-control-sm"
-                 value="{{ today.isoformat() }}">
-        </div>
-        <div class="col-md-2">
-          <label class="form-label small">&nbsp;</label>
-          <button class="btn btn-sm btn-primary w-100 d-block">Ajouter</button>
-        </div>
-      </form>
+      {# ── Ajouter appareil ── #}
+      <div style="padding:16px 20px;border-top:1px solid #f0f2f4" class="form-admin">
+        <div style="font-weight:700;font-size:.88rem;margin-bottom:10px;color:#555">➕ Ajouter un appareil</div>
+        <form method="POST" action="{{ url_for('admin_ajouter_peer') }}">
+          <input type="hidden" name="user_id" value="{{ user.id }}">
+          <div class="row g-2 align-items-end">
+            <div class="col-md-3"><label>Label *</label><input type="text" name="label" placeholder="ex: phone1, laptop" required></div>
+            <div class="col-md-3"><label>IP VPN *</label><input type="text" name="ip_vpn" placeholder="10.8.1.53" required pattern="^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$"></div>
+            <div class="col-md-2"><label>Type VPN</label>
+              <select name="vpn_type">
+                <option value="amnezia">📱 Amnezia</option>
+                <option value="pivpn">💻 PiVPN</option>
+              </select>
+            </div>
+            <div class="col-md-2"><label>Date d'ajout</label><input type="date" name="date_ajout" value="{{ today.isoformat() }}"></div>
+            <div class="col-md-2"><label>&nbsp;</label><button type="submit" class="btn-admin-primary w-100">Ajouter</button></div>
+          </div>
+        </form>
+      </div>
     </div>
   </div>
 
   {# ── Historique paiements ── #}
   {% if histo %}
   <div class="col-12">
-    <div class="card p-4">
-      <h6 class="fw-bold mb-3">📋 Historique des paiements</h6>
-      <table class="table table-sm">
-        <thead><tr><th>Date</th><th>Montant</th><th>Mois</th><th>Note</th></tr></thead>
-        <tbody>
-          {% for p in histo %}
-          <tr>
-            <td>{{ p.date_paiement[:10] }}</td>
-            <td>{{ p.montant }} ₽</td>
-            <td>{{ p.mois_prolonges }}</td>
-            <td class="text-muted small">{{ p.note or '' }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+    <div class="card-admin">
+      <div class="card-header-admin">📋 Historique des paiements</div>
+      <div class="table-responsive">
+        <table class="table-admin">
+          <thead><tr><th>Date</th><th>Montant</th><th>Mois</th><th>Note</th></tr></thead>
+          <tbody>
+            {% for p in histo %}
+            <tr>
+              <td style="font-size:.85rem">{{ p.date_paiement[:10] }}</td>
+              <td>{{ p.montant }} ₽</td>
+              <td>{{ p.mois_prolonges }}</td>
+              <td style="color:#888;font-size:.82rem">{{ p.note or '—' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
   {% endif %}
