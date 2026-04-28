@@ -183,18 +183,37 @@ def notify_telegram(message):
         app.logger.warning(f"Telegram notify failed: {e}")
 
 def send_email(to_email, subject, body_html, user_id=None, template_type="misc"):
-    """Envoie via Gmail SMTP (port 587 STARTTLS). Ignore tout domaine .local* et les configs vides."""
+    """
+    Envoie un email via Brevo API (si clé configurée) ou Gmail SMTP en fallback.
+    Brevo est prioritaire — c'est le vrai canal d'envoi si la clé est présente.
+    """
     if not to_email or '@' not in to_email:
         return False, "email invalide"
     domain = to_email.split('@', 1)[1].lower()
     if '.local' in domain or '.' not in domain:
         return False, "domaine .local ignoré"
+
+    # ── Brevo transactionnel (prioritaire) ──────────────────────────────────
+    if brevo.get_api_key():
+        ok, result = brevo.send_transactional(to_email, subject, body_html)
+        brevo.log_email(
+            user_id, to_email, subject, template_type,
+            brevo_msg_id=result if ok else None,
+            status="sent" if ok else "failed",
+            error=None if ok else result,
+        )
+        if ok:
+            return True, "ok"
+        app.logger.error(f"send_email Brevo → {to_email}: {result}")
+        return False, result
+
+    # ── Gmail SMTP (fallback si pas de clé Brevo) ───────────────────────────
     s = get_settings()
     addr = s.get('smtp_email', '').strip()
     pwd  = s.get('smtp_password', '').strip()
     if not addr or not pwd:
-        brevo.log_email(user_id, to_email, subject, template_type, status="failed",
-                        error="smtp_email ou smtp_password non configurés")
+        brevo.log_email(user_id, to_email, subject, template_type,
+                        status="failed", error="smtp non configuré")
         return False, "smtp_email ou smtp_password non configurés"
     try:
         msg = MIMEMultipart('alternative')
@@ -212,7 +231,7 @@ def send_email(to_email, subject, body_html, user_id=None, template_type="misc")
         brevo.log_email(user_id, to_email, subject, template_type, status="sent")
         return True, "ok"
     except Exception as e:
-        app.logger.error(f"send_email → {to_email}: {e}")
+        app.logger.error(f"send_email SMTP → {to_email}: {e}")
         brevo.log_email(user_id, to_email, subject, template_type, status="failed", error=str(e))
         return False, str(e)
 

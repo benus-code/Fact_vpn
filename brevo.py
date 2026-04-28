@@ -2,6 +2,7 @@
 brevo.py — Wrapper API Brevo + intégration SQLite.
 
 Endpoints utilisés :
+  POST /v3/smtp/email                         → envoi transactionnel
   GET  /v3/account                           → crédits + plan
   GET  /v3/smtp/statistics/aggregatedReport  → KPIs globaux
   GET  /v3/smtp/statistics/events            → events par email
@@ -51,7 +52,7 @@ def _headers():
 
 
 def _get(path, params=None):
-    """GET Brevo API, returns parsed JSON dict or raises on error. Sets .status_code attribute."""
+    """GET Brevo API — retourne dict JSON ou None si pas de clé."""
     h = _headers()
     if not h:
         return None
@@ -61,13 +62,24 @@ def _get(path, params=None):
     req = urllib.request.Request(url, headers=h)
     try:
         with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
-            resp.status_code = resp.status
-            data = json.loads(resp.read())
-            data["_status_code"] = resp.status
-            return data
+            return json.loads(resp.read())
     except urllib.error.HTTPError as e:
-        err = type("R", (), {"status_code": e.code, "text": e.read().decode(errors="replace")})()
-        raise err
+        raise Exception(f"HTTP {e.code}: {e.read().decode(errors='replace')[:200]}")
+
+
+def _post(path, body):
+    """POST Brevo API avec corps JSON — retourne dict JSON ou lève Exception."""
+    h = _headers()
+    if not h:
+        raise Exception("Clé API Brevo non configurée")
+    url = f"{BREVO_BASE}{path}"
+    data = json.dumps(body).encode()
+    req = urllib.request.Request(url, data=data, headers=h, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+            return json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        raise Exception(f"HTTP {e.code}: {e.read().decode(errors='replace')[:300]}")
 
 
 def _log_error(message, file_line=""):
@@ -137,6 +149,44 @@ def get_events_for_email(email, days=90, limit=50):
     except Exception as e:
         _log_error(f"get_events_for_email({email}): {e}", "brevo.py:get_events_for_email")
         return []
+
+
+# ─── Envoi transactionnel ─────────────────────────────────────────────────────
+
+def send_transactional(to_email, subject, html_content, sender_email=None, sender_name="VPN Privé"):
+    """
+    Envoie un email via l'API Brevo (POST /v3/smtp/email).
+    Retourne (True, message_id) ou (False, message_erreur).
+    sender_email doit être une adresse vérifiée dans le compte Brevo.
+    """
+    if not get_api_key():
+        return False, "Clé API Brevo non configurée"
+
+    # Récupère l'email expéditeur depuis settings si non fourni
+    if not sender_email:
+        try:
+            c = _db().cursor()
+            c.execute("SELECT value FROM settings WHERE key='smtp_email'")
+            row = c.fetchone()
+            sender_email = row[0].strip() if row and row[0] else None
+        except Exception:
+            pass
+    if not sender_email:
+        return False, "Email expéditeur non configuré (paramètre smtp_email)"
+
+    body = {
+        "sender":      {"name": sender_name, "email": sender_email},
+        "to":          [{"email": to_email}],
+        "subject":     subject,
+        "htmlContent": html_content,
+    }
+    try:
+        result = _post("/smtp/email", body)
+        msg_id = (result or {}).get("messageId")
+        return True, msg_id
+    except Exception as e:
+        _log_error(f"send_transactional({to_email}): {e}", "brevo.py:send_transactional")
+        return False, str(e)
 
 
 _KPIS_ZERO = {
