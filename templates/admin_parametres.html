@@ -47,10 +47,11 @@
 
   {# ── Email #}
   <details class="accordion-ds">
-    <summary class="accordion-summary"><i data-lucide="mail" class="icon-sm"></i>Email automatique (Gmail)</summary>
+    <summary class="accordion-summary"><i data-lucide="mail" class="icon-sm"></i>Email automatique (Gmail SMTP)</summary>
     <div class="accordion-body">
       <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px">
         Créez un <a href="https://myaccount.google.com/apppasswords" target="_blank">mot de passe d'application</a> dans votre compte Google (pas votre vrai mot de passe).
+        <strong style="color:var(--text-primary)">C'est ce compte Gmail qui envoie réellement les emails.</strong>
       </p>
       <div class="row g-3">
         <div class="col-md-4 input-group-ds"><label class="input-label">Adresse Gmail d'envoi</label><input type="email" name="smtp_email" class="input-text" value="{{ settings.smtp_email }}" placeholder="ex: benuslavision@gmail.com" data-dirty></div>
@@ -58,23 +59,33 @@
         <div class="col-md-4 input-group-ds"><label class="input-label">URL publique du site <span style="color:var(--text-muted)">(liens dans les emails)</span></label><input type="url" name="site_url" class="input-text" value="{{ settings.site_url }}" placeholder="https://benusvpn.duckdns.org" data-dirty></div>
       </div>
       <div style="margin-top:12px">
-        <form method="POST" action="{{ url_for('admin_test_email') }}" style="display:inline">
-          <button type="submit" class="btn-secondary">
-            <i data-lucide="send" class="icon-sm"></i> Tester l'envoi d'email
-          </button>
-        </form>
-        <span style="font-size:11px;color:var(--text-muted);margin-left:10px">Envoie un email de test à l'adresse Gmail configurée</span>
+        {# type="button" + JS pour éviter un form imbriqué dans le form principal #}
+        <button type="button" class="btn-secondary" onclick="
+          var f = document.createElement('form');
+          f.method = 'POST';
+          f.action = '{{ url_for('admin_test_email') }}';
+          document.body.appendChild(f);
+          f.submit();
+        ">
+          <i data-lucide="send" class="icon-sm"></i> Tester l'envoi d'email
+        </button>
+        <span style="font-size:11px;color:var(--text-muted);margin-left:10px">Envoie un email de test à l'adresse Gmail configurée ci-dessus</span>
       </div>
     </div>
   </details>
 
   {# ── Brevo #}
   <details class="accordion-ds">
-    <summary class="accordion-summary"><i data-lucide="zap" class="icon-sm"></i>Brevo — Emailing transactionnel</summary>
+    <summary class="accordion-summary"><i data-lucide="zap" class="icon-sm"></i>Brevo — Statistiques d'envoi (optionnel)</summary>
     <div class="accordion-body">
+      <p style="font-size:12px;background:rgba(188,140,255,0.08);border:1px solid rgba(188,140,255,0.2);border-radius:6px;padding:8px 12px;margin-bottom:12px">
+        <strong>ℹ️ Brevo ne sert pas à envoyer les emails.</strong>
+        Il sert uniquement à afficher des statistiques (taux d'ouverture, bounces, crédits).
+        Les emails partent toujours via <strong>Gmail SMTP</strong> configuré ci-dessus.
+      </p>
       <div class="row g-3">
         <div class="col-md-6 input-group-ds">
-          <label class="input-label">Clé API Brevo <small style="color:var(--text-muted)">(optionnel, pour les statistiques d'envoi)</small></label>
+          <label class="input-label">Clé API Brevo <small style="color:var(--text-muted)">(optionnel)</small></label>
           <input type="text" name="brevo_api_key" class="input-text" value="{{ settings.brevo_api_key }}"
                  placeholder="xkeysib-..." autocomplete="off" data-dirty>
         </div>
