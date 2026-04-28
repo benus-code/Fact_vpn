@@ -763,7 +763,7 @@ def admin_clients():
     demandes    = db.execute("SELECT COUNT(*) FROM abonnements WHERE statut='en_attente'").fetchone()[0]
     paie_att    = db.execute("SELECT COUNT(*) FROM paiements WHERE valide=0").fetchone()[0]
     return render_template("admin_clients.html",
-        users=users, today=today,
+        users=users, today=today, j7_str=j7_str,
         stat_total=total, stat_actifs=nb_actifs,
         stat_expire_7=nb_expire_7, stat_autres=nb_autres,
         nb_demandes=demandes, nb_paie_attente=paie_att)

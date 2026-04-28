@@ -111,7 +111,7 @@
               <span style="font-size:12px">{{ u.date_fin }}</span>
               {% if u.statut == 'actif' and u.date_fin <= today.isoformat() %}
                 <br><span style="color:var(--accent-red);font-size:10px">⚠ expiré</span>
-              {% elif u.statut == 'actif' and u.date_fin <= (today + timedelta(days=7)).isoformat() %}
+              {% elif u.statut == 'actif' and u.date_fin <= j7_str %}
                 <br><span style="color:var(--accent-orange);font-size:10px">⚠ bientôt</span>
               {% endif %}
             {% else %}
