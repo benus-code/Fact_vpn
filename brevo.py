@@ -12,11 +12,12 @@ import logging
 import json
 import urllib.request
 import urllib.parse
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 from datetime import datetime, timedelta
 
 DB = "/opt/vpn-billing/vpn_billing.db"
 BREVO_BASE = "https://api.brevo.com/v3"
-TIMEOUT = 10
+TIMEOUT = 5   # timeout réseau par appel (secondes)
 
 log = logging.getLogger("brevo")
 
@@ -138,13 +139,34 @@ def get_events_for_email(email, days=90, limit=50):
         return []
 
 
+_KPIS_ZERO = {
+    "api_ok": False, "credits_restants": 0,
+    "envoyes_30j": 0, "delivres_30j": 0,
+    "taux_ouverture": 0, "taux_bounce": 0,
+    "hard_bounces": 0, "soft_bounces": 0,
+}
+
+
 def get_kpis():
     """
-    KPIs synthétiques pour /admin/messages et /admin/monitoring.
-    Toujours retourne un dict complet (valeurs = 0 si Brevo non configuré).
+    KPIs synthétiques — toujours retourne un dict complet.
+    Les 2 appels Brevo sont exécutés en parallèle ; timeout total = TIMEOUT+1 s.
     """
-    stats = get_aggregated_stats(30) or {}
-    account = get_account() or {}
+    if not get_api_key():
+        return dict(_KPIS_ZERO)
+
+    # Appels parallèles pour ne pas cumuler les timeouts
+    with ThreadPoolExecutor(max_workers=2) as ex:
+        f_stats   = ex.submit(get_aggregated_stats, 30)
+        f_account = ex.submit(get_account)
+        try:
+            stats = f_stats.result(timeout=TIMEOUT + 1) or {}
+        except Exception:
+            stats = {}
+        try:
+            account = f_account.result(timeout=TIMEOUT + 1) or {}
+        except Exception:
+            account = {}
 
     requests_30  = int(stats.get("requests", 0) or 0)
     delivered_30 = int(stats.get("delivered", 0) or 0)

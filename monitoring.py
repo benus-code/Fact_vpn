@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 
 DB = "/opt/vpn-billing/vpn_billing.db"
 BACKUP_DIR = "/opt/vpn-billing/backups"
-TIMEOUT = 5
+TIMEOUT = 3   # timeout réseau par appel
 
 log = logging.getLogger("monitoring")
 
@@ -313,7 +313,7 @@ def get_telegram_status():
 
         import urllib.request
         url = f"https://api.telegram.org/bot{token}/getMe"
-        with urllib.request.urlopen(url, timeout=4) as resp:
+        with urllib.request.urlopen(url, timeout=TIMEOUT) as resp:
             data = json.loads(resp.read())
         if data.get("ok"):
             result["ok"] = True
