@@ -21,6 +21,8 @@ from functools import wraps
 from flask import (Flask, render_template, request, redirect,
                    url_for, session, flash, g, Response)
 from werkzeug.security import generate_password_hash, check_password_hash as wz_check
+import brevo
+import monitoring
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("VPN_SECRET_KEY", "CHANGE_CE_SECRET_EN_PROD_SVP")
@@ -44,6 +46,7 @@ SETTINGS_DEFAULTS = {
     "smtp_email":         "benuslavision@gmail.com",
     "smtp_password":      "",   # Mot de passe d'application Gmail
     "site_url":           "",   # ex: https://vpn.mondomaine.com (sans slash final)
+    "brevo_api_key":      "",   # Clé API Brevo (transactionnel)
 }
 
 # ─── DB helpers ───────────────────────────────────────────────────────────────
@@ -179,7 +182,7 @@ def notify_telegram(message):
     except Exception as e:
         app.logger.warning(f"Telegram notify failed: {e}")
 
-def send_email(to_email, subject, body_html):
+def send_email(to_email, subject, body_html, user_id=None, template_type="misc"):
     """Envoie via Gmail SMTP (port 587 STARTTLS). Ignore tout domaine .local* et les configs vides."""
     if not to_email or '@' not in to_email:
         return False, "email invalide"
@@ -190,6 +193,8 @@ def send_email(to_email, subject, body_html):
     addr = s.get('smtp_email', '').strip()
     pwd  = s.get('smtp_password', '').strip()
     if not addr or not pwd:
+        brevo.log_email(user_id, to_email, subject, template_type, status="failed",
+                        error="smtp_email ou smtp_password non configurés")
         return False, "smtp_email ou smtp_password non configurés"
     try:
         msg = MIMEMultipart('alternative')
@@ -204,9 +209,11 @@ def send_email(to_email, subject, body_html):
             srv.ehlo()
             srv.login(addr, pwd)
             srv.sendmail(addr, to_email, msg.as_string())
+        brevo.log_email(user_id, to_email, subject, template_type, status="sent")
         return True, "ok"
     except Exception as e:
         app.logger.error(f"send_email → {to_email}: {e}")
+        brevo.log_email(user_id, to_email, subject, template_type, status="failed", error=str(e))
         return False, str(e)
 
 # ─── iptables helpers ─────────────────────────────────────────────────────────
@@ -762,10 +769,12 @@ def admin_clients():
     nb_autres   = sum(1 for u in users if u["statut"] in ("expire","suspendu"))
     demandes    = db.execute("SELECT COUNT(*) FROM abonnements WHERE statut='en_attente'").fetchone()[0]
     paie_att    = db.execute("SELECT COUNT(*) FROM paiements WHERE valide=0").fetchone()[0]
+    email_statuses = brevo.get_all_email_statuses()
     return render_template("admin_clients.html",
         users=users, today=today, j7_str=j7_str,
         stat_total=total, stat_actifs=nb_actifs,
         stat_expire_7=nb_expire_7, stat_autres=nb_autres,
+        email_statuses=email_statuses,
         nb_demandes=demandes, nb_paie_attente=paie_att)
 
 @app.route("/admin/paiements")
@@ -849,7 +858,7 @@ def admin_update_settings():
     for key in ["beneficiaire", "telephone", "banque", "montant", "reference",
                 "telegram_bot_token", "telegram_chat_id",
                 "support_telegram", "support_whatsapp",
-                "smtp_email", "smtp_password", "site_url"]:
+                "smtp_email", "smtp_password", "site_url", "brevo_api_key"]:
         value = request.form.get(key, "").strip()
         db.execute(
             "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
@@ -1223,6 +1232,72 @@ def admin_systeme():
         active_peers=active_peers,
         nb_demandes=demandes,
         nb_paie_attente=paie_att)
+
+@app.route("/admin/monitoring")
+@login_required
+@admin_required
+def admin_monitoring():
+    db = get_db()
+    demandes = db.execute("SELECT COUNT(*) FROM abonnements WHERE statut='en_attente'").fetchone()[0]
+    paie_att = db.execute("SELECT COUNT(*) FROM paiements WHERE valide=0").fetchone()[0]
+    health = monitoring.get_health()
+    return render_template("admin_monitoring.html",
+        health=health,
+        nb_demandes=demandes,
+        nb_paie_attente=paie_att)
+
+
+@app.route("/admin/monitoring/backup-now", methods=["POST"])
+@login_required
+@admin_required
+def admin_backup_now():
+    ok, filename, size = monitoring.run_backup()
+    if ok:
+        flash(f"✅ Backup créé : {filename} ({size // 1024} KB)", "success")
+    else:
+        flash("❌ Erreur lors du backup. Voir les logs.", "danger")
+    return redirect(url_for("admin_monitoring"))
+
+
+@app.route("/admin/emailing")
+@login_required
+@admin_required
+def admin_emailing():
+    db = get_db()
+    demandes = db.execute("SELECT COUNT(*) FROM abonnements WHERE statut='en_attente'").fetchone()[0]
+    paie_att = db.execute("SELECT COUNT(*) FROM paiements WHERE valide=0").fetchone()[0]
+    kpis = brevo.get_kpis()
+    # Last 30 email_logs
+    try:
+        recent_emails = db.execute("""
+            SELECT el.id, el.to_email, el.subject, el.template_type,
+                   el.status, el.sent_at, el.error_message, u.nom
+            FROM email_logs el
+            LEFT JOIN users u ON u.id = el.user_id
+            ORDER BY el.id DESC LIMIT 30
+        """).fetchall()
+    except Exception:
+        recent_emails = []
+    # Problem clients (hard_bounce, soft_bounce, spam, failed) in last 30 days
+    try:
+        problem_clients = db.execute("""
+            SELECT DISTINCT el.to_email, el.status, el.sent_at, u.nom
+            FROM email_logs el
+            LEFT JOIN users u ON u.id = el.user_id
+            WHERE el.status IN ('hard_bounce','soft_bounce','spam','failed')
+              AND el.sent_at >= datetime('now','-30 days')
+            ORDER BY el.sent_at DESC
+            LIMIT 20
+        """).fetchall()
+    except Exception:
+        problem_clients = []
+    return render_template("admin_emailing.html",
+        kpis=kpis,
+        recent_emails=recent_emails,
+        problem_clients=problem_clients,
+        nb_demandes=demandes,
+        nb_paie_attente=paie_att)
+
 
 # ─── Run ──────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":

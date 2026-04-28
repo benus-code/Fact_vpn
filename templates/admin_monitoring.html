@@ -1,0 +1,193 @@
+{% extends "base_admin.html" %}
+{% block title %}Monitoring — Admin VPN{% endblock %}
+{% block topbar_title %}Monitoring{% endblock %}
+{% block content %}
+
+{# ── Ligne 1 : CPU / RAM / Disk / Load ── #}
+<div class="kpi-row mb-16">
+
+  {# CPU #}
+  <div class="kpi-card">
+    <div class="kpi-label">CPU</div>
+    <div class="kpi-value" style="color:{% if health.cpu_percent > 80 %}var(--accent-red){% elif health.cpu_percent > 60 %}var(--accent-orange){% else %}var(--accent-green){% endif %}">
+      {{ health.cpu_percent }}%
+    </div>
+    <div class="progress-bar-wrap mt-8">
+      <div class="progress-bar-fill {% if health.cpu_percent > 80 %}bg-red{% elif health.cpu_percent > 60 %}bg-orange{% else %}bg-green{% endif %}"
+           style="width:{{ [health.cpu_percent, 100]|min }}%"></div>
+    </div>
+  </div>
+
+  {# RAM #}
+  <div class="kpi-card">
+    <div class="kpi-label">RAM</div>
+    <div class="kpi-value" style="color:{% if health.ram.percent > 85 %}var(--accent-red){% elif health.ram.percent > 70 %}var(--accent-orange){% else %}var(--accent-violet){% endif %}">
+      {{ health.ram.percent }}%
+    </div>
+    <div class="text-muted-sm">{{ health.ram.used_mb }} / {{ health.ram.total_mb }} Mo</div>
+    <div class="progress-bar-wrap mt-8">
+      <div class="progress-bar-fill bg-violet" style="width:{{ [health.ram.percent, 100]|min }}%"></div>
+    </div>
+  </div>
+
+  {# Disk #}
+  <div class="kpi-card">
+    <div class="kpi-label">Disque</div>
+    <div class="kpi-value" style="color:{% if health.disk.percent > 90 %}var(--accent-red){% elif health.disk.percent > 75 %}var(--accent-orange){% else %}var(--text-primary){% endif %}">
+      {{ health.disk.percent }}%
+    </div>
+    <div class="text-muted-sm">{{ health.disk.used_gb }} / {{ health.disk.total_gb }} Go</div>
+    <div class="progress-bar-wrap mt-8">
+      <div class="progress-bar-fill {% if health.disk.percent > 90 %}bg-red{% elif health.disk.percent > 75 %}bg-orange{% else %}bg-green{% endif %}"
+           style="width:{{ [health.disk.percent, 100]|min }}%"></div>
+    </div>
+  </div>
+
+  {# Load / Uptime #}
+  <div class="kpi-card">
+    <div class="kpi-label">Load avg</div>
+    <div class="kpi-value">{{ health.load1 }}</div>
+    <div class="text-muted-sm">{{ health.load5 }} · {{ health.load15 }} (5m / 15m)</div>
+    <div class="kpi-label mt-8">Uptime</div>
+    <div style="font-size:13px;color:var(--accent-green);font-weight:600">{{ health.uptime }}</div>
+  </div>
+
+</div>
+
+{# ── Ligne 2 : Bande passante + Telegram ── #}
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+
+  {# Bande passante #}
+  <div class="section-card">
+    <div class="section-card-header">
+      <span class="section-card-title">
+        <i data-lucide="activity" class="icon-sm" style="display:inline;vertical-align:middle;margin-right:6px"></i>
+        Bande passante live (awg0)
+      </span>
+    </div>
+    <div style="display:flex;gap:24px;margin-bottom:16px">
+      <div>
+        <div class="text-muted-sm">↓ Réception</div>
+        <div style="font-size:22px;font-weight:700;color:var(--accent-violet)">{{ health.bw_rx_mbps }} <span style="font-size:13px;font-weight:400">Mbps</span></div>
+      </div>
+      <div>
+        <div class="text-muted-sm">↑ Envoi</div>
+        <div style="font-size:22px;font-weight:700;color:var(--accent-green)">{{ health.bw_tx_mbps }} <span style="font-size:13px;font-weight:400">Mbps</span></div>
+      </div>
+    </div>
+    {# Sparkline CSS #}
+    {% set spark = health.bw_sparkline %}
+    {% set spark_max = spark|max if spark|max > 0 else 1 %}
+    <div style="display:flex;align-items:flex-end;gap:3px;height:48px;padding-top:4px">
+      {% for v in spark %}
+      <div style="flex:1;background:var(--accent-violet);opacity:0.7;border-radius:2px 2px 0 0;height:{{ [(v / spark_max * 44)|int, 2]|max }}px" title="{{ v }}"></div>
+      {% endfor %}
+    </div>
+    <div class="text-muted-sm" style="margin-top:4px">Dernières {{ spark|length }} snapshots (1 / 5 min)</div>
+  </div>
+
+  {# Telegram #}
+  <div class="section-card">
+    <div class="section-card-header">
+      <span class="section-card-title">
+        <i data-lucide="send" class="icon-sm" style="display:inline;vertical-align:middle;margin-right:6px"></i>
+        Bot Telegram
+      </span>
+    </div>
+    {% if health.telegram.ok %}
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <span style="width:10px;height:10px;border-radius:50%;background:var(--accent-green);display:inline-block"></span>
+        <span style="color:var(--accent-green);font-weight:600">Connecté</span>
+        <span class="text-muted-sm">@{{ health.telegram.bot_name }}</span>
+      </div>
+    {% else %}
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <span style="width:10px;height:10px;border-radius:50%;background:var(--accent-red);display:inline-block"></span>
+        <span style="color:var(--accent-red);font-weight:600">Non configuré</span>
+      </div>
+    {% endif %}
+    <div style="font-size:28px;font-weight:700;color:var(--text-primary);margin-bottom:4px">
+      {{ health.telegram.users_with_telegram }}
+    </div>
+    <div class="text-muted-sm">clients avec handle Telegram</div>
+  </div>
+
+</div>
+
+{# ── Ligne 3 : Backups + Erreurs ── #}
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+
+  {# Backups #}
+  <div class="section-card">
+    <div class="section-card-header">
+      <span class="section-card-title">
+        <i data-lucide="database" class="icon-sm" style="display:inline;vertical-align:middle;margin-right:6px"></i>
+        Sauvegardes SQLite
+      </span>
+      <form method="post" action="{{ url_for('admin_backup_now') }}" style="margin:0">
+        <button type="submit" class="btn-secondary" style="font-size:12px;padding:5px 10px">
+          <i data-lucide="download" class="icon-xs" style="display:inline;vertical-align:middle"></i>
+          Backup maintenant
+        </button>
+      </form>
+    </div>
+    {% if health.last_backup %}
+      {% set lb = health.last_backup %}
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <span style="width:10px;height:10px;border-radius:50%;background:{% if lb.status == 'ok' %}var(--accent-green){% else %}var(--accent-red){% endif %};display:inline-block"></span>
+        <span style="font-weight:600">Dernier : {{ lb.status }}</span>
+        <span class="text-muted-sm">{{ lb.created_at[:16] if lb.created_at else '—' }}</span>
+      </div>
+      <div class="text-muted-sm">{{ lb.filename }}</div>
+      {% if lb.size_bytes %}<div class="text-muted-sm">{{ (lb.size_bytes // 1024) }} KB</div>{% endif %}
+    {% else %}
+      <div class="text-muted-sm" style="padding:20px 0">Aucun backup enregistré</div>
+    {% endif %}
+  </div>
+
+  {# Erreurs #}
+  <div class="section-card">
+    <div class="section-card-header">
+      <span class="section-card-title">
+        <i data-lucide="alert-triangle" class="icon-sm" style="display:inline;vertical-align:middle;margin-right:6px"></i>
+        Erreurs système (24h)
+      </span>
+      <span style="font-size:24px;font-weight:700;color:{% if health.errors_24h > 0 %}var(--accent-red){% else %}var(--accent-green){% endif %}">
+        {{ health.errors_24h }}
+      </span>
+    </div>
+    {% if health.recent_errors %}
+    <div class="table-responsive" style="max-height:220px;overflow-y:auto">
+      <table class="table-dense" style="font-size:11px">
+        <thead>
+          <tr>
+            <th>Niveau</th>
+            <th>Source</th>
+            <th>Message</th>
+            <th>Quand</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for err in health.recent_errors %}
+          <tr>
+            <td>
+              <span class="badge-status-ds {% if err.level == 'error' %}badge-status-expire{% elif err.level == 'warning' %}badge-status-attente{% else %}badge-status-actif{% endif %}">
+                {{ err.level }}
+              </span>
+            </td>
+            <td><span class="text-muted-sm">{{ err.source }}</span></td>
+            <td style="max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ err.message }}</td>
+            <td class="text-muted-sm">{{ err.occurred_at[:16] if err.occurred_at else '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-muted-sm" style="padding:20px 0">Aucune erreur récente</div>
+    {% endif %}
+  </div>
+
+</div>
+
+{% endblock %}

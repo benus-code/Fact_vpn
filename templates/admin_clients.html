@@ -62,6 +62,7 @@
           <th>Appareils</th>
           <th>Expire</th>
           <th>Tarif</th>
+          <th>Email</th>
           <th>Contact</th>
           <th></th>
         </tr>
@@ -120,6 +121,19 @@
           </td>
           <td data-label="Tarif">
             {% if u.montant %}<span style="font-size:12px">{{ u.montant }} ₽</span>{% else %}<span class="text-muted-sm">—</span>{% endif %}
+          </td>
+          <td data-label="Email">
+            {% set es = email_statuses.get(u.id) %}
+            {% if es %}
+              {% set dot_color = {'green': 'var(--accent-green)', 'orange': 'var(--accent-orange)', 'red': 'var(--accent-red)', 'gray': 'var(--text-muted)'}[es[0]] %}
+              <span title="{{ es[1] }}{% if es[2] %} — {{ es[2][:16] }}{% endif %}"
+                    style="display:inline-flex;align-items:center;gap:5px;font-size:11px;cursor:default">
+                <span style="width:8px;height:8px;border-radius:50%;background:{{ dot_color }};flex-shrink:0"></span>
+                {{ es[1] }}
+              </span>
+            {% else %}
+              <span class="text-muted-sm">—</span>
+            {% endif %}
           </td>
           <td data-label="Contact">
             {% if u.whatsapp %}

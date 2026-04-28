@@ -1,0 +1,134 @@
+{% extends "base_admin.html" %}
+{% block title %}Emailing — Admin VPN{% endblock %}
+{% block topbar_title %}Emailing{% endblock %}
+{% block content %}
+
+{# ── KPI row ── #}
+<div class="kpi-row mb-16">
+
+  <div class="kpi-card">
+    <div class="kpi-label">Statut API</div>
+    {% if kpis.api_ok %}
+      <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+        <span style="width:10px;height:10px;border-radius:50%;background:var(--accent-green);display:inline-block"></span>
+        <span style="color:var(--accent-green);font-weight:600;font-size:15px">Connecté</span>
+      </div>
+    {% else %}
+      <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+        <span style="width:10px;height:10px;border-radius:50%;background:var(--text-muted);display:inline-block"></span>
+        <span style="color:var(--text-muted);font-weight:600;font-size:15px">Non configuré</span>
+      </div>
+      <div class="text-muted-sm mt-4">Ajouter la clé dans Paramètres → Brevo</div>
+    {% endif %}
+  </div>
+
+  <div class="kpi-card">
+    <div class="kpi-label">Crédits restants</div>
+    <div class="kpi-value">{{ kpis.credits_restants | default(0) }}</div>
+    <div class="text-muted-sm">emails disponibles</div>
+  </div>
+
+  <div class="kpi-card">
+    <div class="kpi-label">Envoyés (30j)</div>
+    <div class="kpi-value">{{ kpis.envoyes_30j }}</div>
+    <div class="text-muted-sm">Délivrés : {{ kpis.delivres_30j }}</div>
+  </div>
+
+  <div class="kpi-card">
+    <div class="kpi-label">Taux ouverture</div>
+    <div class="kpi-value" style="color:{% if kpis.taux_ouverture >= 20 %}var(--accent-green){% elif kpis.taux_ouverture >= 10 %}var(--accent-orange){% else %}var(--accent-red){% endif %}">
+      {{ kpis.taux_ouverture }}%
+    </div>
+    <div class="text-muted-sm">Bounce : {{ kpis.taux_bounce }}%</div>
+  </div>
+
+</div>
+
+{# ── Clients problématiques ── #}
+{% if problem_clients %}
+<div class="section-card mb-16">
+  <div class="section-card-header">
+    <span class="section-card-title">
+      <i data-lucide="alert-circle" class="icon-sm" style="display:inline;vertical-align:middle;margin-right:6px;color:var(--accent-red)"></i>
+      Clients avec problème d'envoi (30 derniers jours)
+    </span>
+  </div>
+  <div class="table-responsive">
+    <table class="table-dense">
+      <thead>
+        <tr>
+          <th>Client</th>
+          <th>Email</th>
+          <th>Statut</th>
+          <th>Date</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in problem_clients %}
+        <tr>
+          <td><strong>{{ r.nom or '—' }}</strong></td>
+          <td><span class="text-muted-sm">{{ r.to_email }}</span></td>
+          <td>
+            <span class="badge-status-ds badge-status-expire">{{ r.status | replace('_', ' ') }}</span>
+          </td>
+          <td class="text-muted-sm">{{ r.sent_at[:16] if r.sent_at else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{# ── Derniers envois ── #}
+<div class="section-card">
+  <div class="section-card-header">
+    <span class="section-card-title">
+      <i data-lucide="mail" class="icon-sm" style="display:inline;vertical-align:middle;margin-right:6px"></i>
+      Derniers 30 envois
+    </span>
+  </div>
+  {% if recent_emails %}
+  <div class="table-responsive">
+    <table class="table-dense">
+      <thead>
+        <tr>
+          <th>Client</th>
+          <th>Email</th>
+          <th>Sujet</th>
+          <th>Type</th>
+          <th>Statut</th>
+          <th>Date</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in recent_emails %}
+        <tr>
+          <td><strong>{{ r.nom or '—' }}</strong></td>
+          <td><span class="text-muted-sm">{{ r.to_email }}</span></td>
+          <td style="max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px">{{ r.subject or '—' }}</td>
+          <td><span class="text-muted-sm">{{ r.template_type or '—' }}</span></td>
+          <td>
+            {% if r.status in ('opened', 'clicked', 'delivered') %}
+              <span class="badge-status-ds badge-status-actif">{{ r.status }}</span>
+            {% elif r.status == 'sent' %}
+              <span class="badge-status-ds badge-status-attente">envoyé</span>
+            {% else %}
+              <span class="badge-status-ds badge-status-expire">{{ r.status | replace('_', ' ') }}</span>
+            {% endif %}
+          </td>
+          <td class="text-muted-sm">{{ r.sent_at[:16] if r.sent_at else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="text-muted-sm" style="padding:30px 0;text-align:center">
+    Aucun email enregistré pour l'instant.<br>
+    Les envois apparaîtront ici une fois la configuration SMTP activée.
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}

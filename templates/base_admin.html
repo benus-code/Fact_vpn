@@ -59,6 +59,18 @@
         Système
       </a>
 
+      <a href="{{ url_for('admin_monitoring') }}"
+         class="sidebar-item {% if request.endpoint == 'admin_monitoring' %}sidebar-item-active{% endif %}">
+        <i data-lucide="activity" class="icon-sm"></i>
+        Monitoring
+      </a>
+
+      <a href="{{ url_for('admin_emailing') }}"
+         class="sidebar-item {% if request.endpoint == 'admin_emailing' %}sidebar-item-active{% endif %}">
+        <i data-lucide="mail" class="icon-sm"></i>
+        Emailing
+      </a>
+
       <div class="sidebar-section-label" style="margin-top:8px">Configuration</div>
 
       <a href="{{ url_for('admin_parametres') }}"

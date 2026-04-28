@@ -68,6 +68,26 @@
     </div>
   </details>
 
+  {# ── Brevo #}
+  <details class="accordion-ds">
+    <summary class="accordion-summary"><i data-lucide="zap" class="icon-sm"></i>Brevo — Emailing transactionnel</summary>
+    <div class="accordion-body">
+      <div class="row g-3">
+        <div class="col-md-6 input-group-ds">
+          <label class="input-label">Clé API Brevo <small style="color:var(--text-muted)">(optionnel, pour les statistiques d'envoi)</small></label>
+          <input type="text" name="brevo_api_key" class="input-text" value="{{ settings.brevo_api_key }}"
+                 placeholder="xkeysib-..." autocomplete="off" data-dirty>
+        </div>
+      </div>
+      <div style="margin-top:10px">
+        <a href="{{ url_for('admin_emailing') }}" class="btn-secondary" style="width:fit-content">
+          <i data-lucide="mail" class="icon-sm"></i> Tableau de bord Emailing
+        </a>
+        <span style="font-size:11px;color:var(--text-muted);margin-left:10px">KPIs Brevo, taux d'ouverture, bounces</span>
+      </div>
+    </div>
+  </details>
+
   {# ── Liens utiles #}
   <details class="accordion-ds">
     <summary class="accordion-summary"><i data-lucide="link" class="icon-sm"></i>Liens utiles</summary>
